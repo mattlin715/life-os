@@ -115,7 +115,7 @@ Life OS 採用 Documentation Hierarchy 作為文件治理規則：
 - Level 0: Constitution
 - Level 1: Vision, Philosophy
 - Level 2: Principles, Problem, Identity
-- Level 3: Memory, Awareness, Growth, AI, Privacy
+- Level 3: Memory, Reflection, Awareness, Growth, AI, Privacy
 - Level 4: MVP, Roadmap, Implementation planning
 - Level 5: Code
 
@@ -133,10 +133,10 @@ Life OS 採用 Documentation Hierarchy 作為文件治理規則：
 - [Identity](docs/05_Identity.md)：Identity Model 的主要定義位置。
 - [Memory](docs/06_Memory.md)：Memory Model 的主要定義位置。
 - [Reflection](docs/Reflection.md)：Reflection 的主要定義位置。
-- [Awareness](docs/07_Awareness.md)：覺察引擎的主要定義位置。
-- [Growth](docs/08_Growth.md)：成長引擎的主要定義位置。
-- [AI](docs/09_AI.md)：AI 架構與行為模型的主要定義位置。
-- [Privacy](docs/10_Privacy.md)：隱私與倫理的主要定義位置。
+- [Awareness](docs/07_Awareness.md)：Awareness Theory 的主要定義位置。
+- [Growth](docs/08_Growth.md)：Growth Theory 的主要定義位置。
+- [AI](docs/09_AI.md)：AI Role Theory 的主要定義位置。
+- [Privacy](docs/10_Privacy.md)：Privacy Theory 的主要定義位置。
 - [MVP](docs/11_MVP.md)：第一版產品範圍。
 - [Roadmap](docs/12_Roadmap.md)：長期演進方向。
 - [ADR](docs/adr/)：架構與治理決策紀錄。

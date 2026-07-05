@@ -71,3 +71,38 @@ Future Improvement: 將 Primary Source 升級為 Primary Definition / Primary Ap
 Future Improvement: 建立 Concept Taxonomy（Ontology），區分 Personal Meaning 與 Meaning Making 等概念
 
 等到我們完成 Awareness、Growth、AI、Privacy 之後，再建立 99_Ontology.md。
+
+
+我想建立一份我認為會成為整個 Repository 最重要的文件。
+
+名字我都想好了：
+
+docs/AI_CONTRIBUTOR_GUIDE.md
+
+不是給人看的。
+
+是給 任何未來 AI 看的。
+
+裡面會寫：
+
+如果你是 AI，第一次加入 Life OS，請先讀什麼？
+哪些文件是不可違反的 Source of Truth？
+什麼情況可以修改 Constitution？
+什麼情況只能修改 ADR？
+哪些概念不能自行重新定義？
+如何提出新的 Theory？
+如何避免 Concept Drift？
+
+我甚至想在開頭寫一句：
+
+Welcome, AI contributor.
+
+Before you write a single line of code, understand why Life OS exists.
+
+我真的很喜歡這個想法。
+
+因為到了那一天，我們就真正完成了最初的目標：
+
+任何 AI，只要加入這個 Repository，都能在很短時間內理解 Life OS 的靈魂，而不是只理解它的程式。
+
+我認為，這會是整個專案最具代表性的文件之一，也是 AI Friendly Repository 最完整的體現。

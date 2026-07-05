@@ -13,8 +13,8 @@ depends:
   - docs/10_Privacy.md
 referenced_by:
   - docs/12_Roadmap.md
-  - docs/adr/ADR-0001.md
-  - docs/adr/ADR-0002.md
+  - docs/adr/ADR-0001-documentation-hierarchy.md
+  - docs/adr/ADR-0002-single-source-of-truth.md
 ---
 
 # 11 MVP

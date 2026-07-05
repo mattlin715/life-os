@@ -12,7 +12,7 @@ depends:
   - docs/09_AI.md
 referenced_by:
   - docs/11_MVP.md
-  - docs/adr/ADR-0002.md
+  - docs/adr/ADR-0002-single-source-of-truth.md
 ---
 
 # 10 Privacy

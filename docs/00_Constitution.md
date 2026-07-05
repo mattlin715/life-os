@@ -216,7 +216,7 @@ Vision 定義 Life OS 要走向哪裡。Philosophy 定義 Life OS 如何理解�
 
 這一層把高階哲學轉化為產品原則、問題定義與 Identity Model。
 
-### Level 3: Architecture-related Concepts
+### Level 3: Core System Theories
 
 - `docs/06_Memory.md`
 - `docs/Reflection.md`
@@ -225,7 +225,7 @@ Vision 定義 Life OS 要走向哪裡。Philosophy 定義 Life OS 如何理解�
 - `docs/09_AI.md`
 - `docs/10_Privacy.md`
 
-這一層定義 Life OS 的核心系統概念，包括長期記憶、反思、覺察引擎、成長引擎、AI 架構與隱私倫理。
+這一層定義 Life OS 的核心系統理論，包括長期記憶、反思、覺察、成長、AI 角色與隱私倫理。
 
 ### Level 4: MVP, Roadmap, Implementation Planning
 
@@ -268,10 +268,10 @@ Code 是文件化決策的實作結果。Code 可以揭露文件不足，但不�
 | Identity Model | `docs/05_Identity.md` |
 | Memory Model | `docs/06_Memory.md` |
 | Reflection | `docs/Reflection.md` |
-| Awareness Engine | `docs/07_Awareness.md` |
-| Growth Engine | `docs/08_Growth.md` |
-| AI Architecture | `docs/09_AI.md` |
-| Privacy and Ethics | `docs/10_Privacy.md` |
+| Awareness Theory | `docs/07_Awareness.md` |
+| Growth Theory | `docs/08_Growth.md` |
+| AI Role Theory | `docs/09_AI.md` |
+| Privacy Theory | `docs/10_Privacy.md` |
 | MVP Scope | `docs/11_MVP.md` |
 | Roadmap | `docs/12_Roadmap.md` |
 

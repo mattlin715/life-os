@@ -19,7 +19,7 @@ Accepted
 
 Life OS 的核心思想會出現在多份文件中。如果重複定義，未來會產生不一致。
 
-例如，We Build Mirrors, Not Oracles、Identity Model、Memory Model、AI Architecture 與 Privacy Principles 都會在不同場景被引用。如果每份文件都重新定義同一概念，文件會逐漸漂移，AI Agent 也會因上下文不同而做出不一致修改。
+例如，We Build Mirrors, Not Oracles、Identity Model、Memory Model、AI Role Theory 與 Privacy Theory 都會在不同場景被引用。如果每份文件都重新定義同一概念，文件會逐漸漂移，AI Agent 也會因上下文不同而做出不一致修改。
 
 Life OS 需要一個能讓人與 AI 都清楚追蹤概念來源的知識治理方式。
 

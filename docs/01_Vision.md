@@ -11,7 +11,7 @@ referenced_by:
   - docs/04_Problem.md
   - docs/11_MVP.md
   - docs/12_Roadmap.md
-  - docs/adr/ADR-0001.md
+  - docs/adr/ADR-0001-documentation-hierarchy.md
 ---
 
 # 01 Vision

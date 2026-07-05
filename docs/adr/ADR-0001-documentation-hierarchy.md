@@ -32,7 +32,7 @@ Life OS 的文件與實作依照以下層級維護：
 - Level 0: Constitution
 - Level 1: Vision, Philosophy
 - Level 2: Principles, Problem, Identity
-- Level 3: Architecture-related concepts, Memory, Awareness, Growth, AI, Privacy
+- Level 3: Core System Theories, Memory, Reflection, Awareness, Growth, AI, Privacy
 - Level 4: MVP, Roadmap, Implementation planning
 - Level 5: Code
 
