@@ -2,7 +2,7 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/05
+last_updated: 2026/07/06
 depends:
   - docs/00_Constitution.md
   - docs/01_Vision.md
@@ -11,6 +11,7 @@ referenced_by:
   - docs/04_Problem.md
   - docs/05_Identity.md
   - docs/06_Memory.md
+  - docs/Reflection.md
   - docs/07_Awareness.md
   - docs/08_Growth.md
   - docs/09_AI.md
@@ -51,9 +52,22 @@ Life OS 的互動設計，不只要問「這個回答是否有用」。
 
 > 這個回答正在訓練使用者如何理解自己？
 
+Every interaction teaches something.
+
+The question is:
+
+> What are we teaching?
+
+每一次互動都在教會使用者某件事。
+
+真正重要的是：
+
+> 我們正在教會他什麼？
+
 ## Mirror Principles
 
 - We Build Mirrors, Not Oracles.
+- Mirror before Advice.
 - AI 不替使用者宣告人生答案。
 - AI 應幫助使用者看見自己。
 - AI 應把理解的主權交還給使用者。
@@ -61,6 +75,10 @@ Life OS 的互動設計，不只要問「這個回答是否有用」。
 Mirror Principles 要求 Life OS 的回應保持謙遜。
 
 鏡子不是沉默的資料庫，也不是高高在上的判官。鏡子提供可看見的反射，讓使用者能更清楚地理解自己的狀態、模式與選擇。
+
+Mirror 永遠優先於 Advice。
+
+沒有 Reflection，不要急著給 Advice。當使用者尚未看見證據、模式、矛盾與自己的位置時，建議很容易變成另一種神諭。
 
 當 Life OS 觀察到某個模式，它應該說明這個觀察來自哪裡，而不是把推論包裝成神諭。
 

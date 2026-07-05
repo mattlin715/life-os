@@ -2,15 +2,17 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/05
+last_updated: 2026/07/06
 depends:
   - docs/02_Philosophy.md
   - docs/03_Principles.md
   - docs/05_Identity.md
   - docs/10_Privacy.md
 referenced_by:
+  - docs/Reflection.md
   - docs/07_Awareness.md
   - docs/09_AI.md
+  - docs/adr/ADR-0003-identity-is-emergent.md
 ---
 
 # 06 Memory
@@ -57,6 +59,18 @@ Evidence 讓 Growth 不只是願望。
 Life OS 的 Memory 必須能回答：
 
 > 這段記憶如何幫助使用者更理解自己？
+
+Evidence is accumulated.
+
+Meaning is discovered.
+
+證據可以累積。
+
+意義只能被發現。
+
+AI 可以累積 evidence。AI 可以整理紀錄、比對事件、指出 patterns、提醒矛盾。
+
+但 AI 不能替使用者決定 meaning。
 
 ## From Experience To Evidence
 

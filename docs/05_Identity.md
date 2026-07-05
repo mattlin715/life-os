@@ -2,16 +2,18 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/05
+last_updated: 2026/07/06
 depends:
   - docs/02_Philosophy.md
   - docs/03_Principles.md
 referenced_by:
   - docs/06_Memory.md
+  - docs/Reflection.md
   - docs/07_Awareness.md
   - docs/08_Growth.md
   - docs/09_AI.md
   - docs/10_Privacy.md
+  - docs/adr/ADR-0003-identity-is-emergent.md
 ---
 
 # 05 Identity
@@ -107,6 +109,28 @@ Decision Patterns 顯示一個人如何面對風險、責任、未知與代價�
 Narratives 是一個人用來解釋自己的故事。它們可以幫助人整合生命，也可能限制人看見新的可能。
 
 Core Layer 與 Adaptive Layer 不是分離的兩個人。它們互相影響。深層價值會形塑日常模式，而日常模式也會逐漸改變一個人對自己的理解。
+
+## Identity Contains Contradictions
+
+Identity 不是一致。
+
+Identity 常常包含矛盾。
+
+一個人可能害怕親密，又渴望愛。
+
+一個人可能重視自由，又害怕失敗。
+
+一個人可能重視誠實，又害怕衝突。
+
+這些矛盾不是 Identity 的錯誤，也不一定是需要被立刻消除的問題。它們常常是人真實生活的一部分：價值與恐懼同時存在，渴望與防衛彼此拉扯，過去的保護機制仍然影響現在的選擇。
+
+Life OS 不應急著把矛盾整理成單一答案。
+
+它應該幫助使用者理解矛盾：它從哪裡來，如何反覆出現，保護了什麼，也限制了什麼。
+
+當矛盾被看見，Identity 不是變得更簡單。
+
+Identity 變得更真實。
 
 ## Identity Is Evidence
 
@@ -221,7 +245,7 @@ Life OS 是在陪伴一個人，持續形成自己的 Identity。
 
 它不把人固定成標籤，不把測驗當成真相，也不把模型推論放在人的主體性之上。
 
-Life OS 將 Identity 視為一個 living system：由價值、信念、意義、關係、習慣、情緒模式、決策模式與長期敘事共同形成，並在時間中持續修正。
+Life OS 將 Identity 視為一個 living system：由價值、信念、意義、關係、習慣、情緒模式、決策模式、矛盾與長期敘事共同形成，並在時間中持續修正。
 
 它要做的不是替使用者說出「你是誰」。
 

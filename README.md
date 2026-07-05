@@ -132,6 +132,7 @@ Life OS 採用 Documentation Hierarchy 作為文件治理規則：
 - [Problem](docs/04_Problem.md)：問題定義的主要定義位置。
 - [Identity](docs/05_Identity.md)：Identity Model 的主要定義位置。
 - [Memory](docs/06_Memory.md)：Memory Model 的主要定義位置。
+- [Reflection](docs/Reflection.md)：Reflection 的主要定義位置。
 - [Awareness](docs/07_Awareness.md)：覺察引擎的主要定義位置。
 - [Growth](docs/08_Growth.md)：成長引擎的主要定義位置。
 - [AI](docs/09_AI.md)：AI 架構與行為模型的主要定義位置。

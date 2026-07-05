@@ -9,8 +9,10 @@ referenced_by:
   - docs/02_Philosophy.md
   - docs/03_Principles.md
   - docs/10_Privacy.md
+  - docs/Reflection.md
   - docs/adr/ADR-0001-documentation-hierarchy.md
   - docs/adr/ADR-0002-single-source-of-truth.md
+  - docs/adr/ADR-0003-identity-is-emergent.md
 ---
 
 # 00 Constitution
@@ -217,12 +219,13 @@ Vision 定義 Life OS 要走向哪裡。Philosophy 定義 Life OS 如何理解�
 ### Level 3: Architecture-related Concepts
 
 - `docs/06_Memory.md`
+- `docs/Reflection.md`
 - `docs/07_Awareness.md`
 - `docs/08_Growth.md`
 - `docs/09_AI.md`
 - `docs/10_Privacy.md`
 
-這一層定義 Life OS 的核心系統概念，包括長期記憶、覺察引擎、成長引擎、AI 架構與隱私倫理。
+這一層定義 Life OS 的核心系統概念，包括長期記憶、反思、覺察引擎、成長引擎、AI 架構與隱私倫理。
 
 ### Level 4: MVP, Roadmap, Implementation Planning
 
@@ -264,6 +267,7 @@ Code 是文件化決策的實作結果。Code 可以揭露文件不足，但不�
 | Problem Definition | `docs/04_Problem.md` |
 | Identity Model | `docs/05_Identity.md` |
 | Memory Model | `docs/06_Memory.md` |
+| Reflection | `docs/Reflection.md` |
 | Awareness Engine | `docs/07_Awareness.md` |
 | Growth Engine | `docs/08_Growth.md` |
 | AI Architecture | `docs/09_AI.md` |
