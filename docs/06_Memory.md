@@ -180,6 +180,25 @@ Memory 不替使用者定義 Identity。
 
 Memory 提供使用者理解 Identity 的材料。
 
+> A good memory system does not preserve the past.  
+> It preserves continuity of identity.
+
+好的記憶系統，不是保存過去。
+
+而是保存一個人在時間中持續成為自己的連續性。
+
+Life OS 不追求保存所有事件。
+
+也不追求建立最完整的人生紀錄。
+
+Life OS 真正希望保存的是那些能幫助使用者在不同人生階段仍然理解自己、修正自己、持續成為自己的 evidence。
+
+Identity 不是存在於某一個時間點。
+
+Identity 存在於時間、evidence、reflection 持續累積形成的連續性。
+
+因此，Memory 的價值不是把過去固定下來，而是讓過去能在未來重新被理解。當 evidence 被保存，patterns 才能被看見；當 patterns 被看見，Identity 才能被重新理解；當 Identity 被重新理解，Reflection 才能發生；當 Reflection 發生，Growth 才有方向。
+
 ## Memory And Reflection
 
 Memory 的目的不是讓系統知道更多，而是讓使用者能更好地反思。
