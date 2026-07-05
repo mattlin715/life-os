@@ -1,3 +1,23 @@
+Book Zero
+
+Milestone 1
+Repository Ready
+    ✅
+
+Milestone 2
+Constitution Stable
+    進行中
+
+Milestone 3
+Vision Stable
+
+Milestone 4
+Philosophy Stable
+
+Milestone 5
+Book Zero v1.0 Frozen
+
+
 工作流程。
 第一階段（現在）
 只完成四份文件。
