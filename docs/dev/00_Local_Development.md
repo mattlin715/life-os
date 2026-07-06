@@ -2,7 +2,7 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/07
 depends:
   - docs/adr/ADR-0006-mvp-tech-stack.md
   - docs/architecture/00_MVP_Architecture.md
@@ -22,6 +22,10 @@ It does not implement the full MVP core loop.
 For complete machine setup, read `docs/dev/01_Environment_Setup.md`.
 
 For command reference, read `docs/dev/02_Dev_Commands.md`.
+
+For host desktop runtime verification, read `docs/dev/03_Tauri_Runtime_Verification.md`.
+
+For installed dependency records, read `docs/dev/04_Dependency_Installation_Log.md`.
 
 ## Prerequisites
 
