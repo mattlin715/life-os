@@ -1,0 +1,17 @@
+[package]
+name = "life-os"
+version = "0.1.0"
+description = "Life OS MVP shell"
+authors = ["LIN MENGLUNG"]
+edition = "2021"
+
+[lib]
+name = "life_os_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
