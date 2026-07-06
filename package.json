@@ -2,10 +2,11 @@
   "name": "life-os",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.7.0",
+  "packageManager": "pnpm@11.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

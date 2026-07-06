@@ -19,6 +19,10 @@ The current app is a scaffold only.
 
 It does not implement the full MVP core loop.
 
+For complete machine setup, read `docs/dev/01_Environment_Setup.md`.
+
+For command reference, read `docs/dev/02_Dev_Commands.md`.
+
 ## Prerequisites
 
 - Node.js
