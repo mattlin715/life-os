@@ -106,9 +106,13 @@ button:focus-visible {
   background: #ffffff;
 }
 
-.entry time {
-  display: block;
+.entry-meta {
+  display: grid;
+  gap: 4px;
   margin-bottom: 10px;
+}
+
+.entry time {
   color: #696c63;
   font-size: 0.85rem;
 }
@@ -124,6 +128,23 @@ button:focus-visible {
   border-color: #a33d2f;
   color: #a33d2f;
   background: #ffffff;
+}
+
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.secondary-button {
+  border-color: #8d9185;
+  color: #30342e;
+  background: #ffffff;
+}
+
+.edit-textarea {
+  min-height: 120px;
+  margin-bottom: 14px;
 }
 
 .storage-error {
