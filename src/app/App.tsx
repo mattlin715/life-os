@@ -1,15 +1,21 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createInMemoryLocalEvidenceStore } from "../shared/storage";
+import { createLocalEvidenceStore } from "../shared/storage";
 import type { ExperienceEntry } from "../types/domain";
 
 export function App() {
-  const store = useMemo(() => createInMemoryLocalEvidenceStore(), []);
+  const store = useMemo(() => createLocalEvidenceStore(), []);
   const [body, setBody] = useState("");
   const [entries, setEntries] = useState<ExperienceEntry[]>([]);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   const refreshEntries = useCallback(async () => {
-    setEntries(await store.listExperiences());
+    try {
+      setEntries(await store.listExperiences());
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
   }, [store]);
 
   const saveExperience = useCallback(async () => {
@@ -19,18 +25,32 @@ export function App() {
       return;
     }
 
-    await store.createExperience({ body: trimmedBody });
-    setBody("");
-    await refreshEntries();
+    try {
+      await store.createExperience({ body: trimmedBody });
+      setBody("");
+      await refreshEntries();
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
   }, [body, refreshEntries, store]);
 
   const deleteExperience = useCallback(
     async (id: string) => {
-      await store.deleteExperience(id);
-      await refreshEntries();
+      try {
+        await store.deleteExperience(id);
+        await refreshEntries();
+        setStorageError(null);
+      } catch (error) {
+        setStorageError(error instanceof Error ? error.message : String(error));
+      }
     },
     [refreshEntries, store],
   );
+
+  useEffect(() => {
+    void refreshEntries();
+  }, [refreshEntries]);
 
   return (
     <main className="app-shell">
@@ -53,6 +73,11 @@ export function App() {
             Save locally
           </button>
         </div>
+        {storageError ? (
+          <p className="storage-error" role="alert">
+            Local storage error: {storageError}
+          </p>
+        ) : null}
         {entries.length > 0 ? (
           <section className="entry-list" aria-label="Saved experiences">
             {entries.map((entry) => (

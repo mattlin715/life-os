@@ -2,7 +2,7 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/07
+last_updated: 2026/07/08
 depends:
   - docs/adr/ADR-0006-mvp-tech-stack.md
   - docs/architecture/00_MVP_Architecture.md
@@ -26,6 +26,8 @@ For command reference, read `docs/dev/02_Dev_Commands.md`.
 For host desktop runtime verification, read `docs/dev/03_Tauri_Runtime_Verification.md`.
 
 For installed dependency records, read `docs/dev/04_Dependency_Installation_Log.md`.
+
+For development agent runtime operations, read `docs/dev/05_Development_Agent_Runbook.md`.
 
 ## Prerequisites
 
@@ -60,7 +62,9 @@ This starts the Tauri desktop shell.
 
 ## Current Placeholders
 
-- SQLite dependency is present, but no schema or migrations exist.
+- SQLite persists `ExperienceEntry` only through the Tauri SQL plugin.
+- Evidence, reflection, and pattern persistence are deferred.
+- No migration framework exists yet.
 - AI provider interface exists, but no real provider calls exist.
 - Domain types are minimal and may change during MVP architecture work.
-- The homepage is static and does not save user input.
+- The homepage can save and delete local experience entries.

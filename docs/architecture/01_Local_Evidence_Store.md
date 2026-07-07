@@ -2,7 +2,7 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/07
+last_updated: 2026/07/08
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/product/00_MVP_User_Flow.md
@@ -114,15 +114,47 @@ This boundary protects the distinction between:
 
 SQLite is the accepted local persistence direction for the MVP.
 
-The first implementation does not create migrations or a complete schema.
+The first persistence spike stores only `ExperienceEntry`.
 
-The code should expose a storage interface first.
+It does not persist evidence candidates, reflection prompts, or pattern notes.
 
-SQLite should later become one implementation of that interface through the Tauri SQL plugin.
+The schema is intentionally minimal:
+
+```sql
+CREATE TABLE IF NOT EXISTS experience_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+```
+
+The SQLite implementation maps `content` to the domain field `body`.
+
+The domain field `userEditable` is not persisted yet because it is currently an invariant of user-authored experience entries.
+
+This spike does not create a migration framework.
+
+It uses `CREATE TABLE IF NOT EXISTS` during store initialization.
+
+SQLite is implemented through the Tauri SQL plugin.
+
+In-memory storage remains available for frontend-only development outside the Tauri desktop runtime.
+
+## Deferred Persistence
+
+The following records are intentionally not persisted yet:
+
+- `EvidenceCandidate`
+- `ReflectionPrompt`
+- `PatternNote`
+
+They remain candidate-oriented domain types.
+
+Persisting them requires a separate schema decision because AI output must remain inspectable, editable, rejectable, and never automatically treated as truth.
 
 ## Open Questions
 
-- What is the smallest SQLite schema that preserves inspect, edit, delete, and export?
 - Should rejected AI output be stored, discarded, or stored only with explicit user consent?
 - How should deleted entries affect related evidence, reflection prompts, and pattern notes?
 - Should export be Markdown-first, JSON-first, or both?

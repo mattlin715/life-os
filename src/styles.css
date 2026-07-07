@@ -125,3 +125,13 @@ button:focus-visible {
   color: #a33d2f;
   background: #ffffff;
 }
+
+.storage-error {
+  margin: 16px 0 0;
+  border: 1px solid #c35c4f;
+  border-radius: 8px;
+  padding: 12px;
+  color: #7c251c;
+  background: #fff6f4;
+  line-height: 1.45;
+}

@@ -1,7 +1,18 @@
-# SQLite Local Evidence Store Placeholder
+# SQLite Local Evidence Store
 
-This folder marks the future SQLite implementation boundary.
+This folder contains the SQLite implementation boundary for `ExperienceEntry`.
 
-The MVP stack has adopted Tauri + React + SQLite, but this sprint does not create a schema, migrations, or persistence behavior.
+The current persistence spike intentionally creates only one table:
 
-Future work should implement `LocalEvidenceStore` through the Tauri SQL plugin after the local data model is intentionally defined.
+```sql
+experience_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+```
+
+Evidence, reflection, and pattern persistence are deferred.
+
+Do not add a migration framework here until the local data model has stabilized.
