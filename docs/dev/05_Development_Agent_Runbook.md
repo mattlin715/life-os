@@ -80,6 +80,14 @@ Use:
 .\scripts\use-local-dev-env.ps1
 ```
 
+If the current PowerShell session blocks local scripts through execution policy,
+use a one-time bypass for the command you are running instead of changing the
+system policy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". 'D:\Lin\Project\LifeOperatingSystem\scripts\use-local-dev-env.ps1'; pnpm run typecheck"
+```
+
 This script temporarily sets, for the current PowerShell session:
 
 - `PATH`
@@ -88,6 +96,10 @@ This script temporarily sets, for the current PowerShell session:
 - Visual Studio Build Tools environment variables, if available
 
 It does not permanently modify system environment variables.
+
+The script adds project-local tool paths after loading Visual Studio Build Tools
+environment variables so that the native build environment does not hide the
+project-local Node.js, pnpm, Rust, or Cargo binaries.
 
 Expected output:
 

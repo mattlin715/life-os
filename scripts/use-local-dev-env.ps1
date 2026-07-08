@@ -20,7 +20,15 @@ if (!(Test-Path $CargoHome)) {
 
 $env:CARGO_HOME = $CargoHome
 $env:RUSTUP_HOME = $RustupHome
-$env:Path = "$NodeDir;$PnpmBin;$CargoHome\bin;$env:Path"
+
+function Add-ProjectToolPaths {
+  $toolPaths = @($NodeDir, $PnpmBin, "$CargoHome\bin")
+  $existingPaths = $env:Path -split [IO.Path]::PathSeparator
+  $pathsToAdd = $toolPaths | Where-Object { $existingPaths -notcontains $_ }
+  if ($pathsToAdd.Count -gt 0) {
+    $env:Path = (($pathsToAdd + $existingPaths) -join [IO.Path]::PathSeparator)
+  }
+}
 
 $VsWhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 if (Test-Path $VsWhere) {
@@ -36,6 +44,8 @@ if (Test-Path $VsWhere) {
     }
   }
 }
+
+Add-ProjectToolPaths
 
 Write-Host "Life OS local dev environment loaded."
 Write-Host "Repo: $RepoRoot"
