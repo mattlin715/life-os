@@ -149,6 +149,11 @@ button:focus-visible {
   margin-bottom: 14px;
 }
 
+.candidate-edit-textarea {
+  min-height: 96px;
+  margin-bottom: 12px;
+}
+
 .storage-error {
   margin: 16px 0 0;
   border: 1px solid #c35c4f;
@@ -219,4 +224,10 @@ button:focus-visible {
   color: #5f6258;
   font-size: 0.82rem;
   text-transform: uppercase;
+}
+
+.candidate-edited-note {
+  margin: -6px 0 12px;
+  color: #74786e;
+  font-size: 0.82rem;
 }

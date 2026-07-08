@@ -16,6 +16,7 @@ function createCandidate(
     id: createId(),
     sourceEntryId: entry.id,
     text,
+    originalText: text,
     kind,
     status: "candidate",
     userEditable: true,

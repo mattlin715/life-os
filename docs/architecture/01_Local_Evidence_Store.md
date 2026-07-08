@@ -119,6 +119,7 @@ It supports:
 
 - Generating mock evidence candidates from one `ExperienceEntry`.
 - Showing candidate text, kind, and status.
+- Letting the user edit candidate text before confirmation.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
 

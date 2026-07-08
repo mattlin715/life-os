@@ -14,6 +14,7 @@ export interface EvidenceCandidate {
   id: string;
   sourceEntryId: string;
   text: string;
+  originalText?: string;
   kind:
     | "observation"
     | "emotion"

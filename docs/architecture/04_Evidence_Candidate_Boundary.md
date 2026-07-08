@@ -2,7 +2,7 @@
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/08
+last_updated: 2026/07/09
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/architecture/01_Local_Evidence_Store.md
@@ -54,6 +54,7 @@ The MVP evidence candidate boundary supports:
 
 - Generating mock candidates from one `ExperienceEntry`.
 - Showing candidates under the source entry.
+- Letting the user edit candidate text before confirmation.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
 - Keeping candidates session-only for this sprint.
@@ -62,17 +63,30 @@ The mock flow exists only to validate review behavior.
 
 It does not represent final AI quality.
 
+The optional `originalText` field may preserve the mock output before user editing.
+
+Its purpose is only to distinguish the system-proposed text from the user-edited text.
+
+It is not a full audit log.
+
 ## Candidate Lifecycle
 
 The first lifecycle is:
 
 1. `candidate`: proposed by the mock provider.
-2. `confirmed`: manually accepted by the user.
-3. `rejected`: manually rejected by the user.
+2. `candidate` with edited text: revised by the user, but still not truth.
+3. `confirmed`: manually accepted by the user for this session.
+4. `rejected`: manually rejected by the user.
 
 No candidate may skip user review.
 
 No candidate may become confirmed automatically.
+
+Edited candidate text still remains a candidate until the user confirms it.
+
+Confirmation means the user accepts the edited candidate as meaningful for this session.
+
+It does not mean the candidate has become final truth.
 
 ## User Review Requirement
 
@@ -85,7 +99,15 @@ The user must be able to see:
 - Candidate kind.
 - Candidate status.
 
+The user must be able to edit candidate text before confirmation.
+
+Editing candidate text is part of user agency.
+
 The user must be able to confirm or reject without the system producing a conclusion.
+
+For the current MVP boundary, confirmed or rejected candidates cannot be edited again.
+
+If a user needs to change a confirmed or rejected candidate, a future reset or reopen flow should be designed explicitly.
 
 ## What Is Not Included
 
@@ -94,6 +116,7 @@ This sprint does not include:
 - Real AI provider calls.
 - SQLite persistence for evidence candidates.
 - Evidence export or import.
+- Editing candidate kind.
 - Reflection prompts.
 - Pattern notes.
 - Identity labels.

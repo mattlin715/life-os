@@ -34,6 +34,12 @@ interface SelectedTextFile {
   content: string;
 }
 
+interface EvidenceCandidateEditState {
+  entryId: string;
+  candidateId: string;
+  text: string;
+}
+
 async function saveTextFile(
   filename: string,
   content: string,
@@ -141,6 +147,8 @@ export function App() {
   );
   const [evidenceCandidatesByEntryId, setEvidenceCandidatesByEntryId] =
     useState<Record<string, EvidenceCandidate[]>>({});
+  const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
+    useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
 
@@ -181,6 +189,9 @@ export function App() {
           setEditingEntryId(null);
           setEditingBody("");
         }
+        if (editingEvidenceCandidate?.entryId === id) {
+          setEditingEvidenceCandidate(null);
+        }
         setEvidenceCandidatesByEntryId((current) => {
           const next = { ...current };
           delete next[id];
@@ -194,7 +205,7 @@ export function App() {
         setPortabilityStatus(null);
       }
     },
-    [editingEntryId, refreshEntries, store],
+    [editingEntryId, editingEvidenceCandidate, refreshEntries, store],
   );
 
   const beginEdit = useCallback((entry: ExperienceEntry) => {
@@ -300,6 +311,9 @@ export function App() {
         ...current,
         [entry.id]: candidates,
       }));
+      if (editingEvidenceCandidate?.entryId === entry.id) {
+        setEditingEvidenceCandidate(null);
+      }
       setStorageError(null);
       setPortabilityStatus(
         "Evidence candidates are suggestions. You decide what is true.",
@@ -308,7 +322,62 @@ export function App() {
       setStorageError(error instanceof Error ? error.message : String(error));
       setPortabilityStatus(null);
     }
+  }, [editingEvidenceCandidate]);
+
+  const beginEvidenceCandidateEdit = useCallback(
+    (entryId: string, candidate: EvidenceCandidate) => {
+      if (candidate.status !== "candidate") {
+        return;
+      }
+
+      setEditingEvidenceCandidate({
+        entryId,
+        candidateId: candidate.id,
+        text: candidate.text,
+      });
+      setStorageError(null);
+      setPortabilityStatus(null);
+    },
+    [],
+  );
+
+  const cancelEvidenceCandidateEdit = useCallback(() => {
+    setEditingEvidenceCandidate(null);
+    setStorageError(null);
+    setPortabilityStatus(null);
   }, []);
+
+  const saveEvidenceCandidateEdit = useCallback(() => {
+    if (!editingEvidenceCandidate) {
+      return;
+    }
+
+    const trimmedText = editingEvidenceCandidate.text.trim();
+
+    if (!trimmedText) {
+      return;
+    }
+
+    setEvidenceCandidatesByEntryId((current) => ({
+      ...current,
+      [editingEvidenceCandidate.entryId]:
+        current[editingEvidenceCandidate.entryId]?.map((candidate) =>
+          candidate.id === editingEvidenceCandidate.candidateId &&
+          candidate.status === "candidate"
+            ? {
+                ...candidate,
+                text: trimmedText,
+                updatedAt: new Date().toISOString(),
+              }
+            : candidate,
+        ) ?? [],
+    }));
+    setEditingEvidenceCandidate(null);
+    setStorageError(null);
+    setPortabilityStatus(
+      "Evidence candidate edited. It remains a candidate until you confirm it.",
+    );
+  }, [editingEvidenceCandidate]);
 
   const updateEvidenceCandidateStatus = useCallback(
     (
@@ -329,12 +398,18 @@ export function App() {
               : candidate,
           ) ?? [],
       }));
+      if (
+        editingEvidenceCandidate?.entryId === entryId &&
+        editingEvidenceCandidate.candidateId === candidateId
+      ) {
+        setEditingEvidenceCandidate(null);
+      }
       setStorageError(null);
       setPortabilityStatus(
         "Evidence review updated. Candidates remain session-only.",
       );
     },
-    [],
+    [editingEvidenceCandidate],
   );
 
   useEffect(() => {
@@ -466,8 +541,8 @@ export function App() {
                     {evidenceCandidates.length > 0 ? (
                       <>
                         <p className="evidence-note">
-                          Evidence candidates are suggestions. You decide what is
-                          true.
+                          You can edit candidates before confirming. They are not
+                          facts until you accept them.
                         </p>
                         <p className="session-note">
                           Session-only: evidence candidates are not saved,
@@ -475,45 +550,112 @@ export function App() {
                         </p>
                         <div className="candidate-list">
                           {evidenceCandidates.map((candidate) => (
-                            <article
-                              className={`candidate candidate-${candidate.status}`}
-                              key={candidate.id}
-                            >
-                              <div className="candidate-meta">
-                                <span>{candidate.kind}</span>
-                                <span>{candidate.status}</span>
-                              </div>
-                              <p>{candidate.text}</p>
-                              <div className="entry-actions">
-                                <button
-                                  type="button"
-                                  disabled={candidate.status === "confirmed"}
-                                  onClick={() =>
-                                    updateEvidenceCandidateStatus(
-                                      entry.id,
-                                      candidate.id,
-                                      "confirmed",
-                                    )
-                                  }
+                            (() => {
+                              const isEditing =
+                                editingEvidenceCandidate?.entryId === entry.id &&
+                                editingEvidenceCandidate.candidateId ===
+                                  candidate.id;
+                              const isReviewed =
+                                candidate.status !== "candidate";
+                              const hasEditedText =
+                                Boolean(candidate.originalText) &&
+                                candidate.originalText !== candidate.text;
+
+                              return (
+                                <article
+                                  className={`candidate candidate-${candidate.status}`}
+                                  key={candidate.id}
                                 >
-                                  Confirm
-                                </button>
-                                <button
-                                  type="button"
-                                  className="secondary-button"
-                                  disabled={candidate.status === "rejected"}
-                                  onClick={() =>
-                                    updateEvidenceCandidateStatus(
-                                      entry.id,
-                                      candidate.id,
-                                      "rejected",
-                                    )
-                                  }
-                                >
-                                  Reject
-                                </button>
-                              </div>
-                            </article>
+                                  <div className="candidate-meta">
+                                    <span>{candidate.kind}</span>
+                                    <span>{candidate.status}</span>
+                                  </div>
+                                  {isEditing ? (
+                                    <>
+                                      <textarea
+                                        aria-label="Edit evidence candidate"
+                                        className="candidate-edit-textarea"
+                                        value={editingEvidenceCandidate.text}
+                                        onChange={(event) =>
+                                          setEditingEvidenceCandidate({
+                                            ...editingEvidenceCandidate,
+                                            text: event.target.value,
+                                          })
+                                        }
+                                      />
+                                      <div className="entry-actions">
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            !editingEvidenceCandidate.text.trim()
+                                          }
+                                          onClick={saveEvidenceCandidateEdit}
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="secondary-button"
+                                          onClick={cancelEvidenceCandidateEdit}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p>{candidate.text}</p>
+                                      {hasEditedText ? (
+                                        <p className="candidate-edited-note">
+                                          Edited from mock output.
+                                        </p>
+                                      ) : null}
+                                      {!isReviewed ? (
+                                        <div className="entry-actions">
+                                          <button
+                                            type="button"
+                                            className="secondary-button"
+                                            onClick={() =>
+                                              beginEvidenceCandidateEdit(
+                                                entry.id,
+                                                candidate,
+                                              )
+                                            }
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateEvidenceCandidateStatus(
+                                                entry.id,
+                                                candidate.id,
+                                                "confirmed",
+                                              )
+                                            }
+                                          >
+                                            Confirm
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="secondary-button"
+                                            onClick={() =>
+                                              updateEvidenceCandidateStatus(
+                                                entry.id,
+                                                candidate.id,
+                                                "rejected",
+                                              )
+                                            }
+                                          >
+                                            Reject
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                    </>
+                                  )}
+                                </article>
+                              );
+                            })()
                           ))}
                         </div>
                       </>
