@@ -88,6 +88,35 @@ export function createSqliteLocalEvidenceStore(): LocalEvidenceStore {
       return entry;
     },
 
+    async importExperiences(importedEntries) {
+      let importedCount = 0;
+      let skippedCount = 0;
+      const database = await db;
+
+      for (const importedEntry of importedEntries) {
+        const existing = await getExperience(importedEntry.id);
+
+        if (existing) {
+          skippedCount += 1;
+          continue;
+        }
+
+        await database.execute(
+          `INSERT INTO experience_entries (id, content, created_at, updated_at)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            importedEntry.id,
+            importedEntry.body,
+            importedEntry.createdAt,
+            importedEntry.updatedAt,
+          ],
+        );
+        importedCount += 1;
+      }
+
+      return { importedCount, skippedCount };
+    },
+
     async listExperiences() {
       const rows = await (
         await db

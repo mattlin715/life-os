@@ -115,6 +115,76 @@ Expected result:
 3. Reopen the app.
 4. Confirm the entry does not return.
 
+## Export JSON
+
+1. Create at least two experience entries.
+2. Click `Export JSON`.
+3. Choose a save location in the system save dialog.
+4. Open the saved `.json` file.
+
+Expected result:
+
+- The file includes `exportedAt`, `app`, `version`, and `entries`.
+- Each entry includes `id`, `content`, `createdAt`, and `updatedAt`.
+- The file does not include identity labels.
+- The file does not include evidence, reflection, pattern, advice, or AI interpretation.
+
+## Export Markdown
+
+1. Create at least two experience entries.
+2. Click `Export Markdown`.
+3. Choose a save location in the system save dialog.
+4. Open the saved `.md` file.
+
+Expected result:
+
+- The file starts with `# Life OS Experience Export`.
+- The file includes an export timestamp.
+- Each entry is readable as plain Markdown.
+- The file does not include identity labels.
+- The file does not include evidence, reflection, pattern, advice, or AI interpretation.
+
+## Import JSON
+
+1. Create at least two experience entries.
+2. Click `Export JSON`.
+3. Save the `.json` file.
+4. Delete one or all of the exported entries.
+5. Click `Import JSON`.
+6. Choose the previously exported `.json` file.
+
+Expected result:
+
+- The imported entries appear in the list.
+- Imported entries preserve their original `createdAt` and `updatedAt`.
+- Import reports the imported count.
+- No AI analysis runs.
+- No identity label appears.
+- No pattern or advice is generated.
+
+## Verify Duplicate Handling
+
+1. Import the same JSON file again.
+2. Confirm existing entries are not overwritten.
+
+Expected result:
+
+- Duplicate entries are skipped.
+- The UI reports the skipped count.
+- Existing edited entries remain unchanged.
+
+## Verify Invalid Import Handling
+
+1. Create or select a JSON file that is not a Life OS export.
+2. Click `Import JSON`.
+3. Choose the invalid file.
+
+Expected result:
+
+- The UI shows an error message.
+- No entries are imported.
+- The SQLite schema remains unchanged.
+
 ## SQLite DB Path Examples
 
 Windows:
@@ -159,6 +229,11 @@ Edit entry:
 Close and reopen after edit:
 Delete entry:
 Close and reopen after delete:
+Export JSON:
+Export Markdown:
+Import JSON:
+Duplicate import skipped:
+Invalid import rejected:
 
 SQLite DB path:
 Result:

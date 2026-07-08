@@ -67,6 +67,8 @@ textarea:focus {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: flex-end;
   margin-top: 16px;
 }
@@ -155,4 +157,15 @@ button:focus-visible {
   color: #7c251c;
   background: #fff6f4;
   line-height: 1.45;
+}
+
+.export-status {
+  margin: 16px 0 0;
+  border: 1px solid #b9c8bd;
+  border-radius: 8px;
+  padding: 12px;
+  color: #244238;
+  background: #f3faf5;
+  line-height: 1.45;
+  word-break: break-word;
 }

@@ -86,11 +86,10 @@ User-owned records must support:
 - Inspect: the user can see what is stored.
 - Edit: the user can correct their own record.
 - Delete: the user can remove records.
-- Export: the system must leave room for portable export.
+- Export: the user can take experience entries out in portable formats.
+- Import: the user can restore Life OS JSON experience exports.
 
-The first sprint only implements inspect and delete for session entries.
-
-Edit and export remain requirements for the local store boundary, not completed features.
+The current boundary supports inspect, edit, delete, export, and import for `ExperienceEntry`.
 
 ## AI Output Remains Candidate
 
@@ -141,6 +140,49 @@ SQLite is implemented through the Tauri SQL plugin.
 
 In-memory storage remains available for frontend-only development outside the Tauri desktop runtime.
 
+## Export Boundary
+
+The first export boundary exists for `ExperienceEntry`.
+
+It supports:
+
+- JSON export for portable structured data.
+- Markdown export for human-readable archives.
+
+Desktop export uses the Tauri save dialog and filesystem plugin.
+
+Frontend-only development may still use browser download fallback.
+
+Export includes only user-authored experience entries and minimal timestamps.
+
+It does not include evidence candidates, reflection prompts, pattern notes, identity labels, AI interpretation, provider metadata, or hidden analytics.
+
+Import is intentionally deferred.
+
+See `docs/architecture/02_Experience_Export_Boundary.md`.
+
+## Import Boundary
+
+The first import boundary exists for `ExperienceEntry`.
+
+It supports only Life OS JSON exports from the export boundary.
+
+Import does not support Markdown.
+
+Import does not support arbitrary JSON.
+
+Imported entries preserve their `id`, `content`, `createdAt`, and `updatedAt`.
+
+If an imported entry id already exists, the imported duplicate is skipped and the existing entry is not overwritten.
+
+Desktop import uses the Tauri open dialog and filesystem plugin.
+
+Frontend-only development may use a browser file input fallback.
+
+Import does not create evidence candidates, reflection prompts, pattern notes, identity labels, AI interpretation, provider metadata, or hidden analytics.
+
+See `docs/architecture/03_Experience_Import_Boundary.md`.
+
 ## Deferred Persistence
 
 The following records are intentionally not persisted yet:
@@ -157,6 +199,6 @@ Persisting them requires a separate schema decision because AI output must remai
 
 - Should rejected AI output be stored, discarded, or stored only with explicit user consent?
 - How should deleted entries affect related evidence, reflection prompts, and pattern notes?
-- Should export be Markdown-first, JSON-first, or both?
+- What export/import versioning guarantees are needed before supporting more record types?
 - How should schema versioning be introduced without over-engineering the MVP?
 - What local encryption level is required before the first private daily-use prototype?

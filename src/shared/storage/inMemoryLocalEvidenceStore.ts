@@ -31,6 +31,29 @@ export function createInMemoryLocalEvidenceStore(): LocalEvidenceStore {
       return entry;
     },
 
+    async importExperiences(importedEntries) {
+      let importedCount = 0;
+      let skippedCount = 0;
+
+      for (const importedEntry of importedEntries) {
+        if (entries.has(importedEntry.id)) {
+          skippedCount += 1;
+          continue;
+        }
+
+        entries.set(importedEntry.id, {
+          id: importedEntry.id,
+          body: importedEntry.body,
+          createdAt: importedEntry.createdAt,
+          updatedAt: importedEntry.updatedAt,
+          userEditable: true,
+        });
+        importedCount += 1;
+      }
+
+      return { importedCount, skippedCount };
+    },
+
     async listExperiences() {
       return Array.from(entries.values()).sort((a, b) =>
         b.createdAt.localeCompare(a.createdAt),
