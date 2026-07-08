@@ -8,6 +8,10 @@ import {
 } from "../shared/export/experienceExport";
 import type { ExperienceExportFormat } from "../shared/export/types";
 import { parseExperienceImportJson } from "../shared/import/experienceImport";
+import {
+  combineEvidenceCandidateSummaries,
+  summarizeEvidenceCandidates,
+} from "../shared/evidence/evidenceSummary";
 import { createLocalEvidenceStore } from "../shared/storage";
 import { placeholderProvider } from "../ai/providers/placeholderProvider";
 import type {
@@ -151,6 +155,15 @@ export function App() {
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  const evidenceSessionSummary = useMemo(
+    () =>
+      combineEvidenceCandidateSummaries(
+        Object.values(evidenceCandidatesByEntryId).map((candidates) =>
+          summarizeEvidenceCandidates(candidates),
+        ),
+      ),
+    [evidenceCandidatesByEntryId],
+  );
 
   const refreshEntries = useCallback(async () => {
     try {
@@ -468,11 +481,25 @@ export function App() {
         {portabilityStatus ? (
           <p className="export-status">{portabilityStatus}</p>
         ) : null}
+        <section className="session-summary" aria-label="Evidence session summary">
+          <p>
+            Session review summary: {entries.length} entries ·{" "}
+            {evidenceSessionSummary.total} candidates ·{" "}
+            {evidenceSessionSummary.confirmed} confirmed ·{" "}
+            {evidenceSessionSummary.rejected} rejected ·{" "}
+            {evidenceSessionSummary.pending} pending
+          </p>
+          <p>
+            Summary helps you review candidates. It does not judge your progress.
+          </p>
+        </section>
         {entries.length > 0 ? (
           <section className="entry-list" aria-label="Saved experiences">
             {entries.map((entry) => {
               const evidenceCandidates =
                 evidenceCandidatesByEntryId[entry.id] ?? [];
+              const evidenceSummary =
+                summarizeEvidenceCandidates(evidenceCandidates);
 
               return (
                 <article className="entry" key={entry.id}>
@@ -540,6 +567,12 @@ export function App() {
                     </div>
                     {evidenceCandidates.length > 0 ? (
                       <>
+                        <p className="review-summary">
+                          Review summary: {evidenceSummary.total} candidates ·{" "}
+                          {evidenceSummary.confirmed} confirmed ·{" "}
+                          {evidenceSummary.rejected} rejected ·{" "}
+                          {evidenceSummary.pending} pending
+                        </p>
                         <p className="evidence-note">
                           You can edit candidates before confirming. They are not
                           facts until you accept them.

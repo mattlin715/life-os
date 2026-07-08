@@ -57,6 +57,7 @@ The MVP evidence candidate boundary supports:
 - Letting the user edit candidate text before confirmation.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
+- Showing session-level and per-entry review summaries.
 - Keeping candidates session-only for this sprint.
 
 The mock flow exists only to validate review behavior.
@@ -68,6 +69,16 @@ The optional `originalText` field may preserve the mock output before user editi
 Its purpose is only to distinguish the system-proposed text from the user-edited text.
 
 It is not a full audit log.
+
+The session review summary exists only to support user review.
+
+It is not analytics.
+
+It is not progress scoring.
+
+It does not imply confirmed evidence is final truth.
+
+It does not persist candidate state.
 
 ## Candidate Lifecycle
 
@@ -117,6 +128,8 @@ This sprint does not include:
 - SQLite persistence for evidence candidates.
 - Evidence export or import.
 - Editing candidate kind.
+- Analytics dashboard.
+- Progress scoring.
 - Reflection prompts.
 - Pattern notes.
 - Identity labels.
