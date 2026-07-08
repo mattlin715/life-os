@@ -75,9 +75,11 @@ The first data boundary contains four domain records:
 | `ReflectionPrompt` | A question proposed for reflection. |
 | `PatternNote` | A possible pattern note across evidence or entries. |
 
-Only `ExperienceEntry` is wired into the first UI boundary.
+`ExperienceEntry` is persisted in SQLite.
 
-The other records exist as minimal types so future work can connect the MVP loop without inventing new concepts.
+`EvidenceCandidate` is wired into the first UI review boundary as session-only data.
+
+`ReflectionPrompt` and `PatternNote` remain minimal types so future work can connect the MVP loop without inventing new concepts.
 
 ## User Ownership Requirements
 
@@ -108,6 +110,33 @@ This boundary protects the distinction between:
 - What the user wrote.
 - What the system proposed.
 - What the user confirmed.
+
+## Evidence Candidate Boundary
+
+The first evidence candidate boundary exists in the UI.
+
+It supports:
+
+- Generating mock evidence candidates from one `ExperienceEntry`.
+- Showing candidate text, kind, and status.
+- Letting the user confirm a candidate.
+- Letting the user reject a candidate.
+
+Evidence candidates are currently session-only.
+
+They are not persisted to SQLite.
+
+They are not exported.
+
+They are not imported.
+
+They do not create reflection prompts, pattern notes, identity labels, advice, or diagnosis.
+
+The mock provider is intentionally shallow.
+
+It exists to validate the review boundary, not to prove analysis quality.
+
+See `docs/architecture/04_Evidence_Candidate_Boundary.md`.
 
 ## SQLite Boundary
 

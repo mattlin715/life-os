@@ -9,7 +9,12 @@ import {
 import type { ExperienceExportFormat } from "../shared/export/types";
 import { parseExperienceImportJson } from "../shared/import/experienceImport";
 import { createLocalEvidenceStore } from "../shared/storage";
-import type { ExperienceEntry } from "../types/domain";
+import { placeholderProvider } from "../ai/providers/placeholderProvider";
+import type {
+  CandidateStatus,
+  EvidenceCandidate,
+  ExperienceEntry,
+} from "../types/domain";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -134,6 +139,8 @@ export function App() {
   const [portabilityStatus, setPortabilityStatus] = useState<string | null>(
     null,
   );
+  const [evidenceCandidatesByEntryId, setEvidenceCandidatesByEntryId] =
+    useState<Record<string, EvidenceCandidate[]>>({});
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
 
@@ -174,6 +181,11 @@ export function App() {
           setEditingEntryId(null);
           setEditingBody("");
         }
+        setEvidenceCandidatesByEntryId((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
         await refreshEntries();
         setStorageError(null);
         setPortabilityStatus(null);
@@ -280,6 +292,51 @@ export function App() {
     }
   }, [refreshEntries, store]);
 
+  const generateEvidenceCandidates = useCallback(async (entry: ExperienceEntry) => {
+    try {
+      const candidates = await placeholderProvider.extractEvidence(entry);
+
+      setEvidenceCandidatesByEntryId((current) => ({
+        ...current,
+        [entry.id]: candidates,
+      }));
+      setStorageError(null);
+      setPortabilityStatus(
+        "Evidence candidates are suggestions. You decide what is true.",
+      );
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error));
+      setPortabilityStatus(null);
+    }
+  }, []);
+
+  const updateEvidenceCandidateStatus = useCallback(
+    (
+      entryId: string,
+      candidateId: string,
+      status: Extract<CandidateStatus, "confirmed" | "rejected">,
+    ) => {
+      setEvidenceCandidatesByEntryId((current) => ({
+        ...current,
+        [entryId]:
+          current[entryId]?.map((candidate) =>
+            candidate.id === candidateId
+              ? {
+                  ...candidate,
+                  status,
+                  updatedAt: new Date().toISOString(),
+                }
+              : candidate,
+          ) ?? [],
+      }));
+      setStorageError(null);
+      setPortabilityStatus(
+        "Evidence review updated. Candidates remain session-only.",
+      );
+    },
+    [],
+  );
+
   useEffect(() => {
     void refreshEntries();
   }, [refreshEntries]);
@@ -338,62 +395,133 @@ export function App() {
         ) : null}
         {entries.length > 0 ? (
           <section className="entry-list" aria-label="Saved experiences">
-            {entries.map((entry) => (
-              <article className="entry" key={entry.id}>
-                <div className="entry-meta">
-                  <time dateTime={entry.createdAt}>
-                    Created {new Date(entry.createdAt).toLocaleString()}
-                  </time>
-                  {entry.updatedAt !== entry.createdAt ? (
-                    <time dateTime={entry.updatedAt}>
-                      Updated {new Date(entry.updatedAt).toLocaleString()}
+            {entries.map((entry) => {
+              const evidenceCandidates =
+                evidenceCandidatesByEntryId[entry.id] ?? [];
+
+              return (
+                <article className="entry" key={entry.id}>
+                  <div className="entry-meta">
+                    <time dateTime={entry.createdAt}>
+                      Created {new Date(entry.createdAt).toLocaleString()}
                     </time>
-                  ) : null}
-                </div>
-                {editingEntryId === entry.id ? (
-                  <>
-                    <textarea
-                      aria-label="Edit experience"
-                      className="edit-textarea"
-                      value={editingBody}
-                      onChange={(event) => setEditingBody(event.target.value)}
-                    />
+                    {entry.updatedAt !== entry.createdAt ? (
+                      <time dateTime={entry.updatedAt}>
+                        Updated {new Date(entry.updatedAt).toLocaleString()}
+                      </time>
+                    ) : null}
+                  </div>
+                  {editingEntryId === entry.id ? (
+                    <>
+                      <textarea
+                        aria-label="Edit experience"
+                        className="edit-textarea"
+                        value={editingBody}
+                        onChange={(event) => setEditingBody(event.target.value)}
+                      />
+                      <div className="entry-actions">
+                        <button
+                          type="button"
+                          disabled={!editingBody.trim()}
+                          onClick={() => saveEdit(entry.id)}
+                        >
+                          Save edit
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={cancelEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p>{entry.body}</p>
+                      <div className="entry-actions">
+                        <button type="button" onClick={() => beginEdit(entry)}>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="delete-button"
+                          onClick={() => deleteExperience(entry.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  <section className="evidence-review">
                     <div className="entry-actions">
-                      <button
-                        type="button"
-                        disabled={!editingBody.trim()}
-                        onClick={() => saveEdit(entry.id)}
-                      >
-                        Save edit
-                      </button>
                       <button
                         type="button"
                         className="secondary-button"
-                        onClick={cancelEdit}
+                        onClick={() => generateEvidenceCandidates(entry)}
                       >
-                        Cancel
+                        Generate evidence candidates
                       </button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <p>{entry.body}</p>
-                    <div className="entry-actions">
-                      <button type="button" onClick={() => beginEdit(entry)}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="delete-button"
-                        onClick={() => deleteExperience(entry.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </article>
-            ))}
+                    {evidenceCandidates.length > 0 ? (
+                      <>
+                        <p className="evidence-note">
+                          Evidence candidates are suggestions. You decide what is
+                          true.
+                        </p>
+                        <p className="session-note">
+                          Session-only: evidence candidates are not saved,
+                          exported, or imported yet.
+                        </p>
+                        <div className="candidate-list">
+                          {evidenceCandidates.map((candidate) => (
+                            <article
+                              className={`candidate candidate-${candidate.status}`}
+                              key={candidate.id}
+                            >
+                              <div className="candidate-meta">
+                                <span>{candidate.kind}</span>
+                                <span>{candidate.status}</span>
+                              </div>
+                              <p>{candidate.text}</p>
+                              <div className="entry-actions">
+                                <button
+                                  type="button"
+                                  disabled={candidate.status === "confirmed"}
+                                  onClick={() =>
+                                    updateEvidenceCandidateStatus(
+                                      entry.id,
+                                      candidate.id,
+                                      "confirmed",
+                                    )
+                                  }
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  disabled={candidate.status === "rejected"}
+                                  onClick={() =>
+                                    updateEvidenceCandidateStatus(
+                                      entry.id,
+                                      candidate.id,
+                                      "rejected",
+                                    )
+                                  }
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </section>
+                </article>
+              );
+            })}
           </section>
         ) : null}
       </section>

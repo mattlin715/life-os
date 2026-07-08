@@ -14,7 +14,13 @@ export interface EvidenceCandidate {
   id: string;
   sourceEntryId: string;
   text: string;
-  kind: "event" | "emotion" | "decision" | "value" | "contradiction" | "self_description";
+  kind:
+    | "observation"
+    | "emotion"
+    | "decision"
+    | "contradiction"
+    | "self_description"
+    | "other";
   status: CandidateStatus;
   userEditable: boolean;
   createdAt: ISODateTime;
