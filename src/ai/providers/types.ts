@@ -11,5 +11,9 @@ export interface AIProvider {
     entry: ExperienceEntry,
     evidence: EvidenceCandidate[],
   ): Promise<ReflectionPrompt[]>;
-  suggestPatternNotes(entries: ExperienceEntry[]): Promise<PatternNote[]>;
+  suggestPatternNotes(
+    entry: ExperienceEntry,
+    confirmedEvidence: EvidenceCandidate[],
+    reflectionPrompts: ReflectionPrompt[],
+  ): Promise<PatternNote[]>;
 }

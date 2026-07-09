@@ -1,8 +1,8 @@
----
+﻿---
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/08
+last_updated: 2026/07/10
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/product/00_MVP_User_Flow.md
@@ -79,7 +79,9 @@ The first data boundary contains four domain records:
 
 `EvidenceCandidate` is wired into the first UI review boundary as session-only data.
 
-`ReflectionPrompt` and `PatternNote` remain minimal types so future work can connect the MVP loop without inventing new concepts.
+`ReflectionPrompt` is wired into the first mock reflection boundary as session-only data.
+
+`PatternNote` is wired into the first mock pattern candidate boundary as session-only data.
 
 ## User Ownership Requirements
 
@@ -97,13 +99,21 @@ The current boundary supports inspect, edit, delete, export, and import for `Exp
 
 AI-generated records must never become product truth automatically.
 
-Evidence, reflection prompts, and pattern notes should use candidate-oriented status values:
+Evidence and pattern notes should use candidate-oriented status values:
 
 - `candidate`
 - `confirmed`
 - `rejected`
 
 Only the user can confirm or reject candidate records.
+
+Reflection prompts use a separate lightweight lifecycle:
+
+- `suggested`
+- `answered`
+- `skipped`
+
+This keeps questions distinct from evidence truth states.
 
 This boundary protects the distinction between:
 
@@ -138,6 +148,63 @@ The mock provider is intentionally shallow.
 It exists to validate the review boundary, not to prove analysis quality.
 
 See `docs/architecture/04_Evidence_Candidate_Boundary.md`.
+
+## Reflection Prompt Boundary
+
+The first reflection prompt boundary exists in the UI.
+
+It supports:
+
+- Generating mock reflection prompts from confirmed evidence candidates only.
+- Showing open-ended questions under the source entry.
+- Letting the user write an optional answer.
+- Letting the user skip a prompt.
+- Showing a per-entry reflection summary.
+
+Reflection prompts are currently session-only.
+
+They are not persisted to SQLite.
+
+They are not exported.
+
+They are not imported.
+
+They do not create pattern notes, growth notes, identity labels, advice, diagnosis, or conclusions.
+
+The mock provider is intentionally simple.
+
+It exists to validate the boundary from confirmed evidence to reflection question, not to prove interpretation quality.
+
+See `docs/architecture/05_Reflection_Prompt_Boundary.md`.
+
+## Pattern Candidate Boundary
+
+The first pattern candidate boundary exists in the UI.
+
+It supports:
+
+- Generating one mock pattern candidate from confirmed evidence.
+- Optionally using answered reflection prompt responses as user-authored context.
+- Showing the candidate as a hypothesis for review.
+- Letting the user confirm a candidate.
+- Letting the user reject a candidate.
+- Showing a per-entry pattern summary.
+
+Pattern candidates are currently session-only.
+
+They are not persisted to SQLite.
+
+They are not exported.
+
+They are not imported.
+
+They do not create growth notes, identity labels, advice, diagnosis, MBTI/personality types, scores, or conclusions.
+
+The mock provider is intentionally simple.
+
+It exists to validate the boundary from confirmed evidence and reflection context to user-reviewed hypothesis, not to prove interpretation quality.
+
+See `docs/architecture/06_Pattern_Candidate_Boundary.md`.
 
 ## SQLite Boundary
 

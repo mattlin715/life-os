@@ -12,12 +12,15 @@ import {
   combineEvidenceCandidateSummaries,
   summarizeEvidenceCandidates,
 } from "../shared/evidence/evidenceSummary";
+import { summarizeReflectionPrompts } from "../shared/reflection/reflectionSummary";
 import { createLocalEvidenceStore } from "../shared/storage";
 import { placeholderProvider } from "../ai/providers/placeholderProvider";
 import type {
   CandidateStatus,
   EvidenceCandidate,
   ExperienceEntry,
+  PatternNote,
+  ReflectionPrompt,
 } from "../types/domain";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
@@ -42,6 +45,18 @@ interface EvidenceCandidateEditState {
   entryId: string;
   candidateId: string;
   text: string;
+}
+
+function summarizePatternNotes(patternNotes: PatternNote[]) {
+  return {
+    total: patternNotes.length,
+    candidate: patternNotes.filter((pattern) => pattern.status === "candidate")
+      .length,
+    confirmed: patternNotes.filter((pattern) => pattern.status === "confirmed")
+      .length,
+    rejected: patternNotes.filter((pattern) => pattern.status === "rejected")
+      .length,
+  };
 }
 
 async function saveTextFile(
@@ -151,6 +166,12 @@ export function App() {
   );
   const [evidenceCandidatesByEntryId, setEvidenceCandidatesByEntryId] =
     useState<Record<string, EvidenceCandidate[]>>({});
+  const [reflectionPromptsByEntryId, setReflectionPromptsByEntryId] = useState<
+    Record<string, ReflectionPrompt[]>
+  >({});
+  const [patternNotesByEntryId, setPatternNotesByEntryId] = useState<
+    Record<string, PatternNote[]>
+  >({});
   const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -206,6 +227,16 @@ export function App() {
           setEditingEvidenceCandidate(null);
         }
         setEvidenceCandidatesByEntryId((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+        setReflectionPromptsByEntryId((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+        setPatternNotesByEntryId((current) => {
           const next = { ...current };
           delete next[id];
           return next;
@@ -324,6 +355,16 @@ export function App() {
         ...current,
         [entry.id]: candidates,
       }));
+      setReflectionPromptsByEntryId((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
+      setPatternNotesByEntryId((current) => {
+        const next = { ...current };
+        delete next[entry.id];
+        return next;
+      });
       if (editingEvidenceCandidate?.entryId === entry.id) {
         setEditingEvidenceCandidate(null);
       }
@@ -417,12 +458,212 @@ export function App() {
       ) {
         setEditingEvidenceCandidate(null);
       }
+      setPatternNotesByEntryId((current) => {
+        const next = { ...current };
+        delete next[entryId];
+        return next;
+      });
       setStorageError(null);
       setPortabilityStatus(
         "Evidence review updated. Candidates remain session-only.",
       );
     },
     [editingEvidenceCandidate],
+  );
+
+  const generateReflectionPrompts = useCallback(
+    async (entry: ExperienceEntry) => {
+      const confirmedEvidence =
+        evidenceCandidatesByEntryId[entry.id]?.filter(
+          (candidate) => candidate.status === "confirmed",
+        ) ?? [];
+
+      if (confirmedEvidence.length === 0) {
+        setStorageError(null);
+        setPortabilityStatus(
+          "Confirm at least one evidence candidate before generating reflection prompts.",
+        );
+        return;
+      }
+
+      try {
+        const prompts = await placeholderProvider.generateReflectionPrompts(
+          entry,
+          confirmedEvidence,
+        );
+
+        setReflectionPromptsByEntryId((current) => ({
+          ...current,
+          [entry.id]: prompts,
+        }));
+        setPatternNotesByEntryId((current) => {
+          const next = { ...current };
+          delete next[entry.id];
+          return next;
+        });
+        setStorageError(null);
+        setPortabilityStatus(
+          "Reflection prompts are questions, not conclusions.",
+        );
+      } catch (error) {
+        setStorageError(error instanceof Error ? error.message : String(error));
+        setPortabilityStatus(null);
+      }
+    },
+    [evidenceCandidatesByEntryId],
+  );
+
+  const updateReflectionPromptResponse = useCallback(
+    (entryId: string, promptId: string, response: string) => {
+      setReflectionPromptsByEntryId((current) => ({
+        ...current,
+        [entryId]:
+          current[entryId]?.map((prompt) =>
+            prompt.id === promptId && prompt.status !== "skipped"
+              ? {
+                  ...prompt,
+                  response,
+                  updatedAt: new Date().toISOString(),
+                }
+              : prompt,
+          ) ?? [],
+      }));
+    },
+    [],
+  );
+
+  const saveReflectionPromptAnswer = useCallback(
+    (entryId: string, promptId: string) => {
+      setReflectionPromptsByEntryId((current) => ({
+        ...current,
+        [entryId]:
+          current[entryId]?.map((prompt) => {
+            if (prompt.id !== promptId || prompt.status === "skipped") {
+              return prompt;
+            }
+
+            const response = prompt.response?.trim();
+
+            if (!response) {
+              return prompt;
+            }
+
+            return {
+              ...prompt,
+              response,
+              status: "answered",
+              updatedAt: new Date().toISOString(),
+            };
+          }) ?? [],
+      }));
+      setPatternNotesByEntryId((current) => {
+        const next = { ...current };
+        delete next[entryId];
+        return next;
+      });
+      setStorageError(null);
+      setPortabilityStatus(
+        "Reflection answer saved for this session only.",
+      );
+    },
+    [],
+  );
+
+  const skipReflectionPrompt = useCallback(
+    (entryId: string, promptId: string) => {
+      setReflectionPromptsByEntryId((current) => ({
+        ...current,
+        [entryId]:
+          current[entryId]?.map((prompt) => {
+            if (prompt.id !== promptId || prompt.status !== "suggested") {
+              return prompt;
+            }
+
+            return {
+              ...prompt,
+              response: undefined,
+              status: "skipped",
+              updatedAt: new Date().toISOString(),
+            };
+          }) ?? [],
+      }));
+      setPatternNotesByEntryId((current) => {
+        const next = { ...current };
+        delete next[entryId];
+        return next;
+      });
+      setStorageError(null);
+      setPortabilityStatus(
+        "Reflection prompt skipped for this session only.",
+      );
+    },
+    [],
+  );
+
+  const generatePatternNotes = useCallback(
+    async (entry: ExperienceEntry) => {
+      const confirmedEvidence =
+        evidenceCandidatesByEntryId[entry.id]?.filter(
+          (candidate) => candidate.status === "confirmed",
+        ) ?? [];
+      const reflectionPrompts = reflectionPromptsByEntryId[entry.id] ?? [];
+
+      if (confirmedEvidence.length === 0) {
+        setStorageError(null);
+        setPortabilityStatus(
+          "Confirm at least one evidence candidate before generating a pattern candidate.",
+        );
+        return;
+      }
+
+      try {
+        const patternNotes = await placeholderProvider.suggestPatternNotes(
+          entry,
+          confirmedEvidence,
+          reflectionPrompts,
+        );
+
+        setPatternNotesByEntryId((current) => ({
+          ...current,
+          [entry.id]: patternNotes,
+        }));
+        setStorageError(null);
+        setPortabilityStatus(
+          "Pattern candidates are hypotheses for review, not conclusions.",
+        );
+      } catch (error) {
+        setStorageError(error instanceof Error ? error.message : String(error));
+        setPortabilityStatus(null);
+      }
+    },
+    [evidenceCandidatesByEntryId, reflectionPromptsByEntryId],
+  );
+
+  const updatePatternNoteStatus = useCallback(
+    (
+      entryId: string,
+      patternNoteId: string,
+      status: Extract<CandidateStatus, "confirmed" | "rejected">,
+    ) => {
+      setPatternNotesByEntryId((current) => ({
+        ...current,
+        [entryId]:
+          current[entryId]?.map((patternNote) =>
+            patternNote.id === patternNoteId
+              ? {
+                  ...patternNote,
+                  status,
+                  updatedAt: new Date().toISOString(),
+                }
+              : patternNote,
+          ) ?? [],
+      }));
+      setStorageError(null);
+      setPortabilityStatus(
+        "Pattern review updated. Pattern candidates remain session-only.",
+      );
+    },
+    [],
   );
 
   useEffect(() => {
@@ -483,10 +724,10 @@ export function App() {
         ) : null}
         <section className="session-summary" aria-label="Evidence session summary">
           <p>
-            Session review summary: {entries.length} entries ·{" "}
-            {evidenceSessionSummary.total} candidates ·{" "}
-            {evidenceSessionSummary.confirmed} confirmed ·{" "}
-            {evidenceSessionSummary.rejected} rejected ·{" "}
+            Session review summary: {entries.length} entries /{" "}
+            {evidenceSessionSummary.total} candidates /{" "}
+            {evidenceSessionSummary.confirmed} confirmed /{" "}
+            {evidenceSessionSummary.rejected} rejected /{" "}
             {evidenceSessionSummary.pending} pending
           </p>
           <p>
@@ -500,6 +741,15 @@ export function App() {
                 evidenceCandidatesByEntryId[entry.id] ?? [];
               const evidenceSummary =
                 summarizeEvidenceCandidates(evidenceCandidates);
+              const confirmedEvidenceCandidates = evidenceCandidates.filter(
+                (candidate) => candidate.status === "confirmed",
+              );
+              const reflectionPrompts =
+                reflectionPromptsByEntryId[entry.id] ?? [];
+              const reflectionSummary =
+                summarizeReflectionPrompts(reflectionPrompts);
+              const patternNotes = patternNotesByEntryId[entry.id] ?? [];
+              const patternSummary = summarizePatternNotes(patternNotes);
 
               return (
                 <article className="entry" key={entry.id}>
@@ -568,9 +818,9 @@ export function App() {
                     {evidenceCandidates.length > 0 ? (
                       <>
                         <p className="review-summary">
-                          Review summary: {evidenceSummary.total} candidates ·{" "}
-                          {evidenceSummary.confirmed} confirmed ·{" "}
-                          {evidenceSummary.rejected} rejected ·{" "}
+                          Review summary: {evidenceSummary.total} candidates /{" "}
+                          {evidenceSummary.confirmed} confirmed /{" "}
+                          {evidenceSummary.rejected} rejected /{" "}
                           {evidenceSummary.pending} pending
                         </p>
                         <p className="evidence-note">
@@ -693,6 +943,192 @@ export function App() {
                         </div>
                       </>
                     ) : null}
+                    <section
+                      className="reflection-review"
+                      aria-label="Reflection prompt review"
+                    >
+                      <p className="reflection-boundary">
+                        Reflection prompts are questions, not conclusions.
+                      </p>
+                      <div className="entry-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={confirmedEvidenceCandidates.length === 0}
+                          onClick={() => generateReflectionPrompts(entry)}
+                        >
+                          Generate reflection prompts
+                        </button>
+                      </div>
+                      {confirmedEvidenceCandidates.length === 0 ? (
+                        <p className="session-note">
+                          Confirm at least one evidence candidate before
+                          generating reflection prompts.
+                        </p>
+                      ) : null}
+                      {reflectionPrompts.length > 0 ? (
+                        <>
+                          <p className="review-summary">
+                            Reflection summary: {reflectionSummary.suggested}{" "}
+                            suggested / {reflectionSummary.answered} answered
+                            / {reflectionSummary.skipped} skipped
+                          </p>
+                          <p className="session-note">
+                            Responses are session-only for now. Evidence and
+                            reflection are not persisted yet.
+                          </p>
+                          <div className="reflection-list">
+                            {reflectionPrompts.map((prompt) => {
+                              const response = prompt.response ?? "";
+                              const isAnswered = prompt.status === "answered";
+                              const isSkipped = prompt.status === "skipped";
+
+                              return (
+                                <article
+                                  className={`reflection-prompt reflection-prompt-${prompt.status}`}
+                                  key={prompt.id}
+                                >
+                                  <div className="candidate-meta">
+                                    <span>{prompt.status}</span>
+                                    <span>
+                                      {prompt.sourceEvidenceIds.length} evidence
+                                    </span>
+                                  </div>
+                                  <p>{prompt.question}</p>
+                                  <textarea
+                                    aria-label="Answer reflection prompt"
+                                    className="reflection-response-textarea"
+                                    disabled={isSkipped}
+                                    placeholder="Optional answer. You can also skip this question."
+                                    value={response}
+                                    onChange={(event) =>
+                                      updateReflectionPromptResponse(
+                                        entry.id,
+                                        prompt.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  <div className="entry-actions">
+                                    <button
+                                      type="button"
+                                      disabled={!response.trim() || isSkipped}
+                                      onClick={() =>
+                                        saveReflectionPromptAnswer(
+                                          entry.id,
+                                          prompt.id,
+                                        )
+                                      }
+                                    >
+                                      Save answer
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="secondary-button"
+                                      disabled={isAnswered || isSkipped}
+                                      onClick={() =>
+                                        skipReflectionPrompt(entry.id, prompt.id)
+                                      }
+                                    >
+                                      Skip
+                                    </button>
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : null}
+                      <section
+                        className="pattern-review"
+                        aria-label="Pattern candidate review"
+                      >
+                        <p className="pattern-boundary">
+                          Pattern candidates are hypotheses for review, not
+                          conclusions.
+                        </p>
+                        <div className="entry-actions">
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            disabled={confirmedEvidenceCandidates.length === 0}
+                            onClick={() => generatePatternNotes(entry)}
+                          >
+                            Generate pattern candidate
+                          </button>
+                        </div>
+                        {confirmedEvidenceCandidates.length === 0 ? (
+                          <p className="session-note">
+                            Confirm at least one evidence candidate before
+                            generating a pattern candidate.
+                          </p>
+                        ) : null}
+                        {patternNotes.length > 0 ? (
+                          <>
+                            <p className="review-summary">
+                              Pattern summary: {patternSummary.candidate}{" "}
+                              candidate / {patternSummary.confirmed} confirmed /{" "}
+                              {patternSummary.rejected} rejected
+                            </p>
+                            <p className="session-note">
+                              Session-only: pattern candidates are not saved,
+                              exported, imported, or used to create growth notes.
+                            </p>
+                            <div className="pattern-list">
+                              {patternNotes.map((patternNote) => {
+                                const isReviewed =
+                                  patternNote.status !== "candidate";
+
+                                return (
+                                  <article
+                                    className={`pattern-note pattern-note-${patternNote.status}`}
+                                    key={patternNote.id}
+                                  >
+                                    <div className="candidate-meta">
+                                      <span>{patternNote.status}</span>
+                                      <span>
+                                        {patternNote.sourceEvidenceIds.length}{" "}
+                                        evidence
+                                      </span>
+                                    </div>
+                                    <p>{patternNote.text}</p>
+                                    {!isReviewed ? (
+                                      <div className="entry-actions">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            updatePatternNoteStatus(
+                                              entry.id,
+                                              patternNote.id,
+                                              "confirmed",
+                                            )
+                                          }
+                                        >
+                                          Confirm
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="secondary-button"
+                                          onClick={() =>
+                                            updatePatternNoteStatus(
+                                              entry.id,
+                                              patternNote.id,
+                                              "rejected",
+                                            )
+                                          }
+                                        >
+                                          Reject
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : null}
+                      </section>
+                    </section>
                   </section>
                 </article>
               );

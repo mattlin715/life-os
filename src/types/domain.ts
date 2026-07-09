@@ -1,6 +1,7 @@
 export type ISODateTime = string;
 
 export type CandidateStatus = "candidate" | "confirmed" | "rejected";
+export type ReflectionPromptStatus = "suggested" | "answered" | "skipped";
 
 export interface ExperienceEntry {
   id: string;
@@ -31,21 +32,21 @@ export interface EvidenceCandidate {
 export interface ReflectionPrompt {
   id: string;
   sourceEntryId: string;
+  sourceEvidenceIds: string[];
   question: string;
-  status: CandidateStatus;
-  userEditable: boolean;
+  status: ReflectionPromptStatus;
+  response?: string;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
 
 export interface PatternNote {
   id: string;
-  title: string;
-  summary: string;
-  sourceEntryIds: string[];
-  evidenceIds: string[];
+  sourceEntryId: string;
+  sourceEvidenceIds: string[];
+  sourceReflectionPromptIds?: string[];
+  text: string;
   status: CandidateStatus;
-  userEditable: boolean;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
