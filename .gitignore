@@ -1,6 +1,9 @@
 node_modules/
 .pnpm-store/
 .tools/
+.env
+.env.local
+.env.*.local
 
 dist/
 src-tauri/target/

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -14,7 +14,22 @@ import {
 } from "../shared/evidence/evidenceSummary";
 import { summarizeReflectionPrompts } from "../shared/reflection/reflectionSummary";
 import { createLocalEvidenceStore } from "../shared/storage";
+import {
+  evidenceKindLabel,
+  languageOptions,
+  statusLabel,
+  uiText,
+  type AppLanguage,
+  type UiCopy,
+} from "./i18n";
+import { geminiProvider } from "../ai/providers/geminiProvider";
+import {
+  getAiRuntimeStatus,
+  openaiProvider,
+  type AiRuntimeStatus,
+} from "../ai/providers/openaiProvider";
 import { placeholderProvider } from "../ai/providers/placeholderProvider";
+import type { AIProvider } from "../ai/providers/types";
 import type {
   CandidateStatus,
   EvidenceCandidate,
@@ -47,6 +62,12 @@ interface EvidenceCandidateEditState {
   text: string;
 }
 
+type PendingAction =
+  | "saving"
+  | `evidence:${string}`
+  | `reflection:${string}`
+  | `pattern:${string}`;
+
 function summarizePatternNotes(patternNotes: PatternNote[]) {
   return {
     total: patternNotes.length,
@@ -59,11 +80,284 @@ function summarizePatternNotes(patternNotes: PatternNote[]) {
   };
 }
 
+function chooseProvider(aiRuntime: AiRuntimeStatus | null): AIProvider {
+  if (aiRuntime?.provider === "gemini") {
+    return geminiProvider;
+  }
+
+  if (aiRuntime?.provider === "openai") {
+    return openaiProvider;
+  }
+
+  return placeholderProvider;
+}
+
+type ProviderErrorKind =
+  | "missing_config"
+  | "invalid_key"
+  | "model_unavailable"
+  | "quota_or_billing"
+  | "rate_limited"
+  | "network"
+  | "unexpected_response"
+  | "unknown";
+
+const LANGUAGE_STORAGE_KEY = "life-os.language";
+
+function readInitialLanguage(): AppLanguage {
+  const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+
+  if (
+    savedLanguage === "en" ||
+    savedLanguage === "zh-TW" ||
+    savedLanguage === "ja"
+  ) {
+    return savedLanguage;
+  }
+
+  return "zh-TW";
+}
+
+function providerDisplayName(
+  aiRuntime: AiRuntimeStatus | null,
+  copy: UiCopy,
+): string {
+  if (aiRuntime?.provider === "gemini") {
+    return "Gemini";
+  }
+
+  if (aiRuntime?.provider === "openai") {
+    return "OpenAI";
+  }
+
+  return copy.providerGeneric;
+}
+
+function providerErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function redactProviderError(message: string): string {
+  return message
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]")
+    .replace(/sk-proj-[A-Za-z0-9_-]+/g, "sk-proj-[redacted]")
+    .replace(/AIza[0-9A-Za-z_-]+/g, "AIza[redacted]")
+    .replace(/key_[A-Za-z0-9_-]+/g, "key_[redacted]");
+}
+
+function classifyProviderError(error: unknown): ProviderErrorKind {
+  const message = providerErrorText(error).toLowerCase();
+
+  if (
+    message.includes("not configured") ||
+    message.includes(" is empty") ||
+    message.includes("api key is empty")
+  ) {
+    return "missing_config";
+  }
+
+  if (
+    message.includes("401") ||
+    message.includes("unauthorized") ||
+    message.includes("invalid_api_key") ||
+    message.includes("incorrect api key") ||
+    message.includes("permission_denied")
+  ) {
+    return "invalid_key";
+  }
+
+  if (
+    message.includes("model_not_found") ||
+    message.includes("model") &&
+      (message.includes("not available") ||
+        message.includes("not found") ||
+        message.includes("limited preview"))
+  ) {
+    return "model_unavailable";
+  }
+
+  if (
+    message.includes("quota") ||
+    message.includes("billing") ||
+    message.includes("insufficient") ||
+    message.includes("payment") ||
+    message.includes("credit")
+  ) {
+    return "quota_or_billing";
+  }
+
+  if (
+    message.includes("429") ||
+    message.includes("rate limit") ||
+    message.includes("rate_limit") ||
+    message.includes("too many requests")
+  ) {
+    return "rate_limited";
+  }
+
+  if (
+    message.includes("request failed") ||
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("dns") ||
+    message.includes("connection")
+  ) {
+    return "network";
+  }
+
+  if (
+    message.includes("json parse") ||
+    message.includes("did not include") ||
+    message.includes("returned no") ||
+    message.includes("unexpected format")
+  ) {
+    return "unexpected_response";
+  }
+
+  return "unknown";
+}
+
+function providerErrorComfortCopy(
+  error: unknown,
+  aiRuntime: AiRuntimeStatus | null,
+  copy: UiCopy,
+): string {
+  const providerName = providerDisplayName(aiRuntime, copy);
+  const fallbackIntro = copy.fallbackIntro(providerName);
+
+  switch (classifyProviderError(error)) {
+    case "missing_config":
+      return `${fallbackIntro} ${copy.errorMissingConfig}`;
+    case "invalid_key":
+      return `${fallbackIntro} ${copy.errorInvalidKey}`;
+    case "model_unavailable":
+      return `${fallbackIntro} ${copy.errorModelUnavailable}`;
+    case "quota_or_billing":
+      return `${fallbackIntro} ${copy.errorQuota}`;
+    case "rate_limited":
+      return `${fallbackIntro} ${copy.errorRateLimited}`;
+    case "network":
+      return `${fallbackIntro} ${copy.errorNetwork}`;
+    case "unexpected_response":
+      return `${fallbackIntro} ${copy.errorUnexpected}`;
+    case "unknown":
+    default:
+      return `${fallbackIntro} ${copy.errorUnknown}`;
+  }
+}
+
+function unavailableProviderMessage(
+  error: unknown,
+  aiRuntime: AiRuntimeStatus | null,
+  copy: UiCopy,
+): string {
+  console.warn("Life OS AI provider fallback", {
+    provider: aiRuntime?.provider ?? "mock",
+    model: aiRuntime?.model,
+    error: redactProviderError(providerErrorText(error)),
+  });
+
+  return providerErrorComfortCopy(error, aiRuntime, copy);
+}
+
+function isUnavailableProviderMessage(message: string | null): boolean {
+  return (
+    message?.includes("local mirror fallback") ||
+    message?.includes("本機鏡像 fallback") ||
+    message?.includes("ローカルミラー fallback") ||
+    false
+  );
+}
+
+function isRealAiActive(aiRuntime: AiRuntimeStatus | null): boolean {
+  return aiRuntime?.provider === "gemini" || aiRuntime?.provider === "openai";
+}
+
+type GenerationStage = "evidence" | "reflection" | "pattern";
+
+function successfulGenerationMessage(
+  stage: GenerationStage,
+  aiRuntime: AiRuntimeStatus | null,
+  isFirstRealAiSuccess: boolean,
+  copy: UiCopy,
+): string {
+  if (!isRealAiActive(aiRuntime)) {
+    switch (stage) {
+      case "evidence":
+        return copy.successLocalEvidence;
+      case "reflection":
+        return copy.successLocalReflection;
+      case "pattern":
+        return copy.successLocalPattern;
+    }
+  }
+
+  const providerName = providerDisplayName(aiRuntime, copy);
+  const prefix = isFirstRealAiSuccess
+    ? copy.firstMirror(providerName)
+    : copy.mirror(providerName);
+
+  switch (stage) {
+    case "evidence":
+      return `${prefix} ${copy.successEvidence}`;
+    case "reflection":
+      return `${prefix} ${copy.successReflection}`;
+    case "pattern":
+      return `${prefix} ${copy.successPattern}`;
+  }
+}
+
+function pendingActionCopy(
+  pendingAction: PendingAction | null,
+  aiRuntime: AiRuntimeStatus | null,
+  copy: UiCopy,
+): string {
+  const providerName = isRealAiActive(aiRuntime)
+    ? providerDisplayName(aiRuntime, copy)
+    : "Life OS";
+
+  if (!pendingAction || pendingAction === "saving") {
+    return copy.pendingHolding;
+  }
+
+  if (pendingAction.startsWith("evidence:")) {
+    return copy.pendingEvidence(providerName);
+  }
+
+  if (pendingAction.startsWith("reflection:")) {
+    return copy.pendingReflection(providerName);
+  }
+
+  if (pendingAction.startsWith("pattern:")) {
+    return copy.pendingPattern(providerName);
+  }
+
+  return copy.pendingFallback;
+}
+
+function statusMessageClassName(message: string): string {
+  if (isUnavailableProviderMessage(message)) {
+    return "export-status export-status-fallback";
+  }
+
+  if (
+    message.includes("mirror returned gently") ||
+    message.includes("Local mirror prepared") ||
+    message.includes("鏡像已") ||
+    message.includes("ミラー")
+  ) {
+    return "export-status export-status-success";
+  }
+
+  return "export-status";
+}
+
 async function saveTextFile(
   filename: string,
   content: string,
   mimeType: string,
   format: ExperienceExportFormat,
+  copy: UiCopy,
 ): Promise<string | null> {
   if (!isTauri()) {
     downloadTextFile(filename, content, mimeType);
@@ -76,7 +370,7 @@ async function saveTextFile(
   ]);
   const extension = format === "json" ? "json" : "md";
   const selectedPath = await save({
-    title: "Export Life OS experiences",
+    title: copy.exportTitle,
     defaultPath: filename,
     filters: [
       {
@@ -94,7 +388,7 @@ async function saveTextFile(
   return selectedPath;
 }
 
-async function readJsonImportFile(): Promise<SelectedTextFile | null> {
+async function readJsonImportFile(copy: UiCopy): Promise<SelectedTextFile | null> {
   if (!isTauri()) {
     return readBrowserTextFile(".json,application/json");
   }
@@ -104,7 +398,7 @@ async function readJsonImportFile(): Promise<SelectedTextFile | null> {
     import("@tauri-apps/plugin-fs"),
   ]);
   const selectedPath = await open({
-    title: "Import Life OS experiences",
+    title: copy.importTitle,
     multiple: false,
     filters: [
       {
@@ -158,12 +452,19 @@ function readBrowserTextFile(accept: string): Promise<SelectedTextFile | null> {
 
 export function App() {
   const store = useMemo(() => createLocalEvidenceStore(), []);
+  const [language, setLanguage] = useState<AppLanguage>(() =>
+    readInitialLanguage(),
+  );
+  const copy = uiText[language];
   const [body, setBody] = useState("");
   const [entries, setEntries] = useState<ExperienceEntry[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [portabilityStatus, setPortabilityStatus] = useState<string | null>(
     null,
   );
+  const [aiRuntime, setAiRuntime] = useState<AiRuntimeStatus | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [hasRealAiSuccess, setHasRealAiSuccess] = useState(false);
   const [evidenceCandidatesByEntryId, setEvidenceCandidatesByEntryId] =
     useState<Record<string, EvidenceCandidate[]>>({});
   const [reflectionPromptsByEntryId, setReflectionPromptsByEntryId] = useState<
@@ -186,6 +487,11 @@ export function App() {
     [evidenceCandidatesByEntryId],
   );
 
+  useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = language === "zh-TW" ? "zh-Hant" : language;
+  }, [language]);
+
   const refreshEntries = useCallback(async () => {
     try {
       setEntries(await store.listExperiences());
@@ -204,6 +510,7 @@ export function App() {
     }
 
     try {
+      setPendingAction("saving");
       await store.createExperience({ body: trimmedBody });
       setBody("");
       await refreshEntries();
@@ -212,6 +519,8 @@ export function App() {
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : String(error));
       setPortabilityStatus(null);
+    } finally {
+      setPendingAction(null);
     }
   }, [body, refreshEntries, store]);
 
@@ -307,29 +616,30 @@ export function App() {
           content,
           mimeType,
           format,
+          copy,
         );
 
         setStorageError(null);
         setPortabilityStatus(
           savedPath
-            ? `Export saved: ${savedPath}`
-            : "Export cancelled. No file was written.",
+            ? copy.exportSaved(savedPath)
+            : copy.exportCancelled,
         );
       } catch (error) {
         setStorageError(error instanceof Error ? error.message : String(error));
         setPortabilityStatus(null);
       }
     },
-    [store],
+    [copy, store],
   );
 
   const importEntries = useCallback(async () => {
     try {
-      const selectedFile = await readJsonImportFile();
+      const selectedFile = await readJsonImportFile(copy);
 
       if (!selectedFile) {
         setStorageError(null);
-        setPortabilityStatus("Import cancelled. No file was read.");
+        setPortabilityStatus(copy.importCancelled);
         return;
       }
 
@@ -339,17 +649,33 @@ export function App() {
       await refreshEntries();
       setStorageError(null);
       setPortabilityStatus(
-        `Import complete from ${selectedFile.filename}: ${result.importedCount} imported, ${result.skippedCount} skipped.`,
+        copy.importComplete(
+          selectedFile.filename,
+          result.importedCount,
+          result.skippedCount,
+        ),
       );
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : String(error));
       setPortabilityStatus(null);
     }
-  }, [refreshEntries, store]);
+  }, [copy, refreshEntries, store]);
 
   const generateEvidenceCandidates = useCallback(async (entry: ExperienceEntry) => {
     try {
-      const candidates = await placeholderProvider.extractEvidence(entry);
+      setPendingAction(`evidence:${entry.id}`);
+      let candidates: EvidenceCandidate[];
+      let usedLocalFallback = false;
+
+      try {
+        candidates = await chooseProvider(aiRuntime).extractEvidence(entry);
+      } catch (providerError) {
+        usedLocalFallback = true;
+        candidates = await placeholderProvider.extractEvidence(entry);
+        setPortabilityStatus(
+          unavailableProviderMessage(providerError, aiRuntime, copy),
+        );
+      }
 
       setEvidenceCandidatesByEntryId((current) => ({
         ...current,
@@ -369,14 +695,31 @@ export function App() {
         setEditingEvidenceCandidate(null);
       }
       setStorageError(null);
-      setPortabilityStatus(
-        "Evidence candidates are suggestions. You decide what is true.",
-      );
+      if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
+        const isFirstRealAiSuccess = !hasRealAiSuccess;
+        setHasRealAiSuccess(true);
+        setPortabilityStatus(
+          successfulGenerationMessage(
+            "evidence",
+            aiRuntime,
+            isFirstRealAiSuccess,
+            copy,
+          ),
+        );
+      } else {
+        setPortabilityStatus((current) =>
+          isUnavailableProviderMessage(current)
+            ? current
+            : successfulGenerationMessage("evidence", aiRuntime, false, copy),
+        );
+      }
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : String(error));
       setPortabilityStatus(null);
+    } finally {
+      setPendingAction(null);
     }
-  }, [editingEvidenceCandidate]);
+  }, [aiRuntime, copy, editingEvidenceCandidate, hasRealAiSuccess]);
 
   const beginEvidenceCandidateEdit = useCallback(
     (entryId: string, candidate: EvidenceCandidate) => {
@@ -428,10 +771,8 @@ export function App() {
     }));
     setEditingEvidenceCandidate(null);
     setStorageError(null);
-    setPortabilityStatus(
-      "Evidence candidate edited. It remains a candidate until you confirm it.",
-    );
-  }, [editingEvidenceCandidate]);
+    setPortabilityStatus(copy.evidenceEditedStatus);
+  }, [copy, editingEvidenceCandidate]);
 
   const updateEvidenceCandidateStatus = useCallback(
     (
@@ -464,11 +805,9 @@ export function App() {
         return next;
       });
       setStorageError(null);
-      setPortabilityStatus(
-        "Evidence review updated. Candidates remain session-only.",
-      );
+      setPortabilityStatus(copy.evidenceReviewUpdated);
     },
-    [editingEvidenceCandidate],
+    [copy, editingEvidenceCandidate],
   );
 
   const generateReflectionPrompts = useCallback(
@@ -480,17 +819,30 @@ export function App() {
 
       if (confirmedEvidence.length === 0) {
         setStorageError(null);
-        setPortabilityStatus(
-          "Confirm at least one evidence candidate before generating reflection prompts.",
-        );
+        setPortabilityStatus(copy.reflectionNeedEvidence);
         return;
       }
 
       try {
-        const prompts = await placeholderProvider.generateReflectionPrompts(
-          entry,
-          confirmedEvidence,
-        );
+        setPendingAction(`reflection:${entry.id}`);
+        let prompts: ReflectionPrompt[];
+        let usedLocalFallback = false;
+
+        try {
+          prompts = await chooseProvider(aiRuntime).generateReflectionPrompts(
+            entry,
+            confirmedEvidence,
+          );
+        } catch (providerError) {
+          usedLocalFallback = true;
+          prompts = await placeholderProvider.generateReflectionPrompts(
+            entry,
+            confirmedEvidence,
+          );
+          setPortabilityStatus(
+            unavailableProviderMessage(providerError, aiRuntime, copy),
+          );
+        }
 
         setReflectionPromptsByEntryId((current) => ({
           ...current,
@@ -502,15 +854,32 @@ export function App() {
           return next;
         });
         setStorageError(null);
-        setPortabilityStatus(
-          "Reflection prompts are questions, not conclusions.",
-        );
+        if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
+          const isFirstRealAiSuccess = !hasRealAiSuccess;
+          setHasRealAiSuccess(true);
+          setPortabilityStatus(
+            successfulGenerationMessage(
+              "reflection",
+              aiRuntime,
+              isFirstRealAiSuccess,
+              copy,
+            ),
+          );
+        } else {
+          setPortabilityStatus((current) =>
+            isUnavailableProviderMessage(current)
+              ? current
+              : successfulGenerationMessage("reflection", aiRuntime, false, copy),
+          );
+        }
       } catch (error) {
         setStorageError(error instanceof Error ? error.message : String(error));
         setPortabilityStatus(null);
+      } finally {
+        setPendingAction(null);
       }
     },
-    [evidenceCandidatesByEntryId],
+    [aiRuntime, copy, evidenceCandidatesByEntryId, hasRealAiSuccess],
   );
 
   const updateReflectionPromptResponse = useCallback(
@@ -562,11 +931,9 @@ export function App() {
         return next;
       });
       setStorageError(null);
-      setPortabilityStatus(
-        "Reflection answer saved for this session only.",
-      );
+      setPortabilityStatus(copy.reflectionSaved);
     },
-    [],
+    [copy],
   );
 
   const skipReflectionPrompt = useCallback(
@@ -593,11 +960,9 @@ export function App() {
         return next;
       });
       setStorageError(null);
-      setPortabilityStatus(
-        "Reflection prompt skipped for this session only.",
-      );
+      setPortabilityStatus(copy.reflectionSkipped);
     },
-    [],
+    [copy],
   );
 
   const generatePatternNotes = useCallback(
@@ -610,33 +975,64 @@ export function App() {
 
       if (confirmedEvidence.length === 0) {
         setStorageError(null);
-        setPortabilityStatus(
-          "Confirm at least one evidence candidate before generating a pattern candidate.",
-        );
+        setPortabilityStatus(copy.patternNeedEvidence);
         return;
       }
 
       try {
-        const patternNotes = await placeholderProvider.suggestPatternNotes(
-          entry,
-          confirmedEvidence,
-          reflectionPrompts,
-        );
+        setPendingAction(`pattern:${entry.id}`);
+        let patternNotes: PatternNote[];
+        let usedLocalFallback = false;
+
+        try {
+          patternNotes = await chooseProvider(aiRuntime).suggestPatternNotes(
+            entry,
+            confirmedEvidence,
+            reflectionPrompts,
+          );
+        } catch (providerError) {
+          usedLocalFallback = true;
+          patternNotes = await placeholderProvider.suggestPatternNotes(
+            entry,
+            confirmedEvidence,
+            reflectionPrompts,
+          );
+          setPortabilityStatus(
+            unavailableProviderMessage(providerError, aiRuntime, copy),
+          );
+        }
 
         setPatternNotesByEntryId((current) => ({
           ...current,
           [entry.id]: patternNotes,
         }));
         setStorageError(null);
-        setPortabilityStatus(
-          "Pattern candidates are hypotheses for review, not conclusions.",
-        );
+        if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
+          const isFirstRealAiSuccess = !hasRealAiSuccess;
+          setHasRealAiSuccess(true);
+          setPortabilityStatus(
+            successfulGenerationMessage(
+              "pattern",
+              aiRuntime,
+              isFirstRealAiSuccess,
+              copy,
+            ),
+          );
+        } else {
+          setPortabilityStatus((current) =>
+            isUnavailableProviderMessage(current)
+              ? current
+              : successfulGenerationMessage("pattern", aiRuntime, false, copy),
+          );
+        }
       } catch (error) {
         setStorageError(error instanceof Error ? error.message : String(error));
         setPortabilityStatus(null);
+      } finally {
+        setPendingAction(null);
       }
     },
-    [evidenceCandidatesByEntryId, reflectionPromptsByEntryId],
+    [aiRuntime, copy, evidenceCandidatesByEntryId, reflectionPromptsByEntryId, hasRealAiSuccess],
   );
 
   const updatePatternNoteStatus = useCallback(
@@ -659,83 +1055,175 @@ export function App() {
           ) ?? [],
       }));
       setStorageError(null);
-      setPortabilityStatus(
-        "Pattern review updated. Pattern candidates remain session-only.",
-      );
+      setPortabilityStatus(copy.patternUpdated);
     },
-    [],
+    [copy],
   );
 
   useEffect(() => {
     void refreshEntries();
   }, [refreshEntries]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    getAiRuntimeStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setAiRuntime(status);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setAiRuntime({
+            provider: "mock",
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const aiProviderLabel =
+    aiRuntime?.provider === "gemini"
+      ? copy.providerActive("Gemini", aiRuntime.model)
+      : aiRuntime?.provider === "openai"
+        ? copy.providerActive("OpenAI", aiRuntime.model)
+        : copy.localFallback;
+  const aiProviderDetail =
+    aiRuntime?.provider === "gemini"
+      ? copy.aiAvailable("Gemini")
+      : aiRuntime?.provider === "openai"
+        ? copy.aiAvailable("OpenAI")
+        : copy.aiFallbackDetail;
+  const isSaving = pendingAction === "saving";
+
   return (
     <main className="app-shell">
-      <section className="hero">
-        <p className="eyebrow">Life OS</p>
-        <h1>Life OS</h1>
-        <p className="principle">We Build Mirrors, Not Oracles.</p>
-        <textarea
-          aria-label="Experience"
-          placeholder="Write one experience you want to understand."
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-        />
-        <div className="actions">
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
+      <section className="product-frame" aria-label={copy.appAria}>
+        <header className="top-bar">
+          <div>
+            <p className="eyebrow">{copy.alpha}</p>
+            <p className="top-bar-title">{copy.motto}</p>
+          </div>
+          <div className="top-bar-controls">
+            <label className="language-switcher">
+              <span>{copy.languageLabel}</span>
+              <select
+                value={language}
+                onChange={(event) =>
+                  setLanguage(event.target.value as AppLanguage)
+                }
+              >
+                {languageOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="ai-status" title={aiRuntime?.reason ?? aiProviderDetail}>
+              <span className={`status-dot status-dot-${aiRuntime?.provider ?? "mock"}`} />
+              <span>{aiProviderLabel}</span>
+            </div>
+          </div>
+        </header>
+
+        <section className="welcome-card">
+          <div className="welcome-copy">
+            <p className="soft-label">{copy.welcome}</p>
+            <h1>{copy.hero}</h1>
+            <p className="welcome-subtitle">{copy.subtitle}</p>
+          </div>
+          <div className="reflection-composer">
+            <textarea
+              aria-label={copy.experienceAria}
+              placeholder={copy.experiencePlaceholder}
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+            />
+            <div className="composer-footer">
+              <p>{aiProviderDetail}</p>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!body.trim() || isSaving}
+                onClick={saveExperience}
+              >
+                {isSaving ? copy.saving : copy.saveMoment}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="utility-row" aria-label={copy.importExportAria}>
           <button
             type="button"
-            disabled={!body.trim()}
-            onClick={saveExperience}
-          >
-            Save locally
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
+            className="ghost-button"
             disabled={entries.length === 0}
             onClick={() => exportEntries("json")}
           >
-            Export JSON
+            {copy.exportJson}
           </button>
           <button
             type="button"
-            className="secondary-button"
+            className="ghost-button"
             disabled={entries.length === 0}
             onClick={() => exportEntries("markdown")}
           >
-            Export Markdown
+            {copy.exportMarkdown}
           </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={importEntries}
-          >
-            Import JSON
+          <button type="button" className="ghost-button" onClick={importEntries}>
+            {copy.importJson}
           </button>
-        </div>
+        </section>
+
         {storageError ? (
           <p className="storage-error" role="alert">
-            Local storage error: {storageError}
+            {copy.storageErrorPrefix} {storageError}
           </p>
         ) : null}
         {portabilityStatus ? (
-          <p className="export-status">{portabilityStatus}</p>
+          <p className={statusMessageClassName(portabilityStatus)} aria-live="polite">
+            {portabilityStatus}
+          </p>
         ) : null}
-        <section className="session-summary" aria-label="Evidence session summary">
-          <p>
-            Session review summary: {entries.length} entries /{" "}
-            {evidenceSessionSummary.total} candidates /{" "}
-            {evidenceSessionSummary.confirmed} confirmed /{" "}
-            {evidenceSessionSummary.rejected} rejected /{" "}
-            {evidenceSessionSummary.pending} pending
-          </p>
-          <p>
-            Summary helps you review candidates. It does not judge your progress.
-          </p>
+        {pendingAction && pendingAction !== "saving" ? (
+          <div className="loading-card" role="status" aria-live="polite">
+            <span className="spinner" />
+            <span>{pendingActionCopy(pendingAction, aiRuntime, copy)}</span>
+          </div>
+        ) : null}
+
+        <section className="session-summary" aria-label={copy.currentSession}>
+          <div>
+            <p className="summary-kicker">{copy.currentSession}</p>
+            <p className="summary-line">
+              {copy.summary(
+                entries.length,
+                evidenceSessionSummary.total,
+                evidenceSessionSummary.confirmed,
+                evidenceSessionSummary.rejected,
+                evidenceSessionSummary.pending,
+              )}
+            </p>
+          </div>
+          <p>{copy.summaryNote}</p>
         </section>
-        {entries.length > 0 ? (
-          <section className="entry-list" aria-label="Saved experiences">
+
+        {entries.length === 0 ? (
+          <section className="empty-state" aria-label={copy.emptyAria}>
+            <div className="empty-orb">○</div>
+            <h2>{copy.emptyTitle}</h2>
+            <p>{copy.emptyBody}</p>
+          </section>
+        ) : (
+          <section className="entry-list" aria-label={copy.savedExperiencesAria}>
             {entries.map((entry) => {
               const evidenceCandidates =
                 evidenceCandidatesByEntryId[entry.id] ?? [];
@@ -750,23 +1238,31 @@ export function App() {
                 summarizeReflectionPrompts(reflectionPrompts);
               const patternNotes = patternNotesByEntryId[entry.id] ?? [];
               const patternSummary = summarizePatternNotes(patternNotes);
+              const isEvidencePending = pendingAction === `evidence:${entry.id}`;
+              const isReflectionPending =
+                pendingAction === `reflection:${entry.id}`;
+              const isPatternPending = pendingAction === `pattern:${entry.id}`;
 
               return (
                 <article className="entry" key={entry.id}>
                   <div className="entry-meta">
-                    <time dateTime={entry.createdAt}>
-                      Created {new Date(entry.createdAt).toLocaleString()}
-                    </time>
+                    <div>
+                      <p className="entry-kicker">{copy.moment}</p>
+                      <time dateTime={entry.createdAt}>
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </time>
+                    </div>
                     {entry.updatedAt !== entry.createdAt ? (
                       <time dateTime={entry.updatedAt}>
-                        Updated {new Date(entry.updatedAt).toLocaleString()}
+                        {copy.updated} {new Date(entry.updatedAt).toLocaleString()}
                       </time>
                     ) : null}
                   </div>
+
                   {editingEntryId === entry.id ? (
-                    <>
+                    <div className="edit-block">
                       <textarea
-                        aria-label="Edit experience"
+                        aria-label={copy.editExperienceAria}
                         className="edit-textarea"
                         value={editingBody}
                         onChange={(event) => setEditingBody(event.target.value)}
@@ -774,66 +1270,88 @@ export function App() {
                       <div className="entry-actions">
                         <button
                           type="button"
+                          className="primary-button compact"
                           disabled={!editingBody.trim()}
                           onClick={() => saveEdit(entry.id)}
                         >
-                          Save edit
+                          {copy.saveEdit}
                         </button>
                         <button
                           type="button"
-                          className="secondary-button"
+                          className="ghost-button compact"
                           onClick={cancelEdit}
                         >
-                          Cancel
+                          {copy.cancel}
                         </button>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <>
-                      <p>{entry.body}</p>
+                      <p className="entry-body">{entry.body}</p>
                       <div className="entry-actions">
-                        <button type="button" onClick={() => beginEdit(entry)}>
-                          Edit
+                        <button
+                          type="button"
+                          className="ghost-button compact"
+                          onClick={() => beginEdit(entry)}
+                        >
+                          {copy.edit}
                         </button>
                         <button
                           type="button"
-                          className="delete-button"
+                          className="danger-button compact"
                           onClick={() => deleteExperience(entry.id)}
                         >
-                          Delete
+                          {copy.delete}
                         </button>
                       </div>
                     </>
                   )}
-                  <section className="evidence-review">
-                    <div className="entry-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => generateEvidenceCandidates(entry)}
-                      >
-                        Generate evidence candidates
-                      </button>
-                    </div>
-                    {evidenceCandidates.length > 0 ? (
-                      <>
-                        <p className="review-summary">
-                          Review summary: {evidenceSummary.total} candidates /{" "}
-                          {evidenceSummary.confirmed} confirmed /{" "}
-                          {evidenceSummary.rejected} rejected /{" "}
-                          {evidenceSummary.pending} pending
-                        </p>
-                        <p className="evidence-note">
-                          You can edit candidates before confirming. They are not
-                          facts until you accept them.
-                        </p>
-                        <p className="session-note">
-                          Session-only: evidence candidates are not saved,
-                          exported, or imported yet.
-                        </p>
-                        <div className="candidate-list">
-                          {evidenceCandidates.map((candidate) => (
-                            (() => {
+
+                  <section className="review-stack">
+                    <section className="review-card evidence-review">
+                      <div className="review-card-header">
+                        <div>
+                          <p className="review-step">{copy.evidenceStep}</p>
+                          <h2>{copy.evidenceTitle}</h2>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={isEvidencePending}
+                          onClick={() => generateEvidenceCandidates(entry)}
+                        >
+                          {isEvidencePending
+                            ? copy.findingEvidence
+                            : copy.generateEvidence}
+                        </button>
+                      </div>
+                      <p className="next-step">
+                        {isEvidencePending
+                          ? copy.evidenceNextPending
+                          : evidenceCandidates.length === 0
+                            ? copy.evidenceNextEmpty
+                            : evidenceSummary.pending > 0
+                              ? copy.evidenceNextReview
+                              : confirmedEvidenceCandidates.length > 0
+                                ? copy.evidenceNextReady
+                                : copy.evidenceNextNone}
+                      </p>
+
+                      {evidenceCandidates.length > 0 ? (
+                        <>
+                          <p className="review-summary">
+                            {copy.evidenceSummary(
+                              evidenceSummary.total,
+                              evidenceSummary.confirmed,
+                              evidenceSummary.rejected,
+                              evidenceSummary.pending,
+                            )}
+                          </p>
+                          <p className="evidence-note">
+                            {copy.evidenceNote}
+                          </p>
+                          <div className="candidate-list">
+                            {evidenceCandidates.map((candidate) => {
                               const isEditing =
                                 editingEvidenceCandidate?.entryId === entry.id &&
                                 editingEvidenceCandidate.candidateId ===
@@ -850,13 +1368,17 @@ export function App() {
                                   key={candidate.id}
                                 >
                                   <div className="candidate-meta">
-                                    <span>{candidate.kind}</span>
-                                    <span>{candidate.status}</span>
+                                    <span>
+                                      {evidenceKindLabel(candidate.kind, language)}
+                                    </span>
+                                    <span>
+                                      {statusLabel(candidate.status, language)}
+                                    </span>
                                   </div>
                                   {isEditing ? (
                                     <>
                                       <textarea
-                                        aria-label="Edit evidence candidate"
+                                        aria-label={copy.editEvidenceAria}
                                         className="candidate-edit-textarea"
                                         value={editingEvidenceCandidate.text}
                                         onChange={(event) =>
@@ -869,19 +1391,20 @@ export function App() {
                                       <div className="entry-actions">
                                         <button
                                           type="button"
+                                          className="primary-button compact"
                                           disabled={
                                             !editingEvidenceCandidate.text.trim()
                                           }
                                           onClick={saveEvidenceCandidateEdit}
                                         >
-                                          Save
+                                          {copy.save}
                                         </button>
                                         <button
                                           type="button"
-                                          className="secondary-button"
+                                          className="ghost-button compact"
                                           onClick={cancelEvidenceCandidateEdit}
                                         >
-                                          Cancel
+                                          {copy.cancel}
                                         </button>
                                       </div>
                                     </>
@@ -890,14 +1413,21 @@ export function App() {
                                       <p>{candidate.text}</p>
                                       {hasEditedText ? (
                                         <p className="candidate-edited-note">
-                                          Edited from mock output.
+                                          {copy.editedFromAi}
+                                        </p>
+                                      ) : null}
+                                      {isReviewed ? (
+                                        <p className="reviewed-note">
+                                          {candidate.status === "confirmed"
+                                            ? copy.keptEvidence
+                                            : copy.setAside}
                                         </p>
                                       ) : null}
                                       {!isReviewed ? (
-                                        <div className="entry-actions">
+                                        <div className="entry-actions review-actions" aria-label={copy.reviewEvidenceAria}>
                                           <button
                                             type="button"
-                                            className="secondary-button"
+                                            className="ghost-button compact"
                                             onClick={() =>
                                               beginEvidenceCandidateEdit(
                                                 entry.id,
@@ -905,10 +1435,11 @@ export function App() {
                                               )
                                             }
                                           >
-                                            Edit
+                                            {copy.edit}
                                           </button>
                                           <button
                                             type="button"
+                                            className="primary-button compact"
                                             onClick={() =>
                                               updateEvidenceCandidateStatus(
                                                 entry.id,
@@ -917,11 +1448,11 @@ export function App() {
                                               )
                                             }
                                           >
-                                            Confirm
+                                            {copy.confirm}
                                           </button>
                                           <button
                                             type="button"
-                                            className="secondary-button"
+                                            className="ghost-button compact"
                                             onClick={() =>
                                               updateEvidenceCandidateStatus(
                                                 entry.id,
@@ -930,7 +1461,7 @@ export function App() {
                                               )
                                             }
                                           >
-                                            Reject
+                                            {copy.reject}
                                           </button>
                                         </div>
                                       ) : null}
@@ -938,44 +1469,68 @@ export function App() {
                                   )}
                                 </article>
                               );
-                            })()
-                          ))}
-                        </div>
-                      </>
-                    ) : null}
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="session-note">
+                          {copy.evidenceEmpty}
+                        </p>
+                      )}
+                    </section>
+
                     <section
-                      className="reflection-review"
-                      aria-label="Reflection prompt review"
+                      className="review-card reflection-review"
+                      aria-label={copy.reflectionAria}
                     >
-                      <p className="reflection-boundary">
-                        Reflection prompts are questions, not conclusions.
-                      </p>
-                      <div className="entry-actions">
+                      <div className="review-card-header">
+                        <div>
+                          <p className="review-step">{copy.reflectionStep}</p>
+                          <h2>{copy.reflectionTitle}</h2>
+                        </div>
                         <button
                           type="button"
                           className="secondary-button"
-                          disabled={confirmedEvidenceCandidates.length === 0}
+                          disabled={
+                            confirmedEvidenceCandidates.length === 0 ||
+                            isReflectionPending
+                          }
                           onClick={() => generateReflectionPrompts(entry)}
                         >
-                          Generate reflection prompts
+                          {isReflectionPending
+                            ? copy.shapingQuestions
+                            : copy.generateReflection}
                         </button>
                       </div>
+                      <p className="reflection-boundary">
+                        {copy.reflectionBoundary}
+                      </p>
+                      <p className="next-step">
+                        {confirmedEvidenceCandidates.length === 0
+                          ? copy.reflectionNextNeedEvidence
+                          : isReflectionPending
+                            ? copy.reflectionNextPending
+                            : reflectionPrompts.length === 0
+                              ? copy.reflectionNextEmpty
+                              : reflectionSummary.suggested > 0
+                                ? copy.reflectionNextReview
+                                : reflectionSummary.answered > 0
+                                  ? copy.reflectionNextReady
+                                  : copy.reflectionNextSkipped}
+                      </p>
                       {confirmedEvidenceCandidates.length === 0 ? (
                         <p className="session-note">
-                          Confirm at least one evidence candidate before
-                          generating reflection prompts.
+                          {copy.reflectionNeedEvidence}
                         </p>
                       ) : null}
                       {reflectionPrompts.length > 0 ? (
                         <>
                           <p className="review-summary">
-                            Reflection summary: {reflectionSummary.suggested}{" "}
-                            suggested / {reflectionSummary.answered} answered
-                            / {reflectionSummary.skipped} skipped
-                          </p>
-                          <p className="session-note">
-                            Responses are session-only for now. Evidence and
-                            reflection are not persisted yet.
+                            {copy.reflectionSummary(
+                              reflectionSummary.suggested,
+                              reflectionSummary.answered,
+                              reflectionSummary.skipped,
+                            )}
                           </p>
                           <div className="reflection-list">
                             {reflectionPrompts.map((prompt) => {
@@ -989,17 +1544,19 @@ export function App() {
                                   key={prompt.id}
                                 >
                                   <div className="candidate-meta">
-                                    <span>{prompt.status}</span>
+                                    <span>{statusLabel(prompt.status, language)}</span>
                                     <span>
-                                      {prompt.sourceEvidenceIds.length} evidence
+                                      {copy.evidenceCount(
+                                        prompt.sourceEvidenceIds.length,
+                                      )}
                                     </span>
                                   </div>
                                   <p>{prompt.question}</p>
                                   <textarea
-                                    aria-label="Answer reflection prompt"
+                                    aria-label={copy.answerReflectionAria}
                                     className="reflection-response-textarea"
                                     disabled={isSkipped}
-                                    placeholder="Optional answer. You can also skip this question."
+                                    placeholder={copy.reflectionPlaceholder}
                                     value={response}
                                     onChange={(event) =>
                                       updateReflectionPromptResponse(
@@ -1009,9 +1566,17 @@ export function App() {
                                       )
                                     }
                                   />
-                                  <div className="entry-actions">
+                                  {isAnswered || isSkipped ? (
+                                    <p className="reviewed-note">
+                                      {isAnswered
+                                        ? copy.answeredSession
+                                        : copy.skippedNoJudgment}
+                                    </p>
+                                  ) : null}
+                                  <div className="entry-actions review-actions" aria-label={copy.reviewReflectionAria}>
                                     <button
                                       type="button"
+                                      className="primary-button compact"
                                       disabled={!response.trim() || isSkipped}
                                       onClick={() =>
                                         saveReflectionPromptAnswer(
@@ -1020,17 +1585,17 @@ export function App() {
                                         )
                                       }
                                     >
-                                      Save answer
+                                      {copy.saveAnswer}
                                     </button>
                                     <button
                                       type="button"
-                                      className="secondary-button"
+                                      className="ghost-button compact"
                                       disabled={isAnswered || isSkipped}
                                       onClick={() =>
                                         skipReflectionPrompt(entry.id, prompt.id)
                                       }
                                     >
-                                      Skip
+                                      {copy.skip}
                                     </button>
                                   </div>
                                 </article>
@@ -1039,103 +1604,134 @@ export function App() {
                           </div>
                         </>
                       ) : null}
-                      <section
-                        className="pattern-review"
-                        aria-label="Pattern candidate review"
-                      >
-                        <p className="pattern-boundary">
-                          Pattern candidates are hypotheses for review, not
-                          conclusions.
-                        </p>
-                        <div className="entry-actions">
-                          <button
-                            type="button"
-                            className="secondary-button"
-                            disabled={confirmedEvidenceCandidates.length === 0}
-                            onClick={() => generatePatternNotes(entry)}
-                          >
-                            Generate pattern candidate
-                          </button>
-                        </div>
-                        {confirmedEvidenceCandidates.length === 0 ? (
-                          <p className="session-note">
-                            Confirm at least one evidence candidate before
-                            generating a pattern candidate.
-                          </p>
-                        ) : null}
-                        {patternNotes.length > 0 ? (
-                          <>
-                            <p className="review-summary">
-                              Pattern summary: {patternSummary.candidate}{" "}
-                              candidate / {patternSummary.confirmed} confirmed /{" "}
-                              {patternSummary.rejected} rejected
-                            </p>
-                            <p className="session-note">
-                              Session-only: pattern candidates are not saved,
-                              exported, imported, or used to create growth notes.
-                            </p>
-                            <div className="pattern-list">
-                              {patternNotes.map((patternNote) => {
-                                const isReviewed =
-                                  patternNote.status !== "candidate";
+                    </section>
 
-                                return (
-                                  <article
-                                    className={`pattern-note pattern-note-${patternNote.status}`}
-                                    key={patternNote.id}
-                                  >
-                                    <div className="candidate-meta">
-                                      <span>{patternNote.status}</span>
-                                      <span>
-                                        {patternNote.sourceEvidenceIds.length}{" "}
-                                        evidence
-                                      </span>
+                    <section
+                      className="review-card pattern-review"
+                      aria-label={copy.patternAria}
+                    >
+                      <div className="review-card-header">
+                        <div>
+                          <p className="review-step">{copy.patternStep}</p>
+                          <h2>{copy.patternTitle}</h2>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={
+                            confirmedEvidenceCandidates.length === 0 ||
+                            isPatternPending
+                          }
+                          onClick={() => generatePatternNotes(entry)}
+                        >
+                          {isPatternPending
+                            ? copy.formingPattern
+                            : copy.generatePattern}
+                        </button>
+                      </div>
+                      <p className="pattern-boundary">
+                        {copy.patternBoundary}
+                      </p>
+                      <p className="next-step">
+                        {confirmedEvidenceCandidates.length === 0
+                          ? copy.patternNextNeedEvidence
+                          : isPatternPending
+                            ? copy.patternNextPending
+                            : patternNotes.length === 0
+                              ? copy.patternNextEmpty
+                              : patternSummary.candidate > 0
+                                ? copy.patternNextReview
+                                : patternSummary.confirmed > 0
+                                  ? copy.patternNextComplete
+                                  : copy.patternNextRejected}
+                      </p>
+                      {confirmedEvidenceCandidates.length === 0 ? (
+                        <p className="session-note">
+                          {copy.patternNeedEvidence}
+                        </p>
+                      ) : null}
+                      {patternNotes.length > 0 ? (
+                        <>
+                          <p className="review-summary">
+                            {copy.patternSummary(
+                              patternSummary.candidate,
+                              patternSummary.confirmed,
+                              patternSummary.rejected,
+                            )}
+                          </p>
+                          <div className="pattern-list">
+                            {patternNotes.map((patternNote) => {
+                              const isReviewed =
+                                patternNote.status !== "candidate";
+
+                              return (
+                                <article
+                                  className={`pattern-note pattern-note-${patternNote.status}`}
+                                  key={patternNote.id}
+                                >
+                                  <div className="candidate-meta">
+                                    <span>
+                                      {statusLabel(patternNote.status, language)}
+                                    </span>
+                                    <span>
+                                      {copy.evidenceCount(
+                                        patternNote.sourceEvidenceIds.length,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <p>{patternNote.text}</p>
+                                  {isReviewed ? (
+                                    <p className="reviewed-note">
+                                      {patternNote.status === "confirmed"
+                                        ? copy.keptPattern
+                                        : copy.setAside}
+                                    </p>
+                                  ) : null}
+                                  {!isReviewed ? (
+                                    <div className="entry-actions review-actions" aria-label={copy.reviewPatternAria}>
+                                      <button
+                                        type="button"
+                                        className="primary-button compact"
+                                        onClick={() =>
+                                          updatePatternNoteStatus(
+                                            entry.id,
+                                            patternNote.id,
+                                            "confirmed",
+                                          )
+                                        }
+                                      >
+                                        {copy.confirm}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost-button compact"
+                                        onClick={() =>
+                                          updatePatternNoteStatus(
+                                            entry.id,
+                                            patternNote.id,
+                                            "rejected",
+                                          )
+                                        }
+                                      >
+                                        {copy.reject}
+                                      </button>
                                     </div>
-                                    <p>{patternNote.text}</p>
-                                    {!isReviewed ? (
-                                      <div className="entry-actions">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            updatePatternNoteStatus(
-                                              entry.id,
-                                              patternNote.id,
-                                              "confirmed",
-                                            )
-                                          }
-                                        >
-                                          Confirm
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="secondary-button"
-                                          onClick={() =>
-                                            updatePatternNoteStatus(
-                                              entry.id,
-                                              patternNote.id,
-                                              "rejected",
-                                            )
-                                          }
-                                        >
-                                          Reject
-                                        </button>
-                                      </div>
-                                    ) : null}
-                                  </article>
-                                );
-                              })}
-                            </div>
-                          </>
-                        ) : null}
-                      </section>
+                                  ) : null}
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : null}
                     </section>
                   </section>
                 </article>
               );
             })}
           </section>
-        ) : null}
+        )}
       </section>
     </main>
   );
 }
+

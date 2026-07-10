@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-life-os.ps1",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
