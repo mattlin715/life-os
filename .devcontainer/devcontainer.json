@@ -1,0 +1,17 @@
+{
+  "name": "Life OS Non-GUI Checks",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "postCreateCommand": "pnpm install",
+  "remoteUser": "node"
+}

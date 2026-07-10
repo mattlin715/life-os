@@ -1,8 +1,8 @@
----
+﻿---
 status: Draft
 version: 0.1
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/10
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -12,6 +12,9 @@ depends:
   - docs/09_AI.md
   - docs/10_Privacy.md
   - docs/architecture/00_MVP_Architecture.md
+  - docs/architecture/04_Evidence_Candidate_Boundary.md
+  - docs/architecture/05_Reflection_Prompt_Boundary.md
+  - docs/architecture/06_Pattern_Candidate_Boundary.md
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0005-ai-provider-abstraction.md
 referenced_by: []
@@ -36,10 +39,10 @@ The user does not need a complete life system yet.
 The user needs one trustworthy loop:
 
 Experience  
-→ Evidence  
-→ Reflection  
-→ Awareness  
-→ Growth
+??Evidence  
+??Reflection  
+??Awareness  
+??Growth
 
 ## 2. Flow 0: Single Experience Reflection
 
@@ -56,6 +59,32 @@ The system should keep the user in control at every step.
 
 AI output is never final.
 
+### Current Mock Boundary
+
+The current MVP implementation supports the mock boundary:
+
+Confirmed evidence  
+-> Reflection prompt  
+-> User response optional  
+-> Pattern candidate hypothesis  
+-> User review
+
+The user can generate reflection prompts only after confirming at least one evidence candidate.
+
+The prompt is a question, not an answer.
+
+The user can answer or skip.
+
+The user can generate a pattern candidate after confirming at least one evidence candidate.
+
+Answered reflection responses may be used as optional context, but skipped and unanswered prompts are not treated as conclusions.
+
+Pattern candidates are hypotheses for review, not identity labels or conclusions.
+
+Evidence candidates, reflection prompts, reflection responses, and pattern candidates are session-only in this sprint.
+
+They are not persisted, exported, imported, or used to generate growth notes.
+
 ## 3. Flow 1: Pattern Review
 
 After multiple entries:
@@ -69,6 +98,10 @@ After multiple entries:
 Pattern review should feel like a mirror, not a diagnosis.
 
 The system should show what evidence supports the pattern candidate.
+
+The current MVP only supports per-entry, session-only pattern candidates.
+
+Cross-entry pattern review remains deferred.
 
 ## 4. UX Principles
 
@@ -121,6 +154,8 @@ The system may keep a local audit trail only if the user understands and consent
 The user can delete the entry and associated evidence, reflection, and pattern notes.
 
 Deletion should be clear and understandable.
+
+In the current MVP, associated evidence, reflection, and pattern candidates are session-only and disappear with the entry or after app restart.
 
 ### AI provider unavailable
 
