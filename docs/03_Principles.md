@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/00_Constitution.md
   - docs/01_Vision.md
@@ -17,6 +17,8 @@ referenced_by:
   - docs/09_AI.md
   - docs/10_Privacy.md
   - docs/11_MVP.md
+  - docs/appendix/Harness.md
+  - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
 ---
 
 # 03 Principles
@@ -170,3 +172,28 @@ AI 在 Life OS 中不是自由生成器。
 7. 這是否讓使用者與自己的關係變得更清楚？
 
 如果任何答案是否，就必須重新討論。
+
+## Context Principles
+
+- Context Before Insight.
+- Clarify before interpreting sparse input.
+- Do not manufacture depth from thin evidence.
+- Longitudinal context may strengthen a hypothesis, but never convert it into unquestionable truth.
+- Ask only questions that meaningfully improve understanding.
+- The user may decline to elaborate.
+
+> 沒有足夠的脈絡，就沒有值得相信的洞見。
+
+Context is sufficient only relative to the inference being attempted. A short entry may be sufficient for a direct observation but insufficient for a pattern or identity hypothesis.
+
+When clarification would materially improve understanding, AI should invite it before interpreting. Context Recovery must remain bounded, optional, and respectful of attention.
+
+Longitudinal evidence improves the basis for comparison. It does not eliminate uncertainty or transfer interpretive authority away from the user.
+
+## Context Additions To The Design Decision Checklist
+
+Before shipping an AI behavior, also ask:
+
+8. Is there enough context for this level of inference?
+9. Should the system ask before it interprets?
+10. Does this insight use relevant history with visible provenance?

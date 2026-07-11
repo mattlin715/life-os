@@ -1,8 +1,8 @@
-﻿---
+---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/10
+last_updated: 2026/07/11
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -17,7 +17,13 @@ depends:
   - docs/architecture/06_Pattern_Candidate_Boundary.md
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0005-ai-provider-abstraction.md
-referenced_by: []
+  - docs/02_Philosophy.md
+  - docs/11_MVP.md
+  - docs/appendix/Harness.md
+  - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
+referenced_by:
+  - docs/11_MVP.md
+  - docs/12_Roadmap.md
 ---
 
 # 00 MVP User Flow
@@ -165,9 +171,11 @@ The system should not block journaling or local review because AI is unavailable
 
 ### User wants export
 
-The user can export entries and structured evidence in a portable format.
+The user can currently export Experience entries in JSON or Markdown.
 
 Export supports ownership and trust.
+
+Reviewed evidence, reflection, conversation, and pattern artifacts require a versioned portability design before they are added to export.
 
 ## 7. MVP Success Criteria
 
@@ -182,3 +190,39 @@ The MVP succeeds if the user feels:
 The MVP does not succeed because the UI is polished.
 
 It succeeds if the core loop proves useful.
+
+## 8. Revised Flow: Context Before Insight
+
+The next MVP flow is:
+
+1. User writes an Experience.
+2. System checks whether context is sufficient for the requested inference.
+3. If useful, the system invites a small number of clarifying questions.
+4. User answers, skips, or stops Context Recovery.
+5. System generates Evidence Candidates proportionate to available context.
+6. User reviews evidence.
+7. System offers Reflection.
+8. System may propose a Pattern Hypothesis with visible sources and uncertainty.
+9. Reviewed artifacts persist locally with provenance.
+10. When enough relevant evidence exists, the user may request Cross-Experience Reflection.
+
+### Context Recovery UX
+
+- Questions are invitations, not requirements.
+- Ask only what may materially improve understanding.
+- Do not repeat questions the user has already answered.
+- Do not force emotional depth.
+- If the user skips, reduce inference depth and continue safely.
+- Permit an honest outcome of “insufficient context” or “no meaningful pattern found.”
+
+### Historical Context UX
+
+Before Cross-Experience Reflection, show which historical records will be used and why. The user can exclude a record or disable longitudinal memory for that interaction.
+
+## 9. Persistence Qualification
+
+The current implementation persists only Experience records and selected UI language. Evidence Candidates, Reflection Prompts and responses, and Pattern Candidates disappear after restart.
+
+The revised flow requires these reviewed artifacts to persist locally with source relationships, authorship, review state, generation metadata, revision history, and deletion behavior. This is an implementation target, not current behavior.
+
+Until artifact export is implemented, export must be described accurately as Experience-only JSON/Markdown export.

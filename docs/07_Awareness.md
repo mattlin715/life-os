@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/02_Philosophy.md
   - docs/03_Principles.md
@@ -13,6 +13,7 @@ referenced_by:
   - docs/08_Growth.md
   - docs/09_AI.md
   - docs/11_MVP.md
+  - docs/appendix/Harness.md
 ---
 
 # 07 Awareness
@@ -171,3 +172,25 @@ Life OS helps users see patterns that were already shaping their lives, so those
 Awareness is not the end.
 
 It is the point where unconscious repetition becomes visible enough to be understood.
+
+## Awareness Can Emerge Across Experiences
+
+A single Experience may provide only a clue.
+
+A meaningful pattern may require several records before it becomes visible. Cross-experience Awareness should therefore cite the experiences that appear related and remain open to correction.
+
+Repeated evidence may strengthen a pattern hypothesis. It does not prove an identity.
+
+## Awareness Is Not Forced Depth
+
+Life OS must not package every ordinary event as a deep psychological lesson.
+
+Sometimes an event is ordinary. Sometimes the context is too thin. Sometimes a possible pattern should remain open until later.
+
+The system must allow honest outcomes:
+
+- no meaningful pattern found;
+- insufficient context;
+- revisit later.
+
+Restraint is part of Awareness. Refusing to manufacture depth protects the user from being defined by noise.

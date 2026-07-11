@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/02_Philosophy.md
   - docs/03_Principles.md
@@ -13,6 +13,9 @@ referenced_by:
   - docs/07_Awareness.md
   - docs/09_AI.md
   - docs/adr/ADR-0003-identity-is-emergent.md
+  - docs/11_MVP.md
+  - docs/appendix/Harness.md
+  - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
 ---
 
 # 06 Memory
@@ -225,3 +228,67 @@ Life OS 的 Memory 是為了讓使用者更有證據地理解自己。
 Life OS 記住，不是為了控制使用者。
 
 Life OS 記住，是為了把理解的主權交還給使用者。
+
+## Longitudinal Memory
+
+Longitudinal Memory exists so the next Reflection can be more accurate, not merely so the past remains stored.
+
+It preserves continuity between what happened, what the user confirmed, what the system hypothesized, and how understanding later changed.
+
+The purpose is not maximum recall. The purpose is relevant continuity.
+
+## Memory Artifact Types
+
+At the conceptual level, Life OS may preserve:
+
+- **Experience Record** — the user's account of an event or period.
+- **Confirmed Evidence** — a review decision that a record is useful evidence.
+- **User Reflection** — meaning or response authored by the user.
+- **Pattern Hypothesis** — a tentative relationship proposed across evidence.
+- **User Confirmation / Rejection** — the user's review outcome, not objective validation.
+- **Revision History** — how records and interpretations changed.
+- **Provenance** — the sources, authorship, generation context, and relationships behind an artifact.
+
+These are conceptual boundaries, not a database schema.
+
+## Memory Must Preserve Provenance
+
+Every cross-time insight must be able to answer:
+
+- Which experiences contributed to it?
+- Which words were written by the user?
+- Which statements were AI hypotheses?
+- Which artifacts did the user confirm?
+- Which artifacts were rejected or revised?
+
+An insight without provenance is not eligible to become durable personal memory.
+
+Summarization must not erase source relationships. User confirmation must not erase AI authorship.
+
+## Historical Context Retrieval
+
+Historical context should not mean sending the entire history to a model.
+
+Life OS should select relevant material using signals such as:
+
+- similar themes;
+- repeated emotions;
+- relationship subjects;
+- value conflicts;
+- a time range chosen by the user.
+
+Retrieval must remain explainable. The user should be able to see which records were selected and exclude a record from the current reflection.
+
+## No Silent Identity Accumulation
+
+Life OS must not build a fixed personality profile in the background.
+
+Any cross-experience identity insight must:
+
+- show supporting evidence;
+- show calibrated confidence;
+- remain rejectable;
+- remain editable or revisable;
+- remain deletable.
+
+Longitudinal Memory stores evidence and reviewed hypotheses. It does not silently accumulate identity judgment.

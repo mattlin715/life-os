@@ -1,11 +1,14 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/00_Constitution.md
-referenced_by: []
+referenced_by:
+  - README.md
+  - AI_CONTRIBUTOR_GUIDE.md
+  - IMPLEMENTATION_GUIDE.md
 ---
 
 # 00 Index
@@ -14,223 +17,122 @@ referenced_by: []
 
 This document is the knowledge navigation layer for Book Zero.
 
-Book Zero is no longer a set of isolated Markdown files. It is an interconnected knowledge system with hierarchy, source of truth rules, theory documents, and ADRs.
-
-The purpose of this Index is to help any AI Agent quickly build a mental model of Book Zero and locate the primary definition, primary application, and related documents for each concept.
-
-This is not a README.
-
-This is not a product introduction.
-
-This is not a replacement for the Constitution.
-
-It is a navigation document.
+It helps a contributor locate the Primary Definition, Primary Application, and Related Documents for each governed concept. It is not a product introduction and does not replace the Constitution or the primary theory documents.
 
 ## Documentation Hierarchy
 
-Book Zero follows the Documentation Hierarchy defined in `docs/00_Constitution.md`.
+The hierarchy is defined in `docs/00_Constitution.md`:
 
-Summary:
+- Level 0: Constitution.
+- Level 1: Vision and Philosophy.
+- Level 2: Principles, Problem, and Identity.
+- Level 3: Memory, Reflection, Awareness, Growth, AI, and Privacy.
+- Level 4: MVP, Roadmap, and implementation planning.
+- Level 5: Code.
 
-- Level 0: Constitution
-- Level 1: Vision, Philosophy
-- Level 2: Principles, Problem, Identity
-- Level 3: Memory, Reflection, Awareness, Growth, AI, Privacy
-- Level 4: MVP, Roadmap, Implementation planning
-- Level 5: Code
-
-Rule of use:
-
-- Read higher-level documents before lower-level documents.
-- Lower-level documents must not override higher-level documents.
-- Code is implementation, not the source of product philosophy.
-- When in conflict, follow the higher-level document.
+Lower levels must not override higher levels. When theory and implementation differ, document the gap rather than treating code as philosophy.
 
 ## Concept Index
 
 | Concept | Primary Definition | Primary Application | Related Documents |
 | --- | --- | --- | --- |
-| Mirror | `docs/00_Constitution.md` | `docs/03_Principles.md` | `README.md`, `docs/04_Problem.md`, `docs/Reflection.md`, `docs/09_AI.md` |
+| Mirror | `docs/00_Constitution.md` | `docs/03_Principles.md` | `Life_OS_Manifesto.md`, `README.md`, `docs/Reflection.md`, `docs/09_AI.md` |
+| Vision | `docs/01_Vision.md` | `docs/12_Roadmap.md` | `docs/00_Constitution.md`, `docs/11_MVP.md` |
+| Philosophy | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/01_Vision.md`, `docs/09_AI.md` |
+| Context | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md` |
+| Context Before Insight | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/appendix/Harness.md` |
+| Context Recovery | `docs/02_Philosophy.md` | `docs/product/00_MVP_User_Flow.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/11_MVP.md`, `docs/12_Roadmap.md` |
+| Conversation Layer | `docs/09_AI.md` | `docs/product/00_MVP_User_Flow.md` | `docs/02_Philosophy.md`, `docs/appendix/Harness.md`, `docs/12_Roadmap.md` |
 | Identity | `docs/05_Identity.md` | `docs/06_Memory.md` | `docs/Reflection.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
 | Evidence | `docs/03_Principles.md` | `docs/06_Memory.md` | `docs/05_Identity.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
-| Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/05_Identity.md`, `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
-| Pattern | `docs/05_Identity.md` | `docs/07_Awareness.md` | `docs/04_Problem.md`, `docs/06_Memory.md`, `docs/Reflection.md` |
-| Meaning | `docs/Reflection.md` | `docs/05_Identity.md` | `docs/06_Memory.md`, `docs/09_AI.md` |
-| Growth | `docs/08_Growth.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
-| Awareness | `docs/07_Awareness.md` | `docs/08_Growth.md` | `docs/04_Problem.md`, `docs/06_Memory.md`, `docs/Reflection.md` |
-| Privacy | `docs/10_Privacy.md` | `docs/06_Memory.md` | `docs/00_Constitution.md`, `docs/03_Principles.md`, `docs/09_AI.md` |
-| Interaction | `docs/03_Principles.md` | `docs/09_AI.md` | `docs/00_Constitution.md`, `docs/Reflection.md` |
-| Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/07_Awareness.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
-| Problem | `docs/04_Problem.md` | `docs/05_Identity.md` | `README.md`, `docs/06_Memory.md`, `docs/07_Awareness.md` |
-| Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `docs/00_Index.md` |
-| Source of Truth | `docs/00_Constitution.md` | `docs/adr/ADR-0002-single-source-of-truth.md` | `docs/00_Index.md` |
-
-## Theory Index
-
-| Theory | Primary Definition |
-| --- | --- |
-| We Build Mirrors, Not Oracles. | `docs/00_Constitution.md` |
-| Human before AI. | `docs/00_Constitution.md` |
-| Reflection before Answer. | `docs/00_Constitution.md` |
-| Evidence before Conclusion. | `docs/00_Constitution.md` |
-| Growth before Engagement. | `docs/00_Constitution.md` |
-| Privacy before Profit. | `docs/00_Constitution.md` |
-| Every interaction shapes the user's relationship with themselves. | `docs/03_Principles.md` |
-| Every interaction teaches something. The question is: What are we teaching? | `docs/03_Principles.md` |
-| Mirror before Advice. | `docs/03_Principles.md` |
-| Identity is Dynamic. | `docs/05_Identity.md` |
-| Identity is not a destination. Identity is an ongoing process of becoming. | `docs/05_Identity.md` |
-| Identity is revealed through patterns, not declarations. | `docs/05_Identity.md` |
-| Identity contains contradictions. | `docs/05_Identity.md` |
-| Personality is an observation, not an identity. | `docs/05_Identity.md` |
-| Identity is Emergent. | `docs/adr/ADR-0003-identity-is-emergent.md` |
-| Life OS understands people through evidence, not declarations. | `docs/05_Identity.md` |
-| Life OS does not collect memories. Life OS collects evidence. | `docs/06_Memory.md` |
-| A good memory system does not preserve the past. It preserves continuity of identity. | `docs/06_Memory.md` |
-| Evidence can be collected. Meaning must be discovered. | `docs/Reflection.md` |
-| Evidence is accumulated. Meaning is discovered. | `docs/06_Memory.md` |
-| Reflection is not output. Reflection is a reorganization of understanding. | `docs/Reflection.md` |
-| Awareness is the ability to recognize previously invisible patterns. | `docs/07_Awareness.md` |
-| Growth is integrating new understanding into future actions. | `docs/08_Growth.md` |
-| AI should become less necessary as users become more self-aware. | `docs/09_AI.md` |
-| Privacy is psychological safety required for honest self-reflection. | `docs/10_Privacy.md` |
+| Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/10_Privacy.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
+| Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
+| Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
+| Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md` |
+| Pattern | `docs/05_Identity.md` | `docs/07_Awareness.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
+| Meaning | `docs/Reflection.md` | `docs/02_Philosophy.md` | `docs/05_Identity.md`, `docs/09_AI.md` |
+| Awareness | `docs/07_Awareness.md` | `docs/08_Growth.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
+| Growth | `docs/08_Growth.md` | `docs/03_Principles.md` | `docs/07_Awareness.md`, `docs/Reflection.md` |
+| Privacy | `docs/10_Privacy.md` | `docs/06_Memory.md` | `docs/00_Constitution.md`, `docs/09_AI.md`, `docs/appendix/Harness.md` |
+| AI Role | `docs/09_AI.md` | `docs/Reflection.md` | `docs/03_Principles.md`, `docs/10_Privacy.md` |
+| AI Hypothesis Protocol | `docs/09_AI.md` | `docs/appendix/Harness.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
+| Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
+| MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/12_Roadmap.md` |
+| Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
+| Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
+| Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
 
 ## Reading Paths
 
-### Understand Product
+### Understand Product Soul
 
-1. `README.md`
-2. `docs/00_Constitution.md`
-3. `docs/04_Problem.md`
-4. `docs/05_Identity.md`
-5. `docs/06_Memory.md`
-6. `docs/Reflection.md`
-7. `docs/07_Awareness.md`
-8. `docs/08_Growth.md`
+1. `Life_OS_Manifesto.md`
+2. `README.md`
+3. `docs/00_Constitution.md`
+4. `docs/01_Vision.md`
+5. `docs/02_Philosophy.md`
+6. `docs/03_Principles.md`
 
-### Design AI Behavior
+### Understand Current Product And Next Work
 
-1. `docs/00_Constitution.md`
-2. `docs/03_Principles.md`
-3. `docs/05_Identity.md`
-4. `docs/06_Memory.md`
-5. `docs/Reflection.md`
-6. `docs/07_Awareness.md`
-7. `docs/09_AI.md`
-8. `docs/10_Privacy.md`
+1. `docs/11_MVP.md`
+2. `docs/12_Roadmap.md`
+3. `docs/product/00_MVP_User_Flow.md`
+4. `docs/architecture/00_MVP_Architecture.md`
 
-### Modify Memory
+### Design AI Or Harness Behavior
 
 1. `docs/00_Constitution.md`
-2. `docs/03_Principles.md`
-3. `docs/05_Identity.md`
-4. `docs/06_Memory.md`
-5. `docs/Reflection.md`
-6. `docs/10_Privacy.md`
-7. `docs/adr/ADR-0003-identity-is-emergent.md`
-
-### Modify Identity
-
-1. `docs/00_Constitution.md`
-2. `docs/04_Problem.md`
+2. `docs/02_Philosophy.md`
 3. `docs/03_Principles.md`
-4. `docs/05_Identity.md`
-5. `docs/06_Memory.md`
-6. `docs/Reflection.md`
-7. `docs/adr/ADR-0003-identity-is-emergent.md`
-
-### Build MVP
-
-1. `README.md`
-2. `docs/00_Constitution.md`
-3. `docs/01_Vision.md`
-4. `docs/02_Philosophy.md`
-5. `docs/03_Principles.md`
-6. `docs/11_MVP.md`
-7. `docs/12_Roadmap.md`
-
-### Create Prompt
-
-1. `docs/00_Constitution.md`
-2. `docs/03_Principles.md`
-3. `docs/05_Identity.md`
 4. `docs/06_Memory.md`
 5. `docs/Reflection.md`
 6. `docs/09_AI.md`
 7. `docs/10_Privacy.md`
-8. `docs/appendix/Prompt Design.md`
+8. `docs/appendix/Harness.md`
+9. `docs/adr/ADR-0005-ai-provider-abstraction.md`
+10. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
 
-### Architecture Design
+### Modify Longitudinal Memory
 
 1. `docs/00_Constitution.md`
-2. `docs/03_Principles.md`
-3. `docs/05_Identity.md`
-4. `docs/06_Memory.md`
-5. `docs/Reflection.md`
-6. `docs/07_Awareness.md`
-7. `docs/08_Growth.md`
-8. `docs/09_AI.md`
-9. `docs/10_Privacy.md`
-10. `docs/adr/`
+2. `docs/02_Philosophy.md`
+3. `docs/03_Principles.md`
+4. `docs/05_Identity.md`
+5. `docs/06_Memory.md`
+6. `docs/Reflection.md`
+7. `docs/10_Privacy.md`
+8. `docs/adr/ADR-0003-identity-is-emergent.md`
+9. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
 
 ## ADR Index
 
 | ADR | Status | Summary |
 | --- | --- | --- |
-| `ADR-0001-documentation-hierarchy.md` | Accepted | Adopt Documentation Hierarchy as the governance model for documents, decisions, and code. |
-| `ADR-0002-single-source-of-truth.md` | Accepted | Each important product concept has one primary definition location; other documents may cite, apply, or extend it. |
-| `ADR-0003-identity-is-emergent.md` | Accepted | Identity is not stored data; it emerges from evidence, patterns, reflection, and time. |
-
-## Future Theory
-
-The following theories are not yet complete in Book Zero. This list is for navigation only and does not define them.
-
-- Digital Self Model
-- Evidence Engine
-- Reflection Engine
-- Awareness Engine
-- Growth Engine
-
-## AI Agent Instructions
-
-For first-time repository reading:
-
-1. Do not modify code first.
-2. Read `README.md`.
-3. Read `docs/00_Constitution.md`.
-4. Read `docs/04_Problem.md`.
-5. Read `docs/05_Identity.md`.
-6. Read `docs/06_Memory.md`.
-7. Read `docs/Reflection.md`.
-8. Read `docs/07_Awareness.md`.
-9. Read `docs/08_Growth.md`.
-10. Read `docs/03_Principles.md`.
-11. Read the relevant architecture or implementation document only after the conceptual chain is clear.
-12. Check ADRs before making long-term technical or conceptual decisions.
-
-For any modification:
-
-- Identify the concept being changed.
-- Find its Primary Definition in this Index.
-- Modify the Primary Definition first.
-- Update primary applications and related documents only as references, applications, or consequences.
-- If a decision changes hierarchy, source of truth, identity, memory, reflection, privacy, or AI behavior, consider whether an ADR is required.
-
-Do not treat this Index as the source of product theory.
-
-Use it to find the source.
+| `ADR-0001-documentation-hierarchy.md` | Accepted | Documentation hierarchy governs documents, decisions, and code. |
+| `ADR-0002-single-source-of-truth.md` | Accepted | Each important concept has one primary definition. |
+| `ADR-0003-identity-is-emergent.md` | Accepted | Identity emerges from evidence, patterns, reflection, and time. |
+| `ADR-0004-local-first-mvp.md` | Accepted | MVP stores user data locally by default. |
+| `ADR-0005-ai-provider-abstraction.md` | Accepted | Provider adapters implement one provider-independent behavior contract. |
+| `ADR-0006-mvp-tech-stack.md` | Accepted | MVP uses Tauri + React + SQLite. |
+| `ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | Accepted | Reviewed AI artifacts persist locally with provenance and user-controlled lifecycle. |
 
 ## Canonical Definitions
 
 | Concept | Canonical Definition |
 | --- | --- |
+| Context Before Insight | Without sufficient context, there is no insight worth trusting. |
 | Identity | Identity is a living process through which a person continuously becomes themselves over time. |
 | Reflection | Reflection is the process where evidence and identity meet again, reorganizing understanding. |
 | Evidence | Evidence is recorded experience that can support self-understanding, pattern recognition, and reflection. |
+| Memory | Memory preserves evidence and reviewed continuity, not immutable judgment. |
 | Awareness | Awareness is the ability to recognize patterns that were previously invisible. |
 | Growth | Growth is the continuous process of integrating new understanding into future actions. |
-| Meaning | Meaning is the user's discovered interpretation of evidence, identity, and lived experience. |
-| Mirror | A mirror helps the user see themselves more clearly without claiming authority over them. |
-| Pattern | A pattern is a repeated relationship across evidence, emotion, decision, behavior, or self-description. |
-| Agency | Agency is the user's capacity to interpret, choose, and act from their own understanding. |
-| Trust | Trust is the psychological safety that allows honest self-reflection and responsible use of memory. |
+| Meaning | Meaning is co-created through reflection but remains user-owned. |
+| Harness | The governed system that constrains AI behavior, assembles context, preserves reviewed evidence, and improves through human-reviewed learning. |
+
+## AI Contributor Rule
+
+Do not treat this Index as product theory. Use it to find the source.
+
+Modify the Primary Definition first. Apply the change in lower-level documents without creating a competing definition. If implementation differs from the governed definition, record the gap explicitly.

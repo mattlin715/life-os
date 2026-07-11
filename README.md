@@ -1,12 +1,16 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/05
+last_updated: 2026/07/11
 depends:
   - docs/00_Constitution.md
+  - docs/01_Vision.md
+  - docs/02_Philosophy.md
+  - docs/11_MVP.md
 referenced_by:
   - docs/00_Constitution.md
+  - docs/00_Index.md
 ---
 
 # Life OS
@@ -157,3 +161,29 @@ AI Agent 不應只根據單一 issue 或 prompt 工作。若使用者要求與 C
 Life OS 的文件不是背景資料。
 
 它是產品的作業系統。
+
+## Context Before Insight
+
+> Context Before Insight.
+> 沒有足夠的脈絡，就沒有值得相信的洞見。
+
+Life OS does not treat one short entry as a complete person. When context is thin, the product should first invite the user to clarify what happened, what mattered, or what they want to understand. The user may skip. The system must then reduce its confidence rather than manufacture depth.
+
+The long-term direction is not isolated journal analysis. It is user-owned continuity: reviewed evidence, revisable reflection, relevant history, and cross-experience understanding with visible provenance.
+
+## Canonical Continuation Path
+
+A new human or AI contributor should read:
+
+1. `Life_OS_Manifesto.md`
+2. `README.md`
+3. `AI_CONTRIBUTOR_GUIDE.md`
+4. `docs/00_Constitution.md`
+5. `docs/00_Index.md`
+6. `docs/01_Vision.md`
+7. `docs/02_Philosophy.md`
+8. `docs/11_MVP.md`
+9. `docs/12_Roadmap.md`
+10. `docs/appendix/Harness.md`
+
+These documents explain why Life OS exists, how it understands a person, what is currently implemented, what comes next, and how provider-independent AI behavior is governed.

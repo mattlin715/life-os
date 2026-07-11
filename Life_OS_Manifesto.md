@@ -231,6 +231,25 @@ People over technology.
 
 Always.
 
+# Context Before Insight
+
+We will not manufacture depth from fragments.
+
+We will not pretend one entry explains a person.
+
+When context is thin,
+
+we ask gently before we interpret.
+
+The user may decline.
+
+More history may strengthen a hypothesis.
+
+It never turns a hypothesis into truth.
+
+> Context Before Insight.
+> 沒有足夠的脈絡，就沒有值得相信的洞見。
+
 ---
 
 # Closing

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -14,7 +14,13 @@ depends:
   - docs/10_Privacy.md
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0005-ai-provider-abstraction.md
-referenced_by: []
+  - docs/02_Philosophy.md
+  - docs/11_MVP.md
+  - docs/appendix/Harness.md
+  - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
+referenced_by:
+  - docs/11_MVP.md
+  - docs/12_Roadmap.md
 ---
 
 # 00 MVP Architecture
@@ -225,12 +231,49 @@ The MVP should not invent a full ontology before the core loop is validated.
 
 ## 9. Architecture Open Questions
 
-- Which local database should be used first?
-- Should entries be stored as Markdown, structured records, or both?
-- What is the minimal evidence schema?
+- What is the minimal persisted artifact and provenance model?
+- How should SQLite schema migrations and rollback be versioned?
+- How should Context Recovery turns be retained, revised, and deleted?
+- What retrieval strategy is sufficient before a memory graph is justified?
 - How should export/import be versioned?
 - How should provider credentials be stored locally?
 - Should AI calls be synchronous or queued?
 - How should failed AI output be represented?
-- How much pattern review should be manual in Milestone 0?
 - What level of encryption is required for the first local prototype?
+
+## 10. Harness-Aligned Architecture Direction
+
+Dogfooding changes the next architecture boundary without changing the local-first foundation.
+
+The target flow is:
+
+Experience
+→ Context Sufficiency Check
+→ Context Recovery Conversation when needed
+→ Evidence Candidates
+→ User Review
+→ Reflection
+→ Pattern Hypothesis
+→ Persisted Review Artifacts
+→ Cross-Experience Reflection when enough evidence exists
+
+### Required Boundaries
+
+- **Context Sufficiency Gate** decides the maximum responsible inference depth.
+- **Conversation Boundary** stores bounded clarification turns and user stopping decisions.
+- **Artifact Repository** persists evidence, reflection, and pattern records with lifecycle and provenance.
+- **Historical Retrieval Boundary** selects relevant records with explainable criteria and user control.
+- **Harness Boundary** supplies one versioned behavior protocol and output contract to every provider adapter.
+- **Evaluation Boundary** runs governed cases without training on private user content by default.
+
+### Provenance Requirement
+
+Every derived artifact must retain source identifiers, authorship, review state, and generation metadata. Persistence must not flatten user text, AI inference, and user confirmation into one undifferentiated record.
+
+### Migration Requirement
+
+The current database initializes a single table with `CREATE TABLE IF NOT EXISTS`. Persisting reviewed artifacts requires explicit schema versioning and migrations before private alpha.
+
+### Current-Code Qualification
+
+As of 2026/07/11, the code implements only single-experience provider calls and session-state AI artifacts. This section defines the next architecture direction; it does not claim those capabilities are implemented.
