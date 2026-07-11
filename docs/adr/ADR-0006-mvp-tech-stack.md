@@ -1,8 +1,8 @@
 ---
 status: Accepted
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0005-ai-provider-abstraction.md
@@ -22,7 +22,7 @@ Life OS MVP must run on both Work Mac and Windows 11.
 
 The MVP is local-first, privacy-sensitive, and should validate the core loop before cloud sync, mobile app, or complex architecture.
 
-The repo currently has no `package.json` and `src/` is empty.
+At the time of this decision, the repository had no `package.json` and `src/` was empty. The stack has since been implemented; this sentence records the original decision context rather than current repository state.
 
 ## Decision
 

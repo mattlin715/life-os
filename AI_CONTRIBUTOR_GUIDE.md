@@ -269,3 +269,20 @@ If a change is theoretical, identify the source of truth and ADR implications.
 If you make Life OS more powerful but less humble, you have failed.
 
 如果你讓 Life OS 變得更強大，卻更不謙卑，你就失敗了。
+
+## 16. Harness And Longitudinal Context
+
+Before modifying AI behavior, context assembly, persistence of AI artifacts, or cross-experience analysis, read:
+
+1. `docs/02_Philosophy.md`
+2. `docs/06_Memory.md`
+3. `docs/Reflection.md`
+4. `docs/09_AI.md`
+5. `docs/10_Privacy.md`
+6. `docs/appendix/Harness.md`
+7. `docs/adr/ADR-0005-ai-provider-abstraction.md`
+8. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+
+Do not make provider prompts the source of product behavior. Do not persist AI output without provenance. Do not infer a longitudinal pattern from one entry. Do not treat user inactivity as rejection.
+
+Harness changes must be traceable, versioned, evaluated, reversible, and accepted through human review. A model may propose a change; it may not rewrite product philosophy or its own governed behavior.

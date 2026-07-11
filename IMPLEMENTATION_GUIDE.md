@@ -225,3 +225,23 @@ These files should translate Book Zero into implementation constraints, not crea
 > Theory must become practice, but practice must not betray theory.
 
 理論必須走向實踐，但實踐不能背叛理論。
+
+## Harness-Aligned Core Flow
+
+The implementation target is now:
+
+Experience
+→ Context Sufficiency Check
+→ Context Recovery Conversation when needed
+→ Evidence Candidates
+→ User Review
+→ Reflection
+→ Pattern Hypothesis
+→ Persisted Review Artifacts
+→ Cross-Experience Reflection when enough evidence exists
+
+Implementation must preserve provenance and the distinction between user-authored content, AI hypothesis, and user review outcome.
+
+Provider adapters must not own behavior policy. Shared, versioned Harness rules and output contracts govern OpenAI, Google AI, mock, local, and future providers.
+
+The next implementation slice is not a memory graph. It is the smallest durable vertical slice that persists reviewed artifacts and conversation context with provenance, clear deletion, and migration support.

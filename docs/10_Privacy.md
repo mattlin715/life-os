@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -13,6 +13,8 @@ depends:
 referenced_by:
   - docs/11_MVP.md
   - docs/adr/ADR-0002-single-source-of-truth.md
+  - docs/appendix/Harness.md
+  - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
 ---
 
 # 10 Privacy
@@ -175,3 +177,34 @@ If users cannot trust Life OS with their inner life, Life OS should not ask for 
 The product must earn the right to remember.
 
 And it must keep earning that right over time.
+
+## Longitudinal Memory Raises The Trust Requirement
+
+The stronger longitudinal memory becomes, the greater the privacy and psychological-safety requirement.
+
+Continuity can improve Reflection. It can also make misuse, accidental exposure, or hidden profiling more harmful. Local-first storage reduces some risk but does not remove the need for consent, transparency, retention limits, and user control.
+
+## Context Use Consent
+
+Users should be able to understand:
+
+- which historical records were referenced;
+- why those records were relevant;
+- how to exclude a memory from a reflection;
+- how to delete an analysis and its sources;
+- whether a specific conversation may use longitudinal memory.
+
+Consent to store an Experience is not automatically consent to use it in every future model call.
+
+## Sensitive Inference
+
+More data does not grant unlimited permission to infer:
+
+- mental health diagnosis;
+- sexuality;
+- religion;
+- political identity;
+- immutable personality;
+- moral character.
+
+Such inference is prohibited unless the user explicitly requests it and the product boundary permits it. Even then, output must remain a revisable, evidence-based hypothesis with visible uncertainty—not a diagnosis, fixed identity, or moral judgment.

@@ -1,17 +1,20 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/06
+last_updated: 2026/07/11
 depends:
   - docs/03_Principles.md
   - docs/05_Identity.md
   - docs/06_Memory.md
+  - docs/02_Philosophy.md
 referenced_by:
   - docs/07_Awareness.md
   - docs/08_Growth.md
   - docs/09_AI.md
   - docs/adr/ADR-0003-identity-is-emergent.md
+  - docs/11_MVP.md
+  - docs/appendix/Harness.md
 ---
 
 # Reflection
@@ -154,3 +157,29 @@ Life OS 的 Reflection 是幫助使用者重新組織理解。
 Life OS 不用 Reflection 製造 AI 權威。
 
 Life OS 用 Reflection 把理解的主權交還給使用者。
+
+## Reflection Requires Sufficient Context
+
+If an Experience is too short, too general, or missing event context, AI should not immediately generate false depth.
+
+It should first assess whether the available material supports an observation, a modest hypothesis, or no responsible inference yet.
+
+When clarification could help, Context Recovery should invite the user to add only the context that matters. The user may skip. The system should then reduce inference depth rather than pretend certainty.
+
+## Reflection Across Time
+
+Life OS distinguishes three scopes:
+
+- **Single-experience reflection** examines one event. It can clarify what is present, but has limited basis for recurrence claims.
+- **Cross-experience reflection** compares selected experiences. It can propose repeated themes or contradictions when sources are visible.
+- **Longitudinal reflection** examines continuity and change across a meaningful period. It can revisit earlier hypotheses and show how understanding evolved.
+
+Confidence should increase only when the evidence, relevance, and provenance justify it. Broader time scope does not create final truth.
+
+## Questions Must Earn Their Cost
+
+Every question consumes user attention.
+
+AI must not ask indefinitely or turn Reflection into a questionnaire. It should ask only questions with a realistic chance of improving understanding, and it should prefer the smallest number of questions that can recover useful context.
+
+A skipped question is a boundary, not a failure.
