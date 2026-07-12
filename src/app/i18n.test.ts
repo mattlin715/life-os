@@ -12,4 +12,12 @@ describe("Context Recovery localization", () => {
       for (const value of [copy.recoveryTitle, copy.recoveryNote, copy.recoveryQuestion]) expect(value).not.toMatch(/\?{4,}/u);
     }
   });
+  it("has readable Pattern availability explanations and an optional Add Context action", () => {
+    expect(uiText.en.patternContextLimited).toContain("event context");
+    expect(uiText["zh-TW"].patternContextLimited).toContain("事件脈絡");
+    expect(uiText.ja.patternContextLimited).toContain("出来事の文脈");
+    expect(uiText.en.addContext).toBe("Add context");
+    expect(uiText["zh-TW"].addContext).toBe("補充情境");
+    expect(uiText.ja.addContext).toBe("状況を少し補足する");
+  });
 });
