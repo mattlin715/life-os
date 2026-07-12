@@ -3,7 +3,8 @@ name: Check
 on:
   push:
     branches:
-      - main
+      - master
+      - develop
   pull_request:
 
 jobs:
@@ -29,8 +30,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Tests
+        run: pnpm run test:run
+
       - name: Typecheck
         run: pnpm run typecheck
 
       - name: Build
         run: pnpm run build
+
+  rust:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tauri build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev
+
+      - name: SQLite persistence tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml sqlite::tests -- --nocapture
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
