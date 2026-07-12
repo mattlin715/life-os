@@ -32,7 +32,8 @@ import { placeholderProvider } from "../ai/providers/placeholderProvider";
 import type { AIProvider } from "../ai/providers/types";
 import { createContextPacket, type RequestedAiTask } from "../ai/harness/contextPacket";
 import { decideContextGate } from "../ai/harness/gateDecision";
-import { answerRecoveryTurn, skipRecoveryTurnRecord } from "../ai/harness/recoveryTurn";
+import { decidePatternAvailability, type PatternAvailabilityReason } from "../ai/harness/patternAvailability";
+import { addSuggestedRecoveryTurn, answerRecoveryTurn, skipRecoveryTurnRecord } from "../ai/harness/recoveryTurn";
 import { answerReflectionPrompt, skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
 import { createGenerationSnapshot, isGenerationSnapshotCurrent } from "../ai/harness/generationSnapshot";
 import { HARNESS_VERSION, PROMPT_VERSION } from "../ai/harness/version";
@@ -353,6 +354,16 @@ function pendingActionCopy(
   return copy.pendingFallback;
 }
 
+function patternAvailabilityExplanation(copy: UiCopy, reason: PatternAvailabilityReason): string | null {
+  switch (reason) {
+    case "missing_confirmed_evidence": return copy.patternNeedEvidence;
+    case "unsaved_reflection": return copy.patternNeedsSavedReflection;
+    case "insufficient_context": return copy.patternContextLimited;
+    case "pending": return copy.patternNextPending;
+    case "available": return null;
+  }
+}
+
 function statusMessageClassName(message: string): string {
   if (isUnavailableProviderMessage(message)) {
     return "export-status export-status-fallback";
@@ -544,6 +555,37 @@ export function App() {
     [evidenceCandidatesByEntryId],
   );
 
+  const requestContextRecovery = useCallback(async (entry: ExperienceEntry) => {
+    const createdAt = new Date().toISOString();
+    const suggestedTurn: ContextRecoveryTurn = {
+      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-recovery`,
+      sourceEntryId: entry.id,
+      question: copy.recoveryQuestion,
+      status: "suggested",
+      locale: language,
+      promptProvenance: {
+        origin: "local_mock",
+        sourceEntryId: entry.id,
+        sourceArtifactIds: [],
+        provider: "mock",
+        model: null,
+        harnessVersion: HARNESS_VERSION,
+        promptVersion: PROMPT_VERSION,
+        generatedAt: createdAt,
+      },
+      createdAt,
+      updatedAt: createdAt,
+    };
+    await runArtifactMutation(
+      entry.id,
+      (current) => ({
+        ...current,
+        recoveryTurns: addSuggestedRecoveryTurn(current.recoveryTurns, suggestedTurn),
+      }),
+      copy.recoveryNote,
+    );
+  }, [copy.recoveryNote, copy.recoveryQuestion, language, runArtifactMutation]);
+
   useEffect(() => {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     document.documentElement.lang = language === "zh-TW" ? "zh-Hant" : language;
@@ -731,18 +773,7 @@ export function App() {
       const turns = recoveryTurnsByEntryId[entry.id] ?? [];
       const gate = decideContextGate(entry.body, turns);
       if (gate.inviteClarification) {
-        const createdAt = new Date().toISOString();
-        const turn: ContextRecoveryTurn = {
-          id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-recovery`,
-          sourceEntryId: entry.id,
-          question: copy.recoveryQuestion,
-          status: "suggested",
-          locale: language,
-          promptProvenance: { origin: "local_mock", sourceEntryId: entry.id, sourceArtifactIds: [], provider: "mock", model: null, harnessVersion: HARNESS_VERSION, promptVersion: PROMPT_VERSION, generatedAt: createdAt },
-          createdAt,
-          updatedAt: createdAt,
-        };
-        await runArtifactMutation(entry.id, (current) => ({ ...current, recoveryTurns: [...current.recoveryTurns, turn] }), copy.recoveryNote);
+        await requestContextRecovery(entry);
         return;
       }
       if (!gate.allowObservation) return;
@@ -764,7 +795,7 @@ export function App() {
       if (!usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
       if (editingEvidenceCandidate?.entryId === entry.id) setEditingEvidenceCandidate(null);
     } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, copy, editingEvidenceCandidate, hasRealAiSuccess, language, recoveryTurnsByEntryId, runArtifactMutation, store]);
+  }, [aiRuntime, buildPacket, copy, editingEvidenceCandidate, hasRealAiSuccess, recoveryTurnsByEntryId, requestContextRecovery, runArtifactMutation, store]);
 
   const beginEvidenceCandidateEdit = useCallback((entryId: string, candidate: EvidenceCandidate) => {
     if (candidate.status === "candidate") setEditingEvidenceCandidate({ entryId, candidateId: candidate.id, text: candidate.text });
@@ -824,12 +855,20 @@ export function App() {
   }, [copy.reflectionSkipped, runArtifactMutation]);
 
   const generatePatternNotes = useCallback(async (entry: ExperienceEntry) => {
-    if (entryHasDirtyReflectionDraft(reflectionDrafts, entry.id, reflectionPromptsByEntryId[entry.id] ?? [])) { setStorageError(null); setPortabilityStatus(copy.patternNeedsSavedReflection); return; }
-    const gate = decideContextGate(entry.body, recoveryTurnsByEntryId[entry.id] ?? []);
-    if (!gate.allowPattern) { setStorageError(null); setPortabilityStatus(copy.patternContextLimited); return; }
+    const availability = decidePatternAvailability({
+      body: entry.body,
+      recoveryTurns: recoveryTurnsByEntryId[entry.id] ?? [],
+      confirmedEvidenceCount: (evidenceCandidatesByEntryId[entry.id] ?? []).filter((candidate) => candidate.status === "confirmed").length,
+      hasDirtyReflectionDraft: entryHasDirtyReflectionDraft(reflectionDrafts, entry.id, reflectionPromptsByEntryId[entry.id] ?? []),
+      isPatternPending: pendingAction === `pattern:${entry.id}`,
+    });
+    if (!availability.available) {
+      setStorageError(null);
+      setPortabilityStatus(patternAvailabilityExplanation(copy, availability.reason));
+      return;
+    }
     const packet = buildPacket(entry, "pattern").packet;
     const snapshot = createGenerationSnapshot(packet);
-    if (!packet.confirmedEvidence.length) { setPortabilityStatus(copy.patternNeedEvidence); return; }
     setPendingAction(`pattern:${entry.id}`);
     try {
       let notes: PatternNote[]; let usedFallback = false;
@@ -840,7 +879,7 @@ export function App() {
       if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("pattern", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
       if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
     } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, copy, hasRealAiSuccess, recoveryTurnsByEntryId, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation, store]);
+  }, [aiRuntime, buildPacket, copy, evidenceCandidatesByEntryId, hasRealAiSuccess, pendingAction, recoveryTurnsByEntryId, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation, store]);
   const updatePatternNoteStatus = useCallback(async (entryId: string, patternNoteId: string, status: Extract<CandidateStatus, "confirmed" | "rejected">) => {
     await runArtifactMutation(entryId, (current) => ({ ...current, patterns: status === "rejected" ? current.patterns.filter((item) => item.id !== patternNoteId) : current.patterns.map((item) => item.id === patternNoteId ? { ...item, status, updatedAt: new Date().toISOString() } : item) }), copy.patternUpdated);
   }, [copy.patternUpdated, runArtifactMutation]);
@@ -1043,6 +1082,17 @@ export function App() {
               const isReflectionPending =
                 pendingAction === `reflection:${entry.id}`;
               const isPatternPending = pendingAction === `pattern:${entry.id}`;
+              const patternAvailability = decidePatternAvailability({
+                body: entry.body,
+                recoveryTurns: recoveryTurnsByEntryId[entry.id] ?? [],
+                confirmedEvidenceCount: confirmedEvidenceCandidates.length,
+                hasDirtyReflectionDraft,
+                isPatternPending,
+              });
+              const patternAvailabilityMessage = patternAvailabilityExplanation(
+                copy,
+                patternAvailability.reason,
+              );
 
               return (
                 <article className="entry" key={entry.id}>
@@ -1441,11 +1491,7 @@ export function App() {
                         <button
                           type="button"
                           className="secondary-button"
-                          disabled={
-                            confirmedEvidenceCandidates.length === 0 ||
-                            hasDirtyReflectionDraft ||
-                            isPatternPending
-                          }
+                          disabled={!patternAvailability.available}
                           onClick={() => generatePatternNotes(entry)}
                         >
                           {isPatternPending
@@ -1456,28 +1502,24 @@ export function App() {
                       <p className="pattern-boundary">
                         {copy.patternBoundary}
                       </p>
-                      {hasDirtyReflectionDraft ? (
-                        <p className="session-note">
-                          {copy.patternNeedsSavedReflection}
-                        </p>
-                      ) : null}
                       <p className="next-step">
-                        {confirmedEvidenceCandidates.length === 0
-                          ? copy.patternNextNeedEvidence
-                          : isPatternPending
-                            ? copy.patternNextPending
-                            : patternNotes.length === 0
-                              ? copy.patternNextEmpty
-                              : patternSummary.candidate > 0
-                                ? copy.patternNextReview
-                                : patternSummary.confirmed > 0
-                                  ? copy.patternNextComplete
-                                  : copy.patternNextRejected}
+                        {patternAvailabilityMessage ??
+                          (patternNotes.length === 0
+                            ? copy.patternNextEmpty
+                            : patternSummary.candidate > 0
+                              ? copy.patternNextReview
+                              : patternSummary.confirmed > 0
+                                ? copy.patternNextComplete
+                                : copy.patternNextRejected)}
                       </p>
-                      {confirmedEvidenceCandidates.length === 0 ? (
-                        <p className="session-note">
-                          {copy.patternNeedEvidence}
-                        </p>
+                      {patternAvailability.reason === "insufficient_context" ? (
+                        <button
+                          type="button"
+                          className="ghost-button compact"
+                          onClick={() => requestContextRecovery(entry)}
+                        >
+                          {copy.addContext}
+                        </button>
                       ) : null}
                       {patternNotes.length > 0 ? (
                         <>
