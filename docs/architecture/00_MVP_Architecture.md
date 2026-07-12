@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.3
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/12
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -276,4 +276,4 @@ The current database initializes a single table with `CREATE TABLE IF NOT EXISTS
 
 ### Current-Code Qualification
 
-As of 2026/07/11, the code implements only single-experience provider calls and session-state AI artifacts. This section defines the next architecture direction; it does not claim those capabilities are implemented.
+As of 2026/07/12, the code implements the single-Experience vertical slice: source-scoped Context Recovery turns and reviewed Evidence, Reflection, and Pattern artifacts persist locally with provenance in SQLite schema version 3. Provider calls use only the current Experience packet and its eligible source-scoped dependencies. Historical retrieval, cross-Experience reflection, and longitudinal-memory consent are not implemented. This section defines the next architecture direction; it does not claim those deferred capabilities are implemented.
