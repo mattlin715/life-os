@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.3
+version: 0.4
 owner: LIN MENGLUNG
 last_updated: 2026/07/12
 depends:
@@ -271,6 +271,7 @@ Harness V1 is implemented for the per-Experience vertical slice:
 - one shared versioned behavior protocol and prompt version;
 - one validated task-specific Context Packet contract across OpenAI, Gemini, and mock;
 - deterministic Context Sufficiency gating;
+- one shared Pattern availability decision for UI and execution, with visible insufficient-context guidance and a user-initiated optional Context Recovery opportunity;
 - current-Experience source validation and orphaned-reflection exclusion;
 - provider/model/Harness/prompt provenance;
 - explicit durable-Reflection versus UI-draft separation, so unsaved text never enters a Context Packet; drafts are keyed by exact source Experience ID and exact prompt ID, not a composite string;

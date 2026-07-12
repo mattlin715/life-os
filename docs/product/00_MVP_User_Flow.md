@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.3
+version: 0.4
 owner: LIN MENGLUNG
 last_updated: 2026/07/12
 depends:
@@ -203,6 +203,7 @@ The next MVP flow is:
 - Do not force emotional depth.
 - If the user skips, reduce inference depth and continue safely.
 - Permit an honest outcome of “insufficient context” or “no meaningful pattern found.”
+- Pattern availability uses the same Context Gate decision in the button and the execution guard. When Pattern needs more event context, the UI states that plainly and offers one optional Add Context action; saved Reflection answers do not substitute for that missing context.
 
 ### Historical Context UX (deferred)
 
