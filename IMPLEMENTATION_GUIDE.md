@@ -244,4 +244,4 @@ Implementation must preserve provenance and the distinction between user-authore
 
 Provider adapters must not own behavior policy. Shared, versioned Harness rules and output contracts govern OpenAI, Google AI, mock, local, and future providers.
 
-The next implementation slice is not a memory graph. It is the smallest durable vertical slice that persists reviewed artifacts and conversation context with provenance, clear deletion, and migration support.
+The implemented corrective slice is not a memory graph. It persists source-scoped reviewed artifacts and optional Context Recovery turns with provenance, explicit deletion/invalidation, validated provider packets, and transactional schema migration. Cross-experience retrieval remains deferred.

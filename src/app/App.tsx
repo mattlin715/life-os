@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -13,7 +13,7 @@ import {
   summarizeEvidenceCandidates,
 } from "../shared/evidence/evidenceSummary";
 import { summarizeReflectionPrompts } from "../shared/reflection/reflectionSummary";
-import { createLocalEvidenceStore } from "../shared/storage";
+import { createArtifactMutationRunner, createLocalEvidenceStore, type ArtifactMutation, type SaveArtifactsOptions } from "../shared/storage";
 import {
   evidenceKindLabel,
   languageOptions,
@@ -30,8 +30,26 @@ import {
 } from "../ai/providers/openaiProvider";
 import { placeholderProvider } from "../ai/providers/placeholderProvider";
 import type { AIProvider } from "../ai/providers/types";
+import { createContextPacket, type RequestedAiTask } from "../ai/harness/contextPacket";
+import { decideContextGate } from "../ai/harness/gateDecision";
+import { answerRecoveryTurn, skipRecoveryTurnRecord } from "../ai/harness/recoveryTurn";
+import { answerReflectionPrompt, skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
+import { createGenerationSnapshot, isGenerationSnapshotCurrent } from "../ai/harness/generationSnapshot";
+import { HARNESS_VERSION, PROMPT_VERSION } from "../ai/harness/version";
+import {
+  canSaveReflectionDraft,
+  clearReflectionDraftAfterSuccessfulSave,
+  draftValue,
+  entryHasDirtyReflectionDraft,
+  isReflectionDraftDirty,
+  reconcileReflectionDrafts,
+  removeReflectionDraftsForEntry,
+  setReflectionDraft,
+  type ReflectionDrafts,
+} from "./reflectionDraft";
 import type {
   CandidateStatus,
+  ContextRecoveryTurn,
   EvidenceCandidate,
   ExperienceEntry,
   PatternNote,
@@ -473,10 +491,49 @@ export function App() {
   const [patternNotesByEntryId, setPatternNotesByEntryId] = useState<
     Record<string, PatternNote[]>
   >({});
+  const [recoveryTurnsByEntryId, setRecoveryTurnsByEntryId] = useState<
+    Record<string, ContextRecoveryTurn[]>
+  >({});
+  const [reflectionDrafts, setReflectionDrafts] = useState<ReflectionDrafts>({});
   const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  const artifactMutationRunner = useMemo(() => createArtifactMutationRunner({
+    store,
+    onCommitted: (entryId, committed) => {
+      setEvidenceCandidatesByEntryId((state) => ({ ...state, [entryId]: committed.evidence }));
+      setReflectionPromptsByEntryId((state) => ({ ...state, [entryId]: committed.reflections }));
+      setReflectionDrafts((drafts) =>
+        reconcileReflectionDrafts(drafts, entryId, committed.reflections),
+      );
+      setPatternNotesByEntryId((state) => ({ ...state, [entryId]: committed.patterns }));
+      setRecoveryTurnsByEntryId((state) => ({ ...state, [entryId]: committed.recoveryTurns }));
+    },
+    onError: (error) => {
+      setStorageError(error instanceof Error ? error.message : String(error));
+      setPortabilityStatus(null);
+    },
+  }), [store]);
+  const runArtifactMutation = useCallback(async (entryId: string, mutation: ArtifactMutation, successMessage?: string, saveOptions?: SaveArtifactsOptions) => {
+    const outcome = await artifactMutationRunner(entryId, mutation, saveOptions);
+    if (outcome.status === "stale_generation") { setStorageError(null); setPortabilityStatus(copy.staleGeneration); return null; }
+    if (outcome.status === "failed") return null;
+    setStorageError(null);
+    if (successMessage) setPortabilityStatus(successMessage);
+    return outcome.bundle ?? null;
+  }, [artifactMutationRunner, copy.staleGeneration]);
+  const buildPacket = useCallback((entry: ExperienceEntry, task: RequestedAiTask) => createContextPacket({
+    currentExperience: entry,
+    recoveryTurns: recoveryTurnsByEntryId[entry.id] ?? [],
+    evidence: evidenceCandidatesByEntryId[entry.id] ?? [],
+    reflections: reflectionPromptsByEntryId[entry.id] ?? [],
+    patterns: patternNotesByEntryId[entry.id] ?? [],
+    locale: language,
+    requestedTask: task,
+    provider: aiRuntime?.provider ?? "mock",
+    model: aiRuntime?.model ?? null,
+  }), [aiRuntime, evidenceCandidatesByEntryId, language, patternNotesByEntryId, recoveryTurnsByEntryId, reflectionPromptsByEntryId]);
   const evidenceSessionSummary = useMemo(
     () =>
       combineEvidenceCandidateSummaries(
@@ -494,7 +551,15 @@ export function App() {
 
   const refreshEntries = useCallback(async () => {
     try {
-      setEntries(await store.listExperiences());
+      const nextEntries = await store.listExperiences();
+      const artifacts = await Promise.all(
+        nextEntries.map(async (entry) => [entry.id, await store.listArtifacts(entry.id)] as const),
+      );
+      setEntries(nextEntries);
+      setEvidenceCandidatesByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.evidence])));
+      setReflectionPromptsByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.reflections])));
+      setPatternNotesByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.patterns])));
+      setRecoveryTurnsByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.recoveryTurns])));
       setStorageError(null);
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : String(error));
@@ -545,11 +610,9 @@ export function App() {
           delete next[id];
           return next;
         });
-        setPatternNotesByEntryId((current) => {
-          const next = { ...current };
-          delete next[id];
-          return next;
-        });
+        setPatternNotesByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
+        setRecoveryTurnsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
+        setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         await refreshEntries();
         setStorageError(null);
         setPortabilityStatus(null);
@@ -585,6 +648,7 @@ export function App() {
 
       try {
         await store.updateExperience(id, { body: trimmedBody });
+        setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         setEditingEntryId(null);
         setEditingBody("");
         await refreshEntries();
@@ -662,403 +726,135 @@ export function App() {
   }, [copy, refreshEntries, store]);
 
   const generateEvidenceCandidates = useCallback(async (entry: ExperienceEntry) => {
+    setPendingAction(`evidence:${entry.id}`);
     try {
-      setPendingAction(`evidence:${entry.id}`);
+      const turns = recoveryTurnsByEntryId[entry.id] ?? [];
+      const gate = decideContextGate(entry.body, turns);
+      if (gate.inviteClarification) {
+        const createdAt = new Date().toISOString();
+        const turn: ContextRecoveryTurn = {
+          id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-recovery`,
+          sourceEntryId: entry.id,
+          question: copy.recoveryQuestion,
+          status: "suggested",
+          locale: language,
+          promptProvenance: { origin: "local_mock", sourceEntryId: entry.id, sourceArtifactIds: [], provider: "mock", model: null, harnessVersion: HARNESS_VERSION, promptVersion: PROMPT_VERSION, generatedAt: createdAt },
+          createdAt,
+          updatedAt: createdAt,
+        };
+        await runArtifactMutation(entry.id, (current) => ({ ...current, recoveryTurns: [...current.recoveryTurns, turn] }), copy.recoveryNote);
+        return;
+      }
+      if (!gate.allowObservation) return;
+      const packet = buildPacket(entry, "evidence").packet;
+      const snapshot = createGenerationSnapshot(packet);
       let candidates: EvidenceCandidate[];
-      let usedLocalFallback = false;
-
-      try {
-        candidates = await chooseProvider(aiRuntime).extractEvidence(entry);
-      } catch (providerError) {
-        usedLocalFallback = true;
-        candidates = await placeholderProvider.extractEvidence(entry);
-        setPortabilityStatus(
-          unavailableProviderMessage(providerError, aiRuntime, copy),
-        );
+      let usedFallback = false;
+      try { candidates = await chooseProvider(aiRuntime).extractEvidence(packet); }
+      catch (error) {
+        usedFallback = true;
+        const fallbackPacket = createContextPacket({ currentExperience: entry, recoveryTurns: turns, locale: language, requestedTask: "evidence", provider: "mock", model: null }).packet;
+        candidates = await placeholderProvider.extractEvidence(fallbackPacket);
+        setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy));
       }
+      if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
+      const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, evidence: candidates, reflections: [], patterns: [] }), undefined, { generationSnapshot: snapshot });
+      if (!committed) return;
+      if (!usedFallback) setPortabilityStatus(successfulGenerationMessage("evidence", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
+      if (!usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
+      if (editingEvidenceCandidate?.entryId === entry.id) setEditingEvidenceCandidate(null);
+    } finally { setPendingAction(null); }
+  }, [aiRuntime, buildPacket, copy, editingEvidenceCandidate, hasRealAiSuccess, language, recoveryTurnsByEntryId, runArtifactMutation, store]);
 
-      setEvidenceCandidatesByEntryId((current) => ({
-        ...current,
-        [entry.id]: candidates,
-      }));
-      setReflectionPromptsByEntryId((current) => {
-        const next = { ...current };
-        delete next[entry.id];
-        return next;
-      });
-      setPatternNotesByEntryId((current) => {
-        const next = { ...current };
-        delete next[entry.id];
-        return next;
-      });
-      if (editingEvidenceCandidate?.entryId === entry.id) {
-        setEditingEvidenceCandidate(null);
-      }
-      setStorageError(null);
-      if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
-        const isFirstRealAiSuccess = !hasRealAiSuccess;
-        setHasRealAiSuccess(true);
-        setPortabilityStatus(
-          successfulGenerationMessage(
-            "evidence",
-            aiRuntime,
-            isFirstRealAiSuccess,
-            copy,
-          ),
-        );
-      } else {
-        setPortabilityStatus((current) =>
-          isUnavailableProviderMessage(current)
-            ? current
-            : successfulGenerationMessage("evidence", aiRuntime, false, copy),
-        );
-      }
-    } catch (error) {
-      setStorageError(error instanceof Error ? error.message : String(error));
-      setPortabilityStatus(null);
-    } finally {
-      setPendingAction(null);
-    }
-  }, [aiRuntime, copy, editingEvidenceCandidate, hasRealAiSuccess]);
-
-  const beginEvidenceCandidateEdit = useCallback(
-    (entryId: string, candidate: EvidenceCandidate) => {
-      if (candidate.status !== "candidate") {
-        return;
-      }
-
-      setEditingEvidenceCandidate({
-        entryId,
-        candidateId: candidate.id,
-        text: candidate.text,
-      });
-      setStorageError(null);
-      setPortabilityStatus(null);
-    },
-    [],
-  );
-
-  const cancelEvidenceCandidateEdit = useCallback(() => {
-    setEditingEvidenceCandidate(null);
-    setStorageError(null);
-    setPortabilityStatus(null);
+  const beginEvidenceCandidateEdit = useCallback((entryId: string, candidate: EvidenceCandidate) => {
+    if (candidate.status === "candidate") setEditingEvidenceCandidate({ entryId, candidateId: candidate.id, text: candidate.text });
   }, []);
+  const cancelEvidenceCandidateEdit = useCallback(() => setEditingEvidenceCandidate(null), []);
+  const saveEvidenceCandidateEdit = useCallback(async () => {
+    if (!editingEvidenceCandidate?.text.trim()) return;
+    const edit = editingEvidenceCandidate;
+    const committed = await runArtifactMutation(edit.entryId, (current) => ({ ...current, evidence: current.evidence.map((item) => item.id === edit.candidateId && item.status === "candidate" ? { ...item, text: edit.text.trim(), updatedAt: new Date().toISOString() } : item) }), copy.evidenceEditedStatus);
+    if (committed) setEditingEvidenceCandidate(null);
+  }, [copy.evidenceEditedStatus, editingEvidenceCandidate, runArtifactMutation]);
 
-  const saveEvidenceCandidateEdit = useCallback(() => {
-    if (!editingEvidenceCandidate) {
-      return;
-    }
+  const updateEvidenceCandidateStatus = useCallback(async (entryId: string, candidateId: string, status: Extract<CandidateStatus, "confirmed" | "rejected">) => {
+    await runArtifactMutation(entryId, (current) => {
+      const evidence = status === "rejected" ? current.evidence.filter((item) => item.id !== candidateId) : current.evidence.map((item) => item.id === candidateId ? { ...item, status, updatedAt: new Date().toISOString() } : item);
+      const reflections = status === "rejected" ? current.reflections.filter((prompt) => !prompt.sourceEvidenceIds.includes(candidateId)) : current.reflections;
+      return { ...current, evidence, reflections, patterns: [] };
+    }, copy.evidenceReviewUpdated);
+  }, [copy.evidenceReviewUpdated, runArtifactMutation]);
 
-    const trimmedText = editingEvidenceCandidate.text.trim();
+  const generateReflectionPrompts = useCallback(async (entry: ExperienceEntry) => {
+    const packet = buildPacket(entry, "reflection").packet;
+    const snapshot = createGenerationSnapshot(packet);
+    if (!packet.confirmedEvidence.length) { setPortabilityStatus(copy.reflectionNeedEvidence); return; }
+    setPendingAction(`reflection:${entry.id}`);
+    try {
+      let prompts: ReflectionPrompt[]; let usedFallback = false;
+      try { prompts = await chooseProvider(aiRuntime).generateReflectionPrompts(packet); }
+      catch (error) { usedFallback = true; const fallback = { ...packet, provider: "mock" as const, model: null }; prompts = await placeholderProvider.generateReflectionPrompts(fallback); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); }
+      if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
+      const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, reflections: prompts, patterns: [] }), undefined, { generationSnapshot: snapshot });
+      if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("reflection", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
+      if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
+    } finally { setPendingAction(null); }
+  }, [aiRuntime, buildPacket, copy, hasRealAiSuccess, runArtifactMutation, store]);
 
-    if (!trimmedText) {
-      return;
-    }
+  const updateReflectionPromptDraft = useCallback((entryId: string, prompt: ReflectionPrompt, response: string) => {
+    setReflectionDrafts((drafts) => setReflectionDraft(drafts, entryId, prompt, response));
+  }, []);
+  const saveReflectionPromptAnswer = useCallback(async (entryId: string, promptId: string) => {
+    const prompt = reflectionPromptsByEntryId[entryId]?.find((item) => item.id === promptId);
+    const submittedDraft = prompt ? draftValue(reflectionDrafts, entryId, prompt) : "";
+    if (!canSaveReflectionDraft(submittedDraft)) return;
+    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, reflections: current.reflections.map((item) => item.id === promptId ? answerReflectionPrompt(item, submittedDraft) : item), patterns: [] }), copy.reflectionSaved);
+    setReflectionDrafts((drafts) =>
+      clearReflectionDraftAfterSuccessfulSave(
+        drafts,
+        entryId,
+        promptId,
+        submittedDraft,
+        Boolean(committed),
+      ),
+    );
+  }, [copy.reflectionSaved, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation]);
+  const skipReflectionPrompt = useCallback(async (entryId: string, promptId: string) => {
+    await runArtifactMutation(entryId, (current) => ({ ...current, reflections: current.reflections.map((prompt) => prompt.id === promptId ? skipReflectionPromptRecord(prompt) : prompt), patterns: [] }), copy.reflectionSkipped);
+  }, [copy.reflectionSkipped, runArtifactMutation]);
 
-    setEvidenceCandidatesByEntryId((current) => ({
-      ...current,
-      [editingEvidenceCandidate.entryId]:
-        current[editingEvidenceCandidate.entryId]?.map((candidate) =>
-          candidate.id === editingEvidenceCandidate.candidateId &&
-          candidate.status === "candidate"
-            ? {
-                ...candidate,
-                text: trimmedText,
-                updatedAt: new Date().toISOString(),
-              }
-            : candidate,
-        ) ?? [],
-    }));
-    setEditingEvidenceCandidate(null);
-    setStorageError(null);
-    setPortabilityStatus(copy.evidenceEditedStatus);
-  }, [copy, editingEvidenceCandidate]);
+  const generatePatternNotes = useCallback(async (entry: ExperienceEntry) => {
+    if (entryHasDirtyReflectionDraft(reflectionDrafts, entry.id, reflectionPromptsByEntryId[entry.id] ?? [])) { setStorageError(null); setPortabilityStatus(copy.patternNeedsSavedReflection); return; }
+    const gate = decideContextGate(entry.body, recoveryTurnsByEntryId[entry.id] ?? []);
+    if (!gate.allowPattern) { setStorageError(null); setPortabilityStatus(copy.patternContextLimited); return; }
+    const packet = buildPacket(entry, "pattern").packet;
+    const snapshot = createGenerationSnapshot(packet);
+    if (!packet.confirmedEvidence.length) { setPortabilityStatus(copy.patternNeedEvidence); return; }
+    setPendingAction(`pattern:${entry.id}`);
+    try {
+      let notes: PatternNote[]; let usedFallback = false;
+      try { notes = await chooseProvider(aiRuntime).suggestPatternNotes(packet); }
+      catch (error) { usedFallback = true; notes = await placeholderProvider.suggestPatternNotes({ ...packet, provider: "mock", model: null }); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); }
+      if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
+      const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, patterns: notes }), undefined, { generationSnapshot: snapshot });
+      if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("pattern", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
+      if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
+    } finally { setPendingAction(null); }
+  }, [aiRuntime, buildPacket, copy, hasRealAiSuccess, recoveryTurnsByEntryId, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation, store]);
+  const updatePatternNoteStatus = useCallback(async (entryId: string, patternNoteId: string, status: Extract<CandidateStatus, "confirmed" | "rejected">) => {
+    await runArtifactMutation(entryId, (current) => ({ ...current, patterns: status === "rejected" ? current.patterns.filter((item) => item.id !== patternNoteId) : current.patterns.map((item) => item.id === patternNoteId ? { ...item, status, updatedAt: new Date().toISOString() } : item) }), copy.patternUpdated);
+  }, [copy.patternUpdated, runArtifactMutation]);
 
-  const updateEvidenceCandidateStatus = useCallback(
-    (
-      entryId: string,
-      candidateId: string,
-      status: Extract<CandidateStatus, "confirmed" | "rejected">,
-    ) => {
-      setEvidenceCandidatesByEntryId((current) => ({
-        ...current,
-        [entryId]:
-          current[entryId]?.map((candidate) =>
-            candidate.id === candidateId
-              ? {
-                  ...candidate,
-                  status,
-                  updatedAt: new Date().toISOString(),
-                }
-              : candidate,
-          ) ?? [],
-      }));
-      if (
-        editingEvidenceCandidate?.entryId === entryId &&
-        editingEvidenceCandidate.candidateId === candidateId
-      ) {
-        setEditingEvidenceCandidate(null);
-      }
-      setPatternNotesByEntryId((current) => {
-        const next = { ...current };
-        delete next[entryId];
-        return next;
-      });
-      setStorageError(null);
-      setPortabilityStatus(copy.evidenceReviewUpdated);
-    },
-    [copy, editingEvidenceCandidate],
-  );
-
-  const generateReflectionPrompts = useCallback(
-    async (entry: ExperienceEntry) => {
-      const confirmedEvidence =
-        evidenceCandidatesByEntryId[entry.id]?.filter(
-          (candidate) => candidate.status === "confirmed",
-        ) ?? [];
-
-      if (confirmedEvidence.length === 0) {
-        setStorageError(null);
-        setPortabilityStatus(copy.reflectionNeedEvidence);
-        return;
-      }
-
-      try {
-        setPendingAction(`reflection:${entry.id}`);
-        let prompts: ReflectionPrompt[];
-        let usedLocalFallback = false;
-
-        try {
-          prompts = await chooseProvider(aiRuntime).generateReflectionPrompts(
-            entry,
-            confirmedEvidence,
-          );
-        } catch (providerError) {
-          usedLocalFallback = true;
-          prompts = await placeholderProvider.generateReflectionPrompts(
-            entry,
-            confirmedEvidence,
-          );
-          setPortabilityStatus(
-            unavailableProviderMessage(providerError, aiRuntime, copy),
-          );
-        }
-
-        setReflectionPromptsByEntryId((current) => ({
-          ...current,
-          [entry.id]: prompts,
-        }));
-        setPatternNotesByEntryId((current) => {
-          const next = { ...current };
-          delete next[entry.id];
-          return next;
-        });
-        setStorageError(null);
-        if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
-          const isFirstRealAiSuccess = !hasRealAiSuccess;
-          setHasRealAiSuccess(true);
-          setPortabilityStatus(
-            successfulGenerationMessage(
-              "reflection",
-              aiRuntime,
-              isFirstRealAiSuccess,
-              copy,
-            ),
-          );
-        } else {
-          setPortabilityStatus((current) =>
-            isUnavailableProviderMessage(current)
-              ? current
-              : successfulGenerationMessage("reflection", aiRuntime, false, copy),
-          );
-        }
-      } catch (error) {
-        setStorageError(error instanceof Error ? error.message : String(error));
-        setPortabilityStatus(null);
-      } finally {
-        setPendingAction(null);
-      }
-    },
-    [aiRuntime, copy, evidenceCandidatesByEntryId, hasRealAiSuccess],
-  );
-
-  const updateReflectionPromptResponse = useCallback(
-    (entryId: string, promptId: string, response: string) => {
-      setReflectionPromptsByEntryId((current) => ({
-        ...current,
-        [entryId]:
-          current[entryId]?.map((prompt) =>
-            prompt.id === promptId && prompt.status !== "skipped"
-              ? {
-                  ...prompt,
-                  response,
-                  updatedAt: new Date().toISOString(),
-                }
-              : prompt,
-          ) ?? [],
-      }));
-    },
-    [],
-  );
-
-  const saveReflectionPromptAnswer = useCallback(
-    (entryId: string, promptId: string) => {
-      setReflectionPromptsByEntryId((current) => ({
-        ...current,
-        [entryId]:
-          current[entryId]?.map((prompt) => {
-            if (prompt.id !== promptId || prompt.status === "skipped") {
-              return prompt;
-            }
-
-            const response = prompt.response?.trim();
-
-            if (!response) {
-              return prompt;
-            }
-
-            return {
-              ...prompt,
-              response,
-              status: "answered",
-              updatedAt: new Date().toISOString(),
-            };
-          }) ?? [],
-      }));
-      setPatternNotesByEntryId((current) => {
-        const next = { ...current };
-        delete next[entryId];
-        return next;
-      });
-      setStorageError(null);
-      setPortabilityStatus(copy.reflectionSaved);
-    },
-    [copy],
-  );
-
-  const skipReflectionPrompt = useCallback(
-    (entryId: string, promptId: string) => {
-      setReflectionPromptsByEntryId((current) => ({
-        ...current,
-        [entryId]:
-          current[entryId]?.map((prompt) => {
-            if (prompt.id !== promptId || prompt.status !== "suggested") {
-              return prompt;
-            }
-
-            return {
-              ...prompt,
-              response: undefined,
-              status: "skipped",
-              updatedAt: new Date().toISOString(),
-            };
-          }) ?? [],
-      }));
-      setPatternNotesByEntryId((current) => {
-        const next = { ...current };
-        delete next[entryId];
-        return next;
-      });
-      setStorageError(null);
-      setPortabilityStatus(copy.reflectionSkipped);
-    },
-    [copy],
-  );
-
-  const generatePatternNotes = useCallback(
-    async (entry: ExperienceEntry) => {
-      const confirmedEvidence =
-        evidenceCandidatesByEntryId[entry.id]?.filter(
-          (candidate) => candidate.status === "confirmed",
-        ) ?? [];
-      const reflectionPrompts = reflectionPromptsByEntryId[entry.id] ?? [];
-
-      if (confirmedEvidence.length === 0) {
-        setStorageError(null);
-        setPortabilityStatus(copy.patternNeedEvidence);
-        return;
-      }
-
-      try {
-        setPendingAction(`pattern:${entry.id}`);
-        let patternNotes: PatternNote[];
-        let usedLocalFallback = false;
-
-        try {
-          patternNotes = await chooseProvider(aiRuntime).suggestPatternNotes(
-            entry,
-            confirmedEvidence,
-            reflectionPrompts,
-          );
-        } catch (providerError) {
-          usedLocalFallback = true;
-          patternNotes = await placeholderProvider.suggestPatternNotes(
-            entry,
-            confirmedEvidence,
-            reflectionPrompts,
-          );
-          setPortabilityStatus(
-            unavailableProviderMessage(providerError, aiRuntime, copy),
-          );
-        }
-
-        setPatternNotesByEntryId((current) => ({
-          ...current,
-          [entry.id]: patternNotes,
-        }));
-        setStorageError(null);
-        if (!usedLocalFallback && isRealAiActive(aiRuntime)) {
-          const isFirstRealAiSuccess = !hasRealAiSuccess;
-          setHasRealAiSuccess(true);
-          setPortabilityStatus(
-            successfulGenerationMessage(
-              "pattern",
-              aiRuntime,
-              isFirstRealAiSuccess,
-              copy,
-            ),
-          );
-        } else {
-          setPortabilityStatus((current) =>
-            isUnavailableProviderMessage(current)
-              ? current
-              : successfulGenerationMessage("pattern", aiRuntime, false, copy),
-          );
-        }
-      } catch (error) {
-        setStorageError(error instanceof Error ? error.message : String(error));
-        setPortabilityStatus(null);
-      } finally {
-        setPendingAction(null);
-      }
-    },
-    [aiRuntime, copy, evidenceCandidatesByEntryId, reflectionPromptsByEntryId, hasRealAiSuccess],
-  );
-
-  const updatePatternNoteStatus = useCallback(
-    (
-      entryId: string,
-      patternNoteId: string,
-      status: Extract<CandidateStatus, "confirmed" | "rejected">,
-    ) => {
-      setPatternNotesByEntryId((current) => ({
-        ...current,
-        [entryId]:
-          current[entryId]?.map((patternNote) =>
-            patternNote.id === patternNoteId
-              ? {
-                  ...patternNote,
-                  status,
-                  updatedAt: new Date().toISOString(),
-                }
-              : patternNote,
-          ) ?? [],
-      }));
-      setStorageError(null);
-      setPortabilityStatus(copy.patternUpdated);
-    },
-    [copy],
-  );
+  const updateRecoveryResponse = useCallback((entryId: string, turnId: string, response: string) => {
+    setRecoveryTurnsByEntryId((current) => ({ ...current, [entryId]: (current[entryId] ?? []).map((turn) => turn.id === turnId ? { ...turn, response } : turn) }));
+  }, []);
+  const saveRecoveryResponse = useCallback(async (entryId: string, turnId: string) => {
+    const response = recoveryTurnsByEntryId[entryId]?.find((turn) => turn.id === turnId)?.response?.trim(); if (!response) return;
+    await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? answerRecoveryTurn(turn, response) : turn) }), copy.recoverySave);
+  }, [copy.recoverySave, recoveryTurnsByEntryId, runArtifactMutation]);
+  const skipRecoveryTurn = useCallback(async (entryId: string, turnId: string) => {
+    await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? skipRecoveryTurnRecord(turn) : turn) }), copy.recoverySkip);
+  }, [copy.recoverySkip, runArtifactMutation]);
 
   useEffect(() => {
     void refreshEntries();
@@ -1236,6 +1032,11 @@ export function App() {
                 reflectionPromptsByEntryId[entry.id] ?? [];
               const reflectionSummary =
                 summarizeReflectionPrompts(reflectionPrompts);
+              const hasDirtyReflectionDraft = entryHasDirtyReflectionDraft(
+                reflectionDrafts,
+                entry.id,
+                reflectionPrompts,
+              );
               const patternNotes = patternNotesByEntryId[entry.id] ?? [];
               const patternSummary = summarizePatternNotes(patternNotes);
               const isEvidencePending = pendingAction === `evidence:${entry.id}`;
@@ -1325,6 +1126,19 @@ export function App() {
                             : copy.generateEvidence}
                         </button>
                       </div>
+                      {(recoveryTurnsByEntryId[entry.id] ?? []).length > 0 ? (
+                        <div className="session-note">
+                          <strong>{copy.recoveryTitle}</strong>
+                          <p>{copy.recoveryNote}</p>
+                          {(recoveryTurnsByEntryId[entry.id] ?? []).map((turn) => (
+                            <div key={turn.id} className="candidate-card">
+                              <p>{turn.question}</p>
+                              <textarea value={turn.response ?? ""} disabled={turn.status !== "suggested"} onChange={(event) => updateRecoveryResponse(entry.id, turn.id, event.target.value)} />
+                              {turn.status === "suggested" ? <div className="candidate-actions"><button type="button" className="ghost-button compact" onClick={() => saveRecoveryResponse(entry.id, turn.id)}>{copy.recoverySave}</button><button type="button" className="ghost-button compact" onClick={() => skipRecoveryTurn(entry.id, turn.id)}>{copy.recoverySkip}</button></div> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                       <p className="next-step">
                         {isEvidencePending
                           ? copy.evidenceNextPending
@@ -1534,7 +1348,16 @@ export function App() {
                           </p>
                           <div className="reflection-list">
                             {reflectionPrompts.map((prompt) => {
-                              const response = prompt.response ?? "";
+                              const response = draftValue(
+                                reflectionDrafts,
+                                entry.id,
+                                prompt,
+                              );
+                              const isDirty = isReflectionDraftDirty(
+                                reflectionDrafts,
+                                entry.id,
+                                prompt,
+                              );
                               const isAnswered = prompt.status === "answered";
                               const isSkipped = prompt.status === "skipped";
 
@@ -1559,9 +1382,9 @@ export function App() {
                                     placeholder={copy.reflectionPlaceholder}
                                     value={response}
                                     onChange={(event) =>
-                                      updateReflectionPromptResponse(
+                                      updateReflectionPromptDraft(
                                         entry.id,
-                                        prompt.id,
+                                        prompt,
                                         event.target.value,
                                       )
                                     }
@@ -1577,7 +1400,7 @@ export function App() {
                                     <button
                                       type="button"
                                       className="primary-button compact"
-                                      disabled={!response.trim() || isSkipped}
+                                      disabled={!canSaveReflectionDraft(response) || !isDirty || isSkipped}
                                       onClick={() =>
                                         saveReflectionPromptAnswer(
                                           entry.id,
@@ -1620,6 +1443,7 @@ export function App() {
                           className="secondary-button"
                           disabled={
                             confirmedEvidenceCandidates.length === 0 ||
+                            hasDirtyReflectionDraft ||
                             isPatternPending
                           }
                           onClick={() => generatePatternNotes(entry)}
@@ -1632,6 +1456,11 @@ export function App() {
                       <p className="pattern-boundary">
                         {copy.patternBoundary}
                       </p>
+                      {hasDirtyReflectionDraft ? (
+                        <p className="session-note">
+                          {copy.patternNeedsSavedReflection}
+                        </p>
+                      ) : null}
                       <p className="next-step">
                         {confirmedEvidenceCandidates.length === 0
                           ? copy.patternNextNeedEvidence

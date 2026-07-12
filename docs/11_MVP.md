@@ -2,7 +2,7 @@
 status: Draft
 version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/12
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -56,7 +56,7 @@ Verified against the repository on 2026/07/11:
 
 - Tauri 2 + React 18 + SQLite desktop architecture.
 - Desktop-first configuration intended for Windows and macOS.
-- Local-first SQLite persistence for `ExperienceEntry`.
+- Local-first SQLite persistence for `ExperienceEntry` plus source-scoped evidence, reflection, and pattern review artifacts.
 - Create, list, edit, and delete experience records.
 - JSON and Markdown experience export.
 - Life OS JSON experience import with duplicate-id skipping.
@@ -69,26 +69,23 @@ Verified against the repository on 2026/07/11:
 - Pattern Candidate generation from one experience, confirmed evidence, and optional answered reflection context.
 - Pattern Candidate confirmation and rejection.
 - Provider and model runtime status in the desktop UI.
+- Explicit Reflection UI drafts: only a saved response with user provenance is durable or eligible for a Pattern Context Packet; dirty drafts block Pattern generation.
+- Stale generated results are discarded by snapshot checks both before and inside the serialized artifact mutation boundary, with the SQLite Experience revision check as final write-time protection.
 
-Important qualification: AI artifacts are held in React session state. Only experiences and selected UI language survive restart.
+Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only, and no cross-experience retrieval occurs.
 
 ## Current Product Gaps
 
-- AI conversation is not persisted.
-- Evidence Candidates are session-only.
-- Reflection Prompts and user responses are session-only.
-- Pattern Candidates and review decisions are session-only.
-- There is no Context Recovery conversation layer.
-- There is no context sufficiency check for sparse input.
+- Context Recovery turns persist per Experience, but there is no general-purpose AI conversation history.
+- A deterministic per-Experience Context Sufficiency Gate is implemented. It is heuristic and requires dogfooding evaluation; longitudinal and historical sufficiency remain deferred.
 - There is no cross-experience retrieval.
 - There is no cross-experience analysis.
 - There are no longitudinal summaries.
 - There is no memory graph.
 - There is no identity hypothesis history.
-- There is no provenance model for persisted reviewed AI artifacts.
+- Schema v3 preserves source relationships, review state, and provider/model/Harness/prompt provenance in source-scoped payloads; further normalization is deferred.
 - There is no user-controlled per-call longitudinal memory consent.
-- There is no evaluation harness, prompt version registry, or regression dataset.
-- Provider behavior rules are similar but duplicated in provider implementations rather than enforced through one versioned Harness contract.
+- Shared Harness and prompt versions, Context Packet validation, sufficiency gating, and regression tests are implemented. A governed long-term evaluation dataset remains deferred.
 - Tauri bundling is configured, but distributable Windows and macOS builds have not both been verified as release artifacts in this repository.
 
 ## Revised MVP Core Flow

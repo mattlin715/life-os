@@ -1,15 +1,16 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/09
+last_updated: 2026/07/12
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/architecture/01_Local_Evidence_Store.md
   - docs/product/00_MVP_User_Flow.md
   - docs/03_Principles.md
   - docs/06_Memory.md
-referenced_by: []
+referenced_by:
+  - docs/architecture/07_Persisted_Context_Recovery_Vertical_Slice.md
 ---
 
 # 04 Evidence Candidate Boundary
@@ -52,17 +53,15 @@ The candidate state exists because evidence should not become truth by default.
 
 The MVP evidence candidate boundary supports:
 
-- Generating mock candidates from one `ExperienceEntry`.
+- Generating candidates from one `ExperienceEntry` through the shared Harness.
 - Showing candidates under the source entry.
 - Letting the user edit candidate text before confirmation.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
 - Showing session-level and per-entry review summaries.
-- Keeping candidates session-only for this sprint.
+- Persisting candidates locally with their source Experience and review state.
 
-The mock flow exists only to validate review behavior.
-
-It does not represent final AI quality.
+The local mock remains a deterministic fallback for review-boundary development. When configured, OpenAI or Gemini receives only the validated evidence Context Packet; provider transport does not change review behavior.
 
 The optional `originalText` field may preserve the mock output before user editing.
 
@@ -78,13 +77,13 @@ It is not progress scoring.
 
 It does not imply confirmed evidence is final truth.
 
-It does not persist candidate state.
+Candidate state persists locally; it remains a review state, not product truth.
 
 ## Candidate Lifecycle
 
 The first lifecycle is:
 
-1. `candidate`: proposed by the mock provider.
+1. `candidate`: proposed by an OpenAI, Gemini, or local mock provider under the shared Harness contract.
 2. `candidate` with edited text: revised by the user, but still not truth.
 3. `confirmed`: manually accepted by the user for this session.
 4. `rejected`: manually rejected by the user.
@@ -124,8 +123,6 @@ If a user needs to change a confirmed or rejected candidate, a future reset or r
 
 This sprint does not include:
 
-- Real AI provider calls.
-- SQLite persistence for evidence candidates.
 - Evidence export or import.
 - Editing candidate kind.
 - Analytics dashboard.
@@ -140,9 +137,9 @@ This sprint does not include:
 
 ## Privacy / Agency Guardrails
 
-Evidence candidate generation runs locally in a mock provider.
+Evidence candidate generation uses the environment-configured OpenAI or Gemini provider when available, otherwise the local mock fallback. The provider receives only the validated task-specific Context Packet.
 
-No entry content is sent to an external provider.
+When a real provider is selected, the current Experience and bounded, task-specific Context Packet may be sent to that provider. Local SQLite persistence remains separate from provider-side processing. Provider/model/Harness/prompt provenance remains visible on generated artifacts.
 
 Evidence candidates are not exported.
 
@@ -158,8 +155,6 @@ The user remains the reviewer.
 
 ## Open Questions
 
-- When should evidence candidates become persistent?
-- Should rejected candidates be stored for audit, discarded, or stored only with explicit consent?
-- What is the minimal persistent evidence schema?
+- What explicit consent and governance would be required before retaining rejected output for evaluation?
+- When would artifact portability become valuable enough to version?
 - Should confirmed evidence be included in a future export format?
-- How should candidate editing work before reflection prompts are introduced?

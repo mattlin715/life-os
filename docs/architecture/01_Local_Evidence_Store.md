@@ -1,14 +1,15 @@
 ﻿---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/10
+last_updated: 2026/07/12
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/product/00_MVP_User_Flow.md
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0006-mvp-tech-stack.md
-referenced_by: []
+referenced_by:
+  - docs/architecture/07_Persisted_Context_Recovery_Vertical_Slice.md
 ---
 
 # 01 Local Evidence Store
@@ -75,13 +76,7 @@ The first data boundary contains four domain records:
 | `ReflectionPrompt` | A question proposed for reflection. |
 | `PatternNote` | A possible pattern note across evidence or entries. |
 
-`ExperienceEntry` is persisted in SQLite.
-
-`EvidenceCandidate` is wired into the first UI review boundary as session-only data.
-
-`ReflectionPrompt` is wired into the first mock reflection boundary as session-only data.
-
-`PatternNote` is wired into the first mock pattern candidate boundary as session-only data.
+`ExperienceEntry`, `EvidenceCandidate`, `ReflectionPrompt`, and `PatternNote` are persisted locally in SQLite. Artifact records remain source-scoped and reviewable; persistence does not make a candidate true.
 
 ## User Ownership Requirements
 
@@ -127,15 +122,13 @@ The first evidence candidate boundary exists in the UI.
 
 It supports:
 
-- Generating mock evidence candidates from one `ExperienceEntry`.
+- Generating evidence candidates from one `ExperienceEntry` through the shared Harness.
 - Showing candidate text, kind, and status.
 - Letting the user edit candidate text before confirmation.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
 
-Evidence candidates are currently session-only.
-
-They are not persisted to SQLite.
+Evidence candidates persist locally with their source entry and review state.
 
 They are not exported.
 
@@ -143,9 +136,7 @@ They are not imported.
 
 They do not create reflection prompts, pattern notes, identity labels, advice, or diagnosis.
 
-The mock provider is intentionally shallow.
-
-It exists to validate the review boundary, not to prove analysis quality.
+OpenAI or Gemini receives only the validated task-specific Context Packet when configured; otherwise the local mock provides the same bounded fallback. Provider-side processing is distinct from local SQLite persistence.
 
 See `docs/architecture/04_Evidence_Candidate_Boundary.md`.
 
@@ -155,15 +146,13 @@ The first reflection prompt boundary exists in the UI.
 
 It supports:
 
-- Generating mock reflection prompts from confirmed evidence candidates only.
+- Generating reflection prompts from confirmed evidence candidates only.
 - Showing open-ended questions under the source entry.
 - Letting the user write an optional answer.
 - Letting the user skip a prompt.
 - Showing a per-entry reflection summary.
 
-Reflection prompts are currently session-only.
-
-They are not persisted to SQLite.
+Reflection prompts, responses, and skipped state persist locally with their source entry.
 
 They are not exported.
 
@@ -171,9 +160,7 @@ They are not imported.
 
 They do not create pattern notes, growth notes, identity labels, advice, diagnosis, or conclusions.
 
-The mock provider is intentionally simple.
-
-It exists to validate the boundary from confirmed evidence to reflection question, not to prove interpretation quality.
+The local mock remains a fallback. Real-provider calls use the same validated Context Packet and do not change the review boundary.
 
 See `docs/architecture/05_Reflection_Prompt_Boundary.md`.
 
@@ -183,16 +170,14 @@ The first pattern candidate boundary exists in the UI.
 
 It supports:
 
-- Generating one mock pattern candidate from confirmed evidence.
+- Generating one pattern candidate from confirmed evidence.
 - Optionally using answered reflection prompt responses as user-authored context.
 - Showing the candidate as a hypothesis for review.
 - Letting the user confirm a candidate.
 - Letting the user reject a candidate.
 - Showing a per-entry pattern summary.
 
-Pattern candidates are currently session-only.
-
-They are not persisted to SQLite.
+Pattern candidates and review state persist locally with their source entry.
 
 They are not exported.
 
@@ -200,9 +185,7 @@ They are not imported.
 
 They do not create growth notes, identity labels, advice, diagnosis, MBTI/personality types, scores, or conclusions.
 
-The mock provider is intentionally simple.
-
-It exists to validate the boundary from confirmed evidence and reflection context to user-reviewed hypothesis, not to prove interpretation quality.
+Only saved user-authored reflection responses may enter a Pattern Context Packet. An unsaved UI draft is not a durable artifact and cannot be sent to a provider.
 
 See `docs/architecture/06_Pattern_Candidate_Boundary.md`.
 
@@ -210,9 +193,7 @@ See `docs/architecture/06_Pattern_Candidate_Boundary.md`.
 
 SQLite is the accepted local persistence direction for the MVP.
 
-The first persistence spike stores only `ExperienceEntry`.
-
-It does not persist evidence candidates, reflection prompts, or pattern notes.
+Schema version 3 adds the source-scoped `persisted_artifacts` table. Payloads preserve domain records, source references, review state, and provenance. The v2-to-v3 migration runs on one SQLx connection inside a transaction and advances `user_version` only after success.
 
 The schema is intentionally minimal:
 
@@ -229,9 +210,7 @@ The SQLite implementation maps `content` to the domain field `body`.
 
 The domain field `userEditable` is not persisted yet because it is currently an invariant of user-authored experience entries.
 
-This spike does not create a migration framework.
-
-It uses `CREATE TABLE IF NOT EXISTS` during store initialization.
+Initialization uses SQLite `PRAGMA user_version` migrations. Experience deletion explicitly removes all dependent artifact rows, preventing orphaned insight.
 
 SQLite is implemented through the Tauri SQL plugin.
 
@@ -280,22 +259,13 @@ Import does not create evidence candidates, reflection prompts, pattern notes, i
 
 See `docs/architecture/03_Experience_Import_Boundary.md`.
 
-## Deferred Persistence
+## Reuse Boundary
 
-The following records are intentionally not persisted yet:
-
-- `EvidenceCandidate`
-- `ReflectionPrompt`
-- `PatternNote`
-
-They remain candidate-oriented domain types.
-
-Persisting them requires a separate schema decision because AI output must remain inspectable, editable, rejectable, and never automatically treated as truth.
+Rejected evidence and patterns are excluded from durable storage. Dependent reflections are removed when their source evidence is rejected. Providers receive only a validated current-Experience Context Packet; artifact export/import remains deliberately Experience-only.
 
 ## Open Questions
 
-- Should rejected AI output be stored, discarded, or stored only with explicit user consent?
-- How should deleted entries affect related evidence, reflection prompts, and pattern notes?
+- Future consent-based retention of rejected artifacts for evaluation is a governance question; current behavior removes rejected artifacts rather than retaining them.
 - What export/import versioning guarantees are needed before supporting more record types?
-- How should schema versioning be introduced without over-engineering the MVP?
+- When would a normalized artifact schema provide enough value to replace the current source-scoped payload table?
 - What local encryption level is required before the first private daily-use prototype?
