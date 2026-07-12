@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.4
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/12
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -116,6 +116,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | `ADR-0005-ai-provider-abstraction.md` | Accepted | Provider adapters implement one provider-independent behavior contract. |
 | `ADR-0006-mvp-tech-stack.md` | Accepted | MVP uses Tauri + React + SQLite. |
 | `ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | Accepted | Reviewed AI artifacts persist locally with provenance and user-controlled lifecycle. |
+| `ADR-0008-engineering-harness-governance-is-tool-independent.md` | Accepted | Repository engineering governance is canonical and tool-independent; adapters remain thin. |
 
 ## Canonical Definitions
 
