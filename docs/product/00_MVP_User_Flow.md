@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.3
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/12
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -44,11 +44,11 @@ The user does not need a complete life system yet.
 
 The user needs one trustworthy loop:
 
-Experience  
-??Evidence  
-??Reflection  
-??Awareness  
-??Growth
+Experience
+-> Evidence
+-> Reflection
+-> Awareness
+-> Growth
 
 ## 2. Flow 0: Single Experience Reflection
 
@@ -65,31 +65,20 @@ The system should keep the user in control at every step.
 
 AI output is never final.
 
-### Current Mock Boundary
+### Current implemented boundary
 
-The current MVP implementation supports the mock boundary:
+The current per-Experience flow is:
 
-Confirmed evidence  
--> Reflection prompt  
--> User response optional  
--> Pattern candidate hypothesis  
--> User review
+1. Save an Experience locally.
+2. Run the deterministic Context Sufficiency Gate.
+3. For sparse input, invite one optional Context Recovery answer.
+4. Generate direct Evidence observations from a validated task-specific Context Packet.
+5. Confirm, edit, or reject Evidence.
+6. Generate and optionally answer/skip Reflection prompts.
+7. Permit a tentative Pattern only when context is sufficient for that inference depth.
+8. Persist valid source-scoped artifacts and provenance locally.
 
-The user can generate reflection prompts only after confirming at least one evidence candidate.
-
-The prompt is a question, not an answer.
-
-The user can answer or skip.
-
-The user can generate a pattern candidate after confirming at least one evidence candidate.
-
-Answered reflection responses may be used as optional context, but skipped and unanswered prompts are not treated as conclusions.
-
-Pattern candidates are hypotheses for review, not identity labels or conclusions.
-
-Evidence candidates, reflection prompts, reflection responses, and pattern candidates are session-only in this sprint.
-
-They are not persisted, exported, imported, or used to generate growth notes.
+Skipping clarification permits observation but does not increase sufficiency or unlock Pattern generation. Rejected Evidence/Patterns are not durable, and dependent Reflection records are removed. Export/import remains Experience-only.
 
 ## 3. Flow 1: Pattern Review
 
@@ -105,7 +94,7 @@ Pattern review should feel like a mirror, not a diagnosis.
 
 The system should show what evidence supports the pattern candidate.
 
-The current MVP only supports per-entry, session-only pattern candidates.
+The current MVP supports only per-entry, locally persisted pattern candidates.
 
 Cross-entry pattern review remains deferred.
 
@@ -153,7 +142,7 @@ The system should treat wrong AI output as normal, not as user error.
 
 Rejected evidence should not be used as confirmed evidence.
 
-The system may keep a local audit trail only if the user understands and consents.
+The current boundary removes rejected output from durable storage. No hidden evaluation trail is retained.
 
 ### User wants to delete entry
 
@@ -161,7 +150,7 @@ The user can delete the entry and associated evidence, reflection, and pattern n
 
 Deletion should be clear and understandable.
 
-In the current MVP, associated evidence, reflection, and pattern candidates are session-only and disappear with the entry or after app restart.
+In the current MVP, source-scoped artifacts survive restart and are removed atomically when the Experience is edited or deleted.
 
 ### AI provider unavailable
 
@@ -203,8 +192,8 @@ The next MVP flow is:
 6. User reviews evidence.
 7. System offers Reflection.
 8. System may propose a Pattern Hypothesis with visible sources and uncertainty.
-9. Reviewed artifacts persist locally with provenance.
-10. When enough relevant evidence exists, the user may request Cross-Experience Reflection.
+9. Reviewed artifacts persist locally with provenance. Reflection edits remain UI drafts until explicitly saved; Save stores normalized (trimmed) text and clears its exact draft only after the durable commit succeeds. Unsaved text is not provider context and blocks Pattern generation.
+10. Cross-Experience Reflection remains deferred.
 
 ### Context Recovery UX
 
@@ -215,14 +204,12 @@ The next MVP flow is:
 - If the user skips, reduce inference depth and continue safely.
 - Permit an honest outcome of “insufficient context” or “no meaningful pattern found.”
 
-### Historical Context UX
+### Historical Context UX (deferred)
 
-Before Cross-Experience Reflection, show which historical records will be used and why. The user can exclude a record or disable longitudinal memory for that interaction.
+Cross-Experience retrieval is not implemented in this vertical slice.
 
 ## 9. Persistence Qualification
 
-The current implementation persists only Experience records and selected UI language. Evidence Candidates, Reflection Prompts and responses, and Pattern Candidates disappear after restart.
-
-The revised flow requires these reviewed artifacts to persist locally with source relationships, authorship, review state, generation metadata, revision history, and deletion behavior. This is an implementation target, not current behavior.
+The current implementation persists Experiences, Context Recovery turns, Evidence Candidates, Reflection Prompts/responses/skips, and Pattern Candidates locally with source relationships and provenance. AI questions and user answers retain distinct authorship metadata. Unsaved Reflection drafts are UI-only, source-scoped by exact Experience and prompt IDs, and are discarded on restart. A failed or stale explicit Save retains its draft. Rejected Evidence/Patterns are excluded from durable storage. Full revision history is not implemented.
 
 Until artifact export is implemented, export must be described accurately as Experience-only JSON/Markdown export.

@@ -12,7 +12,9 @@
     "start:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-life-os.ps1",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^3.2.7"
   }
 }

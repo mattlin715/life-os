@@ -4,5 +4,10 @@ export { createSqliteLocalEvidenceStore } from "./sqlite/sqliteLocalEvidenceStor
 export type {
   CreateExperienceInput,
   LocalEvidenceStore,
+  PersistedArtifactBundle,
+  SaveArtifactsOptions,
   UpdateExperiencePatch,
 } from "./types";
+
+export { createArtifactMutationRunner } from "./artifactMutation";
+export type { ArtifactMutation } from "./artifactMutation";

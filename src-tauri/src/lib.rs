@@ -1,3 +1,4 @@
+mod sqlite;
 use serde::Serialize;
 use serde_json::json;
 
@@ -290,7 +291,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_ai_runtime_status,
             generate_openai_response,
-            generate_gemini_response
+            generate_gemini_response,
+            sqlite::initialize_sqlite_database,
+            sqlite::execute_sqlite_transaction
         ])
         .run(tauri::generate_context!())
         .expect("error while running Life OS");

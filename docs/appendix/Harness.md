@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.3
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/12
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -266,19 +266,19 @@ Provider capability may change latency, cost, or formatting. It must not change:
 
 ## Current Implementation Status
 
-The current code has a simple `AIProvider` interface and similar safety instructions in OpenAI and Gemini adapters. It does not yet implement the Harness described here.
+Harness V1 is implemented for the per-Experience vertical slice:
 
-Missing implementation includes:
+- one shared versioned behavior protocol and prompt version;
+- one validated task-specific Context Packet contract across OpenAI, Gemini, and mock;
+- deterministic Context Sufficiency gating;
+- current-Experience source validation and orphaned-reflection exclusion;
+- provider/model/Harness/prompt provenance;
+- explicit durable-Reflection versus UI-draft separation, so unsaved text never enters a Context Packet; drafts are keyed by exact source Experience ID and exact prompt ID, not a composite string;
+- an explicit Reflection Save trims and persists the response with user provenance, then clears only the submitted draft after the durable commit succeeds; failed or stale saves retain it;
+- serialized mutation-queue snapshot revalidation before generated results are applied, plus final SQLite Experience-version protection;
+- regression tests for multilingual copy, packet integrity, gate enforcement, draft exclusion, stale generation, mutation failure, and SQL migration rollback.
 
-- one shared versioned behavior protocol;
-- Context Packet assembly;
-- context sufficiency gating;
-- historical evidence selection;
-- persisted feedback/provenance;
-- evaluation datasets and regression execution;
-- prompt/schema version registry.
-
-This document defines the target architecture. `docs/11_MVP.md` and `docs/12_Roadmap.md` define the delivery boundary.
+Historical selection, cross-experience retrieval, retained evaluation feedback, and autonomous learning are not implemented. Provider adapters handle transport/authentication/formatting/parsing; they do not redefine Life OS behavior.
 
 ## Related Decisions
 

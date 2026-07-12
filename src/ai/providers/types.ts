@@ -1,19 +1,7 @@
-import type {
-  EvidenceCandidate,
-  ExperienceEntry,
-  PatternNote,
-  ReflectionPrompt,
-} from "../../types/domain";
-
+import type { ContextPacket } from "../harness/contextPacket";
+import type { EvidenceCandidate, PatternNote, ReflectionPrompt } from "../../types/domain";
 export interface AIProvider {
-  extractEvidence(entry: ExperienceEntry): Promise<EvidenceCandidate[]>;
-  generateReflectionPrompts(
-    entry: ExperienceEntry,
-    evidence: EvidenceCandidate[],
-  ): Promise<ReflectionPrompt[]>;
-  suggestPatternNotes(
-    entry: ExperienceEntry,
-    confirmedEvidence: EvidenceCandidate[],
-    reflectionPrompts: ReflectionPrompt[],
-  ): Promise<PatternNote[]>;
+  extractEvidence(packet: ContextPacket): Promise<EvidenceCandidate[]>;
+  generateReflectionPrompts(packet: ContextPacket): Promise<ReflectionPrompt[]>;
+  suggestPatternNotes(packet: ContextPacket): Promise<PatternNote[]>;
 }

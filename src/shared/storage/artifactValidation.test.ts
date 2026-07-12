@@ -1,0 +1,8 @@
+import { describe, expect, it } from "vitest";
+import { validateArtifactBundle } from "./artifactValidation";
+import { evidence, reflection } from "../../test/fixtures";
+const empty = () => ({ evidence: [], reflections: [], patterns: [], recoveryTurns: [] });
+describe("Pattern reflection dependencies", () => {
+  it("keeps a Pattern with answered same-entry Reflection", () => { const ev = evidence(); const ref = reflection(); const pattern = { id: "pattern", sourceEntryId: "entry", sourceEvidenceIds: [ev.id], sourceReflectionPromptIds: [ref.id], text: "Tentative", status: "candidate" as const, provenance: ev.provenance!, createdAt: ev.createdAt, updatedAt: ev.updatedAt }; expect(validateArtifactBundle("entry", { ...empty(), evidence: [ev], reflections: [ref], patterns: [pattern] }).bundle.patterns).toHaveLength(1); });
+  it("drops Pattern when its Reflection is skipped, foreign, or missing", () => { const ev = evidence(); const ref = { ...reflection(), status: "skipped" as const, response: undefined, responseProvenance: undefined }; const foreign = reflection("foreign", "other", [ev.id]); const pattern = { id: "pattern", sourceEntryId: "entry", sourceEvidenceIds: [ev.id], sourceReflectionPromptIds: [ref.id], text: "Tentative", status: "candidate" as const, provenance: ev.provenance!, createdAt: ev.createdAt, updatedAt: ev.updatedAt }; const result = validateArtifactBundle("entry", { ...empty(), evidence: [ev], reflections: [ref, foreign], patterns: [pattern] }); expect(result.bundle.patterns).toHaveLength(0); expect(result.validationIssues).toContain("invalid_pattern_dependency:pattern"); });
+});
