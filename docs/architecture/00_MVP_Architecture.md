@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.3
+version: 0.4
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/14
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -21,6 +21,7 @@ depends:
 referenced_by:
   - docs/11_MVP.md
   - docs/12_Roadmap.md
+  - docs/architecture/08_Local_Historical_Context_Selection_Foundation.md
 ---
 
 # 00 MVP Architecture
@@ -276,4 +277,4 @@ The current database initializes a single table with `CREATE TABLE IF NOT EXISTS
 
 ### Current-Code Qualification
 
-As of 2026/07/12, the code implements the single-Experience vertical slice: source-scoped Context Recovery turns and reviewed Evidence, Reflection, and Pattern artifacts persist locally with provenance in SQLite schema version 3. Provider calls use only the current Experience packet and its eligible source-scoped dependencies. Historical retrieval, cross-Experience reflection, and longitudinal-memory consent are not implemented. This section defines the next architecture direction; it does not claim those deferred capabilities are implemented.
+As of 2026/07/12, the code implements the single-Experience vertical slice: source-scoped Context Recovery turns and reviewed Evidence, Reflection, and Pattern artifacts persist locally with provenance in SQLite schema version 3. Provider calls use only the current Experience packet and its eligible source-scoped dependencies. Phase 3A adds an optional, ephemeral local lexical candidate selector with visible reasons and manual include/exclude; it is not in any Context Packet or provider request. Cross-Experience reflection and longitudinal-memory consent are not implemented. This section defines the next architecture direction; it does not claim those deferred capabilities are implemented.

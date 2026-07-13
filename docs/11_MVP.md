@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.5
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/13
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -21,6 +21,7 @@ referenced_by:
   - docs/12_Roadmap.md
   - docs/appendix/Harness.md
   - docs/architecture/00_MVP_Architecture.md
+  - docs/architecture/08_Local_Historical_Context_Selection_Foundation.md
   - docs/product/00_MVP_User_Flow.md
   - docs/adr/ADR-0001-documentation-hierarchy.md
   - docs/adr/ADR-0002-single-source-of-truth.md
@@ -52,7 +53,7 @@ The MVP should build the smallest system capable of answering these questions ho
 
 ## Current Implemented Scope
 
-Verified against the repository on 2026/07/11:
+Verified against the repository on 2026/07/13:
 
 - Tauri 2 + React 18 + SQLite desktop architecture.
 - Desktop-first configuration intended for Windows and macOS.
@@ -71,15 +72,15 @@ Verified against the repository on 2026/07/11:
 - Provider and model runtime status in the desktop UI.
 - Explicit Reflection UI drafts: only a saved response with user provenance is durable or eligible for a Pattern Context Packet; dirty drafts block Pattern generation.
 - Stale generated results are discarded by snapshot checks both before and inside the serialized artifact mutation boundary, with the SQLite Experience revision check as final write-time protection.
+- Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, and ephemeral include/exclude controls. Retrieval begins only when the user opens that Experience's panel; it is never sent to a provider in this phase and cannot produce a Cross-Experience conclusion.
 
-Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only, and no cross-experience retrieval occurs.
+Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Phase 3A local candidate retrieval is bounded and ephemeral; historical provider transmission and Cross-Experience Reflection remain deferred.
 
 ## Current Product Gaps
 
 - Context Recovery turns persist per Experience, but there is no general-purpose AI conversation history.
 - A deterministic per-Experience Context Sufficiency Gate is implemented. It is heuristic and requires dogfooding evaluation; longitudinal and historical sufficiency remain deferred.
-- There is no cross-experience retrieval.
-- There is no cross-experience analysis.
+- There is no historical provider transmission, durable selection, Cross-Experience Reflection, or cross-experience analysis. Phase 3A candidate retrieval and selection remain optional, local-only, and ephemeral.
 - There are no longitudinal summaries.
 - There is no memory graph.
 - There is no identity hypothesis history.

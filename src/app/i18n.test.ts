@@ -20,4 +20,14 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].addContext).toBe("補充情境");
     expect(uiText.ja.addContext).toBe("状況を少し補足する");
   });
+  it("states the local-only historical selection boundary in every language", () => {
+    expect(uiText.en.historicalContextLocalOnly).toContain("has been sent to an AI provider");
+    expect(uiText["zh-TW"].historicalContextLocalOnly).toContain("尚未傳送給 AI provider");
+    expect(uiText.ja.historicalContextLocalOnly).toContain("AI provider に送信されていません");
+  });
+  it("provides a localized unavailable-date fallback", () => {
+    expect(uiText.en.dateUnavailable).toBe("Date unavailable");
+    expect(uiText["zh-TW"].dateUnavailable).toBe("日期無法使用");
+    expect(uiText.ja.dateUnavailable).toBe("日付を表示できません");
+  });
 });

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.4
+version: 0.5
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/14
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -39,16 +39,16 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Mirror | `docs/00_Constitution.md` | `docs/03_Principles.md` | `Life_OS_Manifesto.md`, `README.md`, `docs/Reflection.md`, `docs/09_AI.md` |
 | Vision | `docs/01_Vision.md` | `docs/12_Roadmap.md` | `docs/00_Constitution.md`, `docs/11_MVP.md` |
 | Philosophy | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/01_Vision.md`, `docs/09_AI.md` |
-| Context | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md` |
-| Context Before Insight | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/appendix/Harness.md` |
-| Context Recovery | `docs/02_Philosophy.md` | `docs/product/00_MVP_User_Flow.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/11_MVP.md`, `docs/12_Roadmap.md` |
+| Context | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
+| Context Before Insight | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
+| Context Recovery | `docs/02_Philosophy.md` | `docs/product/00_MVP_User_Flow.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/11_MVP.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
 | Conversation Layer | `docs/09_AI.md` | `docs/product/00_MVP_User_Flow.md` | `docs/02_Philosophy.md`, `docs/appendix/Harness.md`, `docs/12_Roadmap.md` |
 | Identity | `docs/05_Identity.md` | `docs/06_Memory.md` | `docs/Reflection.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
 | Evidence | `docs/03_Principles.md` | `docs/06_Memory.md` | `docs/05_Identity.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
 | Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/10_Privacy.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
-| Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
+| Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
 | Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
-| Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md` |
+| Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
 | Pattern | `docs/05_Identity.md` | `docs/07_Awareness.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
 | Meaning | `docs/Reflection.md` | `docs/02_Philosophy.md` | `docs/05_Identity.md`, `docs/09_AI.md` |
 | Awareness | `docs/07_Awareness.md` | `docs/08_Growth.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
@@ -56,8 +56,8 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Privacy | `docs/10_Privacy.md` | `docs/06_Memory.md` | `docs/00_Constitution.md`, `docs/09_AI.md`, `docs/appendix/Harness.md` |
 | AI Role | `docs/09_AI.md` | `docs/Reflection.md` | `docs/03_Principles.md`, `docs/10_Privacy.md` |
 | AI Hypothesis Protocol | `docs/09_AI.md` | `docs/appendix/Harness.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
-| Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
-| MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/12_Roadmap.md` |
+| Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
+| MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/12_Roadmap.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
 | Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
@@ -102,8 +102,9 @@ Lower levels must not override higher levels. When theory and implementation dif
 5. `docs/06_Memory.md`
 6. `docs/Reflection.md`
 7. `docs/10_Privacy.md`
-8. `docs/adr/ADR-0003-identity-is-emergent.md`
-9. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+8. `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`
+9. `docs/adr/ADR-0003-identity-is-emergent.md`
+10. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
 
 ## ADR Index
 

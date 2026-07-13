@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.2
+version: 0.3
 owner: LIN MENGLUNG
-last_updated: 2026/07/11
+last_updated: 2026/07/14
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -107,6 +107,10 @@ Preserve reviewed understanding so future Reflection can continue rather than re
 - Persist confirmed evidence, user reflections, and pattern hypotheses.
 - Preserve confirmation, rejection, revision history, and provenance.
 - Retrieve relevant past experiences by theme, emotion, relationship, value conflict, and user-selected time range.
+
+### Phase 3A Foundation
+
+The current local-only foundation can propose a bounded set of prior Experience sources with visible lexical reasons and user-controlled ephemeral selection. It does not transmit historical content, infer a cross-experience pattern, or establish longitudinal-memory consent. Those require later governed work.
 
 ### Exit Criteria
 - Every persisted artifact distinguishes user content from AI hypothesis.
