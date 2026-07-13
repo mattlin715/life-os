@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.4
+version: 0.8
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/14
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -15,6 +15,7 @@ depends:
   - docs/architecture/04_Evidence_Candidate_Boundary.md
   - docs/architecture/05_Reflection_Prompt_Boundary.md
   - docs/architecture/06_Pattern_Candidate_Boundary.md
+  - docs/architecture/08_Local_Historical_Context_Selection_Foundation.md
   - docs/adr/ADR-0004-local-first-mvp.md
   - docs/adr/ADR-0005-ai-provider-abstraction.md
   - docs/02_Philosophy.md
@@ -205,9 +206,11 @@ The next MVP flow is:
 - Permit an honest outcome of “insufficient context” or “no meaningful pattern found.”
 - Pattern availability uses the same Context Gate decision in the button and the execution guard. When Pattern needs more event context, the UI states that plainly and offers one optional Add Context action; saved Reflection answers do not substitute for that missing context.
 
-### Historical Context UX (deferred)
+### Historical Context UX (Phase 3A local-only foundation)
 
-Cross-Experience retrieval is not implemented in this vertical slice.
+The Experience card presents a valid timestamp with date and time, formatted in the active Life OS language and the device timezone. Historical Context source cards present only the valid source date in that same language and timezone. The user may explicitly open a local-history panel for one Experience. Retrieval begins only then; closed panels and initial hydration do not retrieve candidates. The panel shows a small, deterministic set of inspectable prior sources with that date-only presentation, an excerpt, and visible shared-term reasons. The user can include, exclude, clear, or ignore every candidate. Closing the panel preserves its valid ephemeral selection for the current app session. Reopening retrieves fresh local candidates and removes selections which are no longer eligible before the panel is shown. Invalid, empty, or unsupported imported timestamps cannot crash either presentation; the UI shows a localized calm fallback rather than `Invalid Date` or the malformed raw value, and does not render a `dateTime` attribute. A valid imported source remains raw persisted data, while its HTML `dateTime` attribute is separately normalized from the parsed instant. The stored source value remains unchanged.
+
+Candidate selection is ephemeral and local. It does not send historical content to an AI provider and does not create a cross-Experience conclusion. Cross-Experience Reflection remains deferred.
 
 ## 9. Persistence Qualification
 

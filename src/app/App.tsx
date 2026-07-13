@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -37,6 +37,27 @@ import { addSuggestedRecoveryTurn, answerRecoveryTurn, skipRecoveryTurnRecord } 
 import { answerReflectionPrompt, skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
 import { createGenerationSnapshot, isGenerationSnapshotCurrent } from "../ai/harness/generationSnapshot";
 import { HARNESS_VERSION, PROMPT_VERSION } from "../ai/harness/version";
+import {
+  formatExperienceTimestamp,
+  formatHistoricalSourceDate,
+  toSafeHtmlDateTime,
+} from "../historicalContext/date";
+import { retrieveCandidatesForOpenHistoricalPanels } from "../historicalContext/panelRetrieval";
+import {
+  isHistoricalContextPanelOpen,
+  removeHistoricalContextPanelForExperience,
+  toggleHistoricalContextPanel,
+  type HistoricalContextOpenPanels,
+} from "../historicalContext/panelState";
+import {
+  clearHistoricalContextSelection,
+  isHistoricalContextSelected,
+  reconcileHistoricalContextSelections,
+  removeHistoricalContextSelectionsForExperience,
+  toggleHistoricalContextSelection,
+  type HistoricalContextSelections,
+} from "../historicalContext/selection";
+import type { HistoricalContextCandidate } from "../historicalContext/types";
 import {
   canSaveReflectionDraft,
   clearReflectionDraftAfterSuccessfulSave,
@@ -506,6 +527,12 @@ export function App() {
     Record<string, ContextRecoveryTurn[]>
   >({});
   const [reflectionDrafts, setReflectionDrafts] = useState<ReflectionDrafts>({});
+  const [historicalContextOpenPanels, setHistoricalContextOpenPanels] =
+    useState<HistoricalContextOpenPanels>(() => new Set());
+  const [historicalCandidatesByCurrentExperienceId, setHistoricalCandidatesByCurrentExperienceId] =
+    useState<ReadonlyMap<string, HistoricalContextCandidate[]>>(() => new Map());
+  const [historicalContextSelections, setHistoricalContextSelections] =
+    useState<HistoricalContextSelections>(() => new Map());
   const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -553,6 +580,19 @@ export function App() {
         ),
       ),
     [evidenceCandidatesByEntryId],
+  );
+  const historicalArtifactsByEntryId = useMemo(
+    () =>
+      Object.fromEntries(
+        entries.map((sourceEntry) => [
+          sourceEntry.id,
+          {
+            evidence: evidenceCandidatesByEntryId[sourceEntry.id] ?? [],
+            reflections: reflectionPromptsByEntryId[sourceEntry.id] ?? [],
+          },
+        ]),
+      ),
+    [entries, evidenceCandidatesByEntryId, reflectionPromptsByEntryId],
   );
 
   const requestContextRecovery = useCallback(async (entry: ExperienceEntry) => {
@@ -655,6 +695,8 @@ export function App() {
         setPatternNotesByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         setRecoveryTurnsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
+        setHistoricalContextOpenPanels((current) => removeHistoricalContextPanelForExperience(current, id));
+        setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
         await refreshEntries();
         setStorageError(null);
         setPortabilityStatus(null);
@@ -691,6 +733,7 @@ export function App() {
       try {
         await store.updateExperience(id, { body: trimmedBody });
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
+        setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
         setEditingEntryId(null);
         setEditingBody("");
         await refreshEntries();
@@ -895,9 +938,48 @@ export function App() {
     await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? skipRecoveryTurnRecord(turn) : turn) }), copy.recoverySkip);
   }, [copy.recoverySkip, runArtifactMutation]);
 
+  const toggleHistoricalContext = useCallback((entryId: string) => {
+    setHistoricalContextOpenPanels((current) => toggleHistoricalContextPanel(current, entryId));
+  }, []);
+  const toggleHistoricalSource = useCallback((entryId: string, sourceEntryId: string) => {
+    setHistoricalContextSelections((current) => toggleHistoricalContextSelection(current, entryId, sourceEntryId));
+  }, []);
+  const clearHistoricalSources = useCallback((entryId: string) => {
+    setHistoricalContextSelections((current) => clearHistoricalContextSelection(current, entryId));
+  }, []);
+
   useEffect(() => {
     void refreshEntries();
   }, [refreshEntries]);
+
+  useLayoutEffect(() => {
+    if (historicalContextOpenPanels.size === 0) {
+      setHistoricalCandidatesByCurrentExperienceId((current) =>
+        current.size === 0 ? current : new Map(),
+      );
+      return;
+    }
+
+    const candidatesByCurrentExperienceId = retrieveCandidatesForOpenHistoricalPanels({
+      openPanelExperienceIds: historicalContextOpenPanels,
+      experiences: entries,
+      artifactsByEntryId: historicalArtifactsByEntryId,
+      locale: language,
+    });
+
+    setHistoricalCandidatesByCurrentExperienceId(candidatesByCurrentExperienceId);
+    setHistoricalContextSelections((current) => {
+      let reconciled = current;
+      for (const [currentExperienceId, candidates] of candidatesByCurrentExperienceId) {
+        reconciled = reconcileHistoricalContextSelections(
+          reconciled,
+          currentExperienceId,
+          new Set(candidates.map((candidate) => candidate.sourceExperienceId)),
+        );
+      }
+      return reconciled;
+    });
+  }, [entries, historicalArtifactsByEntryId, historicalContextOpenPanels, language]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1093,20 +1175,51 @@ export function App() {
                 copy,
                 patternAvailability.reason,
               );
+              const isHistoricalContextOpen = isHistoricalContextPanelOpen(
+                historicalContextOpenPanels,
+                entry.id,
+              );
+              const historicalCandidates = isHistoricalContextOpen
+                ? historicalCandidatesByCurrentExperienceId.get(entry.id) ?? []
+                : [];
+              const selectedHistoricalCount = historicalCandidates.filter((candidate) =>
+                isHistoricalContextSelected(historicalContextSelections, entry.id, candidate.sourceExperienceId),
+              ).length;
+              const selectedHistoricalCandidates = historicalCandidates.filter((candidate) =>
+                isHistoricalContextSelected(historicalContextSelections, entry.id, candidate.sourceExperienceId),
+              );
+              const createdAtDateTime = toSafeHtmlDateTime(entry.createdAt);
+              const createdAtPresentation = formatExperienceTimestamp(
+                entry.createdAt,
+                language,
+                copy.dateUnavailable,
+              );
+              const updatedAtDateTime = toSafeHtmlDateTime(entry.updatedAt);
+              const updatedAtPresentation = formatExperienceTimestamp(
+                entry.updatedAt,
+                language,
+                copy.dateUnavailable,
+              );
 
               return (
                 <article className="entry" key={entry.id}>
                   <div className="entry-meta">
                     <div>
                       <p className="entry-kicker">{copy.moment}</p>
-                      <time dateTime={entry.createdAt}>
-                        {new Date(entry.createdAt).toLocaleString()}
-                      </time>
+                      {createdAtDateTime ? (
+                        <time dateTime={createdAtDateTime}>{createdAtPresentation}</time>
+                      ) : (
+                        <span>{createdAtPresentation}</span>
+                      )}
                     </div>
                     {entry.updatedAt !== entry.createdAt ? (
-                      <time dateTime={entry.updatedAt}>
-                        {copy.updated} {new Date(entry.updatedAt).toLocaleString()}
-                      </time>
+                      updatedAtDateTime ? (
+                        <time dateTime={updatedAtDateTime}>
+                          {copy.updated} {updatedAtPresentation}
+                        </time>
+                      ) : (
+                        <span>{copy.updated} {updatedAtPresentation}</span>
+                      )
                     ) : null}
                   </div>
 
@@ -1157,6 +1270,90 @@ export function App() {
                       </div>
                     </>
                   )}
+
+                  <section className="historical-context-panel" aria-label={copy.historicalContextAria}>
+                    <div className="review-card-header">
+                      <div>
+                        <p className="review-step">{copy.historicalContextStep}</p>
+                        <h2>{copy.historicalContextTitle}</h2>
+                      </div>
+                      <button
+                        type="button"
+                        className="ghost-button compact"
+                        onClick={() => toggleHistoricalContext(entry.id)}
+                      >
+                        {isHistoricalContextOpen ? copy.historicalContextClose : copy.historicalContextOpen}
+                      </button>
+                    </div>
+                    {isHistoricalContextOpen ? (
+                      <>
+                        <p className="historical-context-note">{copy.historicalContextLocalOnly}</p>
+                        <p className="historical-context-note">{copy.historicalContextNoConclusion}</p>
+                        {historicalCandidates.length === 0 ? (
+                          <p className="historical-context-empty">{copy.historicalContextEmpty}</p>
+                        ) : (
+                          <div className="historical-context-list">
+                            {historicalCandidates.map((candidate) => {
+                              const selected = isHistoricalContextSelected(
+                                historicalContextSelections,
+                                entry.id,
+                                candidate.sourceExperienceId,
+                              );
+                              const sourceDateTime = toSafeHtmlDateTime(candidate.sourceCreatedAt);
+                              const sourceDatePresentation = copy.historicalContextSourceDate(
+                                formatHistoricalSourceDate(
+                                  candidate.sourceCreatedAt,
+                                  language,
+                                  copy.dateUnavailable,
+                                ),
+                              );
+                              return (
+                                <article className="historical-context-candidate" key={candidate.sourceExperienceId}>
+                                  {sourceDateTime ? (
+                                    <time dateTime={sourceDateTime}>{sourceDatePresentation}</time>
+                                  ) : (
+                                    <span className="historical-context-source-date">{sourceDatePresentation}</span>
+                                  )}
+                                  <p>{candidate.sourceExcerpt}</p>
+                                  <p className="historical-context-reason">
+                                    {copy.historicalContextReason(candidate.reasons.flatMap((reason) => reason.terms).join(", "))}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className={selected ? "secondary-button compact" : "ghost-button compact"}
+                                    onClick={() => toggleHistoricalSource(entry.id, candidate.sourceExperienceId)}
+                                  >
+                                    {selected ? copy.historicalContextExclude : copy.historicalContextInclude}
+                                  </button>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {selectedHistoricalCandidates.length > 0 ? (
+                          <div className="historical-context-selected-preview">
+                            <strong>{copy.historicalContextSelectedPreview}</strong>
+                            <ul>
+                              {selectedHistoricalCandidates.map((candidate) => (
+                                <li key={candidate.sourceExperienceId}>{candidate.sourceExcerpt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        <div className="entry-actions historical-context-actions">
+                          <p>{copy.historicalContextSelected(selectedHistoricalCount)}</p>
+                          <button
+                            type="button"
+                            className="ghost-button compact"
+                            disabled={selectedHistoricalCount === 0}
+                            onClick={() => clearHistoricalSources(entry.id)}
+                          >
+                            {copy.historicalContextClear}
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
+                  </section>
 
                   <section className="review-stack">
                     <section className="review-card evidence-review">

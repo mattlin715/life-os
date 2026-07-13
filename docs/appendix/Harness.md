@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.4
+version: 0.7
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/13
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -270,6 +270,7 @@ Harness V1 is implemented for the per-Experience vertical slice:
 
 - one shared versioned behavior protocol and prompt version;
 - one validated task-specific Context Packet contract across OpenAI, Gemini, and mock;
+- optional Phase 3A local historical candidate retrieval begins only when the user explicitly opens that Experience's panel, with visible lexical reasons and user-controlled ephemeral selection; candidates and selection never enter the Context Packet or provider input;
 - deterministic Context Sufficiency gating;
 - one shared Pattern availability decision for UI and execution, with visible insufficient-context guidance and a user-initiated optional Context Recovery opportunity;
 - current-Experience source validation and orphaned-reflection exclusion;
@@ -279,7 +280,7 @@ Harness V1 is implemented for the per-Experience vertical slice:
 - serialized mutation-queue snapshot revalidation before generated results are applied, plus final SQLite Experience-version protection;
 - regression tests for multilingual copy, packet integrity, gate enforcement, draft exclusion, stale generation, mutation failure, and SQL migration rollback.
 
-Historical selection, cross-experience retrieval, retained evaluation feedback, and autonomous learning are not implemented. Provider adapters handle transport/authentication/formatting/parsing; they do not redefine Life OS behavior.
+Local historical candidate retrieval is implemented only as a bounded, explicit-panel, local UI aid. Historical provider transmission and Cross-Experience Reflection or analysis are not implemented. Retained evaluation feedback and autonomous learning are also deferred. Provider adapters handle transport/authentication/formatting/parsing; they do not redefine Life OS behavior.
 
 ## Related Decisions
 

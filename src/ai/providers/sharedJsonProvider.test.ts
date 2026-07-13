@@ -3,6 +3,7 @@ import { createContextPacket } from "../harness/contextPacket";
 import { createJsonProvider } from "./sharedJsonProvider";
 import { placeholderProvider } from "./placeholderProvider";
 import { evidence, experience, recovery, reflection } from "../../test/fixtures";
+import { findHistoricalContextCandidates } from "../../historicalContext/retrieve";
 describe("shared provider packet and provenance", () => {
   it("passes validated answered recovery and actual metadata", async () => {
     let captured: unknown; const request = vi.fn(async (_instructions: string, input: unknown) => { captured = input; return { candidates: [{ kind: "observation", text: "Direct observation" }] }; });
@@ -14,5 +15,62 @@ describe("shared provider packet and provenance", () => {
     let captured: unknown; const provider = createJsonProvider(async (_instructions, input) => { captured = input; return { text: "One tentative hypothesis." }; });
     const packet = createContextPacket({ currentExperience: experience(), evidence: [evidence(), evidence("foreign-e", "foreign")], reflections: [reflection(), reflection("foreign-r", "foreign", ["foreign-e"])], locale: "en", requestedTask: "pattern", provider: "gemini", model: "gemini-test" }).packet;
     await provider.suggestPatternNotes(packet); const input = captured as { confirmedEvidence: unknown[]; answeredReflectionResponses: unknown[] }; expect(input.confirmedEvidence).toHaveLength(1); expect(input.answeredReflectionResponses).toHaveLength(1);
+  });
+  it("keeps local historical candidates out of the OpenAI, Gemini, and mock provider contracts", async () => {
+    const current = experience("current", "A deadline stayed with me.");
+    const historicalSourceId = "source-id-unique-8e1b";
+    const historicalSourceText = "A singular earlier deadline source text that must remain local.";
+    const historical = experience(historicalSourceId, historicalSourceText);
+    const candidates = findHistoricalContextCandidates({ currentExperience: current, experiences: [current, historical], artifactsByEntryId: {}, locale: "en" });
+    expect(candidates).toHaveLength(1);
+
+    const expectedTransportKeys = [
+      "answeredClarificationTurns",
+      "answeredReflectionResponses",
+      "confirmedEvidence",
+      "currentExperience",
+      "harnessVersion",
+      "locale",
+      "model",
+      "promptVersion",
+      "provider",
+      "requestedTask",
+    ];
+    const historicalTransportKeys = [
+      "historicalContext",
+      "historicalCandidates",
+      "historicalSourceCollection",
+      "historicalSourceExperiences",
+      "historicalSources",
+      "selectedHistoricalContext",
+      "selectedHistory",
+    ];
+    const captureTransport = async (provider: "openai" | "gemini") => {
+      let capturedPayload: unknown;
+      const request = vi.fn(async (_instructions: string, input: unknown) => {
+        capturedPayload = JSON.parse(JSON.stringify(input));
+        return { candidates: [{ kind: "observation", text: "A direct observation." }] };
+      });
+      const packet = createContextPacket({ currentExperience: current, locale: "en", requestedTask: "evidence", provider, model: `${provider}-test` }).packet;
+      await createJsonProvider(request).extractEvidence(packet);
+      return { request, payload: capturedPayload as Record<string, unknown> };
+    };
+
+    for (const provider of ["openai", "gemini"] as const) {
+      const { request, payload } = await captureTransport(provider);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(Object.keys(payload).sort()).toEqual(expectedTransportKeys);
+      for (const key of historicalTransportKeys) expect(payload).not.toHaveProperty(key);
+      const sharedJsonTransport = JSON.stringify(payload);
+      expect(sharedJsonTransport).not.toContain(historicalSourceId);
+      expect(sharedJsonTransport).not.toContain(historicalSourceText);
+    }
+
+    const mockPacket = createContextPacket({ currentExperience: current, locale: "en", requestedTask: "evidence", provider: "mock", model: null }).packet;
+    const [mockArtifact] = await placeholderProvider.extractEvidence(mockPacket);
+    const mockResult = JSON.stringify(mockArtifact);
+    expect(mockResult).not.toContain(historicalSourceId);
+    expect(mockResult).not.toContain(historicalSourceText);
+    for (const key of historicalTransportKeys) expect(mockArtifact).not.toHaveProperty(key);
   });
 });
