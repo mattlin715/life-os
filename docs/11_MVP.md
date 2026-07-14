@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.5
+version: 0.6
 owner: LIN MENGLUNG
-last_updated: 2026/07/13
+last_updated: 2026/07/14
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -26,6 +26,9 @@ referenced_by:
   - docs/adr/ADR-0001-documentation-hierarchy.md
   - docs/adr/ADR-0002-single-source-of-truth.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
+  - docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md
+  - docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md
+  - docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md
 ---
 
 # 11 MVP
@@ -72,20 +75,21 @@ Verified against the repository on 2026/07/13:
 - Provider and model runtime status in the desktop UI.
 - Explicit Reflection UI drafts: only a saved response with user provenance is durable or eligible for a Pattern Context Packet; dirty drafts block Pattern generation.
 - Stale generated results are discarded by snapshot checks both before and inside the serialized artifact mutation boundary, with the SQLite Experience revision check as final write-time protection.
-- Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, and ephemeral include/exclude controls. Retrieval begins only when the user opens that Experience's panel; it is never sent to a provider in this phase and cannot produce a Cross-Experience conclusion.
+- Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, and ephemeral include/exclude controls. Retrieval begins only when the user opens that Experience's panel; selection alone never sends data or produces a Cross-Experience conclusion.
+- Governed Historical Reflection Question generation for exact selected sources: exact-content preflight, per-generation/per-purpose consent, provider-independent bounded packet, OpenAI/Gemini destination disclosure, stale-work rejection, and actual-use provenance. The output is limited to neutral source-citing questions and may return no question.
 
-Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Phase 3A local candidate retrieval is bounded and ephemeral; historical provider transmission and Cross-Experience Reflection remain deferred.
+Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Phase 3A candidate retrieval and selection stay bounded, local, and ephemeral. Phase 3B permits historical provider transmission only through the separately governed one-generation Historical Reflection Question gate. Cross-Experience Reflection remains deferred.
 
 ## Current Product Gaps
 
 - Context Recovery turns persist per Experience, but there is no general-purpose AI conversation history.
 - A deterministic per-Experience Context Sufficiency Gate is implemented. It is heuristic and requires dogfooding evaluation; longitudinal and historical sufficiency remain deferred.
-- There is no historical provider transmission, durable selection, Cross-Experience Reflection, or cross-experience analysis. Phase 3A candidate retrieval and selection remain optional, local-only, and ephemeral.
+- There is no durable historical selection, blanket historical-use preference, Cross-Experience Reflection, or cross-experience analysis. The only historical provider task is the governed Phase 3B neutral-question slice.
 - There are no longitudinal summaries.
 - There is no memory graph.
 - There is no identity hypothesis history.
-- Schema v3 preserves source relationships, review state, and provider/model/Harness/prompt provenance in source-scoped payloads; further normalization is deferred.
-- There is no user-controlled per-call longitudinal memory consent.
+- Schema v4 preserves existing source-scoped artifacts and adds historical consent, transmission, successful packet snapshot, actual-use provenance, and cross-source dependency records. Further normalization is deferred.
+- User-controlled per-call consent exists only for the bounded Phase 3B Historical Reflection Question task; no general longitudinal-memory authorization exists.
 - Shared Harness and prompt versions, Context Packet validation, sufficiency gating, and regression tests are implemented. A governed long-term evaluation dataset remains deferred.
 - Tauri bundling is configured, but distributable Windows and macOS builds have not both been verified as release artifacts in this repository.
 

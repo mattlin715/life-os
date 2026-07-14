@@ -2,6 +2,7 @@ import { sharedBehaviorProtocol } from "../harness/behaviorProtocol";
 import type { ContextPacket } from "../harness/contextPacket";
 import type { ArtifactProvenance, EvidenceCandidate, PatternNote, ReflectionPrompt } from "../../types/domain";
 import type { AIProvider } from "./types";
+import { transportHistoricalPacket, validateHistoricalQuestionOutput } from "../../historicalContext/governedPacket";
 
 type RequestJson = (instructions: string, input: unknown) => Promise<Record<string, unknown>>;
 const kinds: EvidenceCandidate["kind"][] = ["observation", "emotion", "decision", "contradiction", "self_description", "other"];
@@ -52,6 +53,17 @@ export function createJsonProvider(requestJson: RequestJson): AIProvider {
       const text = typeof data.text === "string" ? data.text.trim() : ""; if (!text) throw new Error("AI provider returned no pattern candidate.");
       const createdAt = stamp(); const sourceEvidenceIds = packet.confirmedEvidence.map((item) => item.id); const sourceReflectionPromptIds = packet.answeredReflectionResponses.map((item) => item.id);
       return [{ id: id(), sourceEntryId: packet.currentExperience.id, sourceEvidenceIds, sourceReflectionPromptIds: sourceReflectionPromptIds.length ? sourceReflectionPromptIds : undefined, text, status: "candidate", provenance: provenance(packet, [...sourceEvidenceIds, ...sourceReflectionPromptIds, ...packet.answeredClarificationTurns.map((turn) => turn.id)], createdAt), createdAt, updatedAt: createdAt }];
+    },
+    async generateHistoricalReflectionQuestions(packet) {
+      const data = await requestJson([
+        sharedBehaviorProtocol,
+        "This is the Phase 3B Historical Reflection Question task only.",
+        "Return zero to three neutral questions that cite sourceExperienceIds and invite the user to compare exact included material.",
+        "Do not assert or imply recurrence, contradiction, change-over-time, summary, Pattern, Awareness, Growth, cause, diagnosis, advice, sensitive inference, personality, identity, or final meaning.",
+        "If no useful neutral question exists, return an empty questions array. Match the packet locale. Return strict JSON only.",
+        'Return {"questions":[{"text":"...?","sourceExperienceIds":["..."]}]}.',
+      ].join("\n"), transportHistoricalPacket(packet));
+      return validateHistoricalQuestionOutput(data, packet);
     },
   };
 }

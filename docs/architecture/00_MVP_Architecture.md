@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.4
+version: 0.5
 owner: LIN MENGLUNG
 last_updated: 2026/07/14
 depends:
@@ -18,6 +18,9 @@ depends:
   - docs/11_MVP.md
   - docs/appendix/Harness.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
+  - docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md
+  - docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md
+  - docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md
 referenced_by:
   - docs/11_MVP.md
   - docs/12_Roadmap.md
@@ -277,4 +280,4 @@ The current database initializes a single table with `CREATE TABLE IF NOT EXISTS
 
 ### Current-Code Qualification
 
-As of 2026/07/12, the code implements the single-Experience vertical slice: source-scoped Context Recovery turns and reviewed Evidence, Reflection, and Pattern artifacts persist locally with provenance in SQLite schema version 3. Provider calls use only the current Experience packet and its eligible source-scoped dependencies. Phase 3A adds an optional, ephemeral local lexical candidate selector with visible reasons and manual include/exclude; it is not in any Context Packet or provider request. Cross-Experience reflection and longitudinal-memory consent are not implemented. This section defines the next architecture direction; it does not claim those deferred capabilities are implemented.
+As of 2026/07/14, the code implements the single-Experience vertical slice plus governed Historical Reflection Questions. Source-scoped Context Recovery turns and reviewed Evidence, Reflection, and Pattern artifacts persist locally; additive SQLite schema version 4 adds historical consent, transmission, successful packet snapshot, actual-use provenance, and cross-source dependencies. Phase 3A retrieval and selection remain optional, local, explainable, and ephemeral. Phase 3B uses a separate bounded packet only after exact-content preflight and per-generation/per-purpose consent. Cross-Experience Reflection, general longitudinal-memory consent, recurrence, contradiction, change-over-time analysis, summaries, and identity interpretation are not implemented.

@@ -554,6 +554,50 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.historical-preflight,
+.historical-question-results {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(114, 91, 61, 0.24);
+  border-radius: 0.9rem;
+  background: rgba(255, 251, 244, 0.9);
+}
+
+.historical-sensitive-warning {
+  padding: 0.75rem;
+  border-left: 3px solid #a66b3f;
+  background: rgba(166, 107, 63, 0.09);
+}
+
+.historical-preflight-meta {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.historical-preflight-meta div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.3fr) 1fr;
+  gap: 0.75rem;
+}
+
+.historical-preflight-meta dt { font-weight: 700; }
+.historical-preflight-meta dd { margin: 0; overflow-wrap: anywhere; }
+
+.historical-exact-content article,
+.historical-artifact-controls article,
+.historical-question-results article {
+  margin-top: 0.65rem;
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.historical-preflight code,
+.historical-question-results code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .historical-context-selected-preview ul {
   margin: 8px 0 0;
   padding-left: 20px;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -59,6 +59,19 @@ import {
 } from "../historicalContext/selection";
 import type { HistoricalContextCandidate } from "../historicalContext/types";
 import {
+  assembleHistoricalContextPacket,
+  createHistoricalConsentEvent,
+  eligibleHistoricalArtifacts,
+  isHistoricalPacketCurrent,
+  isHistoricalDestinationCurrent,
+  isHistoricalTransportAuthorized,
+  sendAuthorizedHistoricalPacket,
+  validateHistoricalPacketDigest,
+  type HistoricalContextPacket,
+  type HistoricalQuestionArtifact,
+  type HistoricalTransmissionEvent,
+} from "../historicalContext/governedPacket";
+import {
   canSaveReflectionDraft,
   clearReflectionDraftAfterSuccessfulSave,
   draftValue,
@@ -102,11 +115,18 @@ interface EvidenceCandidateEditState {
   text: string;
 }
 
+interface HistoricalPreflightState {
+  entryId: string;
+  packet: HistoricalContextPacket;
+  includedArtifactIds: ReadonlySet<string>;
+}
+
 type PendingAction =
   | "saving"
   | `evidence:${string}`
   | `reflection:${string}`
-  | `pattern:${string}`;
+  | `pattern:${string}`
+  | `historical:${string}`;
 
 function summarizePatternNotes(patternNotes: PatternNote[]) {
   return {
@@ -506,6 +526,7 @@ export function App() {
     readInitialLanguage(),
   );
   const copy = uiText[language];
+  const languageRef = useRef(language);
   const [body, setBody] = useState("");
   const [entries, setEntries] = useState<ExperienceEntry[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
@@ -533,6 +554,8 @@ export function App() {
     useState<ReadonlyMap<string, HistoricalContextCandidate[]>>(() => new Map());
   const [historicalContextSelections, setHistoricalContextSelections] =
     useState<HistoricalContextSelections>(() => new Map());
+  const [historicalPreflight, setHistoricalPreflight] = useState<HistoricalPreflightState | null>(null);
+  const [historicalQuestionsByEntryId, setHistoricalQuestionsByEntryId] = useState<Record<string, HistoricalQuestionArtifact[]>>({});
   const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -547,6 +570,7 @@ export function App() {
       );
       setPatternNotesByEntryId((state) => ({ ...state, [entryId]: committed.patterns }));
       setRecoveryTurnsByEntryId((state) => ({ ...state, [entryId]: committed.recoveryTurns }));
+      setHistoricalPreflight((current) => current && (current.entryId === entryId || current.packet.includedItems.some((item) => item.sourceExperienceId === entryId)) ? null : current);
     },
     onError: (error) => {
       setStorageError(error instanceof Error ? error.message : String(error));
@@ -589,6 +613,7 @@ export function App() {
           {
             evidence: evidenceCandidatesByEntryId[sourceEntry.id] ?? [],
             reflections: reflectionPromptsByEntryId[sourceEntry.id] ?? [],
+            experience: sourceEntry,
           },
         ]),
       ),
@@ -627,12 +652,18 @@ export function App() {
   }, [copy.recoveryNote, copy.recoveryQuestion, language, runArtifactMutation]);
 
   useEffect(() => {
+    languageRef.current = language;
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     document.documentElement.lang = language === "zh-TW" ? "zh-Hant" : language;
   }, [language]);
 
+  useEffect(() => {
+    setHistoricalPreflight((current) => current && (!aiRuntime || !isHistoricalDestinationCurrent(current.packet, aiRuntime, language)) ? null : current);
+  }, [aiRuntime, language]);
+
   const refreshEntries = useCallback(async () => {
     try {
+      await store.purgeExpiredHistoricalAuditRecords(new Date().toISOString());
       const nextEntries = await store.listExperiences();
       const artifacts = await Promise.all(
         nextEntries.map(async (entry) => [entry.id, await store.listArtifacts(entry.id)] as const),
@@ -642,6 +673,8 @@ export function App() {
       setReflectionPromptsByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.reflections])));
       setPatternNotesByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.patterns])));
       setRecoveryTurnsByEntryId(Object.fromEntries(artifacts.map(([id, value]) => [id, value.recoveryTurns])));
+      const historicalQuestions = await Promise.all(nextEntries.map(async (entry) => [entry.id, await store.listHistoricalQuestionArtifacts(entry.id)] as const));
+      setHistoricalQuestionsByEntryId(Object.fromEntries(historicalQuestions));
       setStorageError(null);
     } catch (error) {
       setStorageError(error instanceof Error ? error.message : String(error));
@@ -697,6 +730,8 @@ export function App() {
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         setHistoricalContextOpenPanels((current) => removeHistoricalContextPanelForExperience(current, id));
         setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
+        setHistoricalPreflight((current) => current?.entryId === id || current?.packet.includedItems.some((item) => item.sourceExperienceId === id) ? null : current);
+        setHistoricalQuestionsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         await refreshEntries();
         setStorageError(null);
         setPortabilityStatus(null);
@@ -734,6 +769,7 @@ export function App() {
         await store.updateExperience(id, { body: trimmedBody });
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
+        setHistoricalPreflight((current) => current?.entryId === id || current?.packet.includedItems.some((item) => item.sourceExperienceId === id) ? null : current);
         setEditingEntryId(null);
         setEditingBody("");
         await refreshEntries();
@@ -943,10 +979,126 @@ export function App() {
   }, []);
   const toggleHistoricalSource = useCallback((entryId: string, sourceEntryId: string) => {
     setHistoricalContextSelections((current) => toggleHistoricalContextSelection(current, entryId, sourceEntryId));
+    setHistoricalPreflight((current) => current?.entryId === entryId ? null : current);
   }, []);
   const clearHistoricalSources = useCallback((entryId: string) => {
     setHistoricalContextSelections((current) => clearHistoricalContextSelection(current, entryId));
+    setHistoricalPreflight((current) => current?.entryId === entryId ? null : current);
   }, []);
+
+  const historicalPacketInput = useCallback((entry: ExperienceEntry, includedArtifactIds: ReadonlySet<string>) => {
+    if (aiRuntime?.provider !== "openai" && aiRuntime?.provider !== "gemini") throw new Error(copy.historicalProviderUnavailable);
+    if (!aiRuntime.model) throw new Error(copy.historicalProviderUnavailable);
+    const selectedCandidates = (historicalCandidatesByCurrentExperienceId.get(entry.id) ?? []).filter((candidate) => isHistoricalContextSelected(historicalContextSelections, entry.id, candidate.sourceExperienceId));
+    return {
+      currentExperience: entry,
+      selectedCandidates,
+      artifactsByEntryId: historicalArtifactsByEntryId,
+      explicitlyIncludedArtifactIds: includedArtifactIds,
+      locale: language,
+      provider: aiRuntime.provider,
+      model: aiRuntime.model,
+      retentionDisclosure: aiRuntime.provider === "openai" ? copy.historicalOpenAiRetention : copy.historicalGeminiRetention,
+    } as const;
+  }, [aiRuntime, copy.historicalGeminiRetention, copy.historicalOpenAiRetention, copy.historicalProviderUnavailable, historicalArtifactsByEntryId, historicalCandidatesByCurrentExperienceId, historicalContextSelections, language]);
+
+  const openHistoricalPreflight = useCallback(async (entry: ExperienceEntry) => {
+    try {
+      const includedArtifactIds = new Set<string>();
+      const packet = await assembleHistoricalContextPacket(historicalPacketInput(entry, includedArtifactIds));
+      setHistoricalPreflight({ entryId: entry.id, packet, includedArtifactIds });
+      setStorageError(null);
+    } catch (error) {
+      setPortabilityStatus(null);
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
+  }, [historicalPacketInput]);
+
+  const toggleHistoricalPreflightArtifact = useCallback(async (entry: ExperienceEntry, artifactId: string) => {
+    const current = historicalPreflight;
+    if (!current || current.entryId !== entry.id) return;
+    const includedArtifactIds = new Set(current.includedArtifactIds);
+    if (includedArtifactIds.has(artifactId)) includedArtifactIds.delete(artifactId); else includedArtifactIds.add(artifactId);
+    try {
+      const packet = await assembleHistoricalContextPacket(historicalPacketInput(entry, includedArtifactIds));
+      setHistoricalPreflight({ entryId: entry.id, packet, includedArtifactIds });
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
+  }, [historicalPacketInput, historicalPreflight]);
+
+  const cancelHistoricalPreflight = useCallback(() => setHistoricalPreflight(null), []);
+
+  const deleteHistoricalQuestionArtifact = useCallback(async (entryId: string, artifactId: string) => {
+    try {
+      await store.deleteHistoricalQuestionArtifact(artifactId);
+      setHistoricalQuestionsByEntryId((current) => ({ ...current, [entryId]: (current[entryId] ?? []).filter((artifact) => artifact.id !== artifactId) }));
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
+  }, [store]);
+
+  const sendHistoricalReflectionQuestions = useCallback(async (entry: ExperienceEntry) => {
+    const disclosed = historicalPreflight;
+    if (!disclosed || disclosed.entryId !== entry.id) return;
+    setPendingAction(`historical:${entry.id}`);
+    let consent: ReturnType<typeof createHistoricalConsentEvent> | null = null;
+    let transmission: HistoricalTransmissionEvent | null = null;
+    try {
+      const beforeConsentEntries = await store.listExperiences();
+      const beforeConsentArtifacts = Object.fromEntries(await Promise.all(beforeConsentEntries.map(async (source) => [source.id, { ...(await store.listArtifacts(source.id)), experience: source }])));
+      if (!await validateHistoricalPacketDigest(disclosed.packet) || !isHistoricalPacketCurrent(disclosed.packet, beforeConsentEntries, beforeConsentArtifacts)) throw new Error(copy.historicalConsentInvalidated);
+
+      const runtimeBeforeConsent = await getAiRuntimeStatus();
+      if (!isHistoricalDestinationCurrent(disclosed.packet, runtimeBeforeConsent, languageRef.current)) throw new Error(copy.historicalConsentInvalidated);
+      // Consent applies to the exact immutable packet shown in preflight. Do not
+      // silently rebuild a different packet between disclosure and authorization.
+      const packet = disclosed.packet;
+      consent = createHistoricalConsentEvent(packet, new Date());
+      await store.saveHistoricalConsent(consent);
+
+      const immediatelyBeforeSendEntries = await store.listExperiences();
+      const immediatelyBeforeSendArtifacts = Object.fromEntries(await Promise.all(immediatelyBeforeSendEntries.map(async (source) => [source.id, { ...(await store.listArtifacts(source.id)), experience: source }])));
+      const runtimeBeforeSend = await getAiRuntimeStatus();
+      if (!await isHistoricalTransportAuthorized(packet, consent) || !isHistoricalPacketCurrent(packet, immediatelyBeforeSendEntries, immediatelyBeforeSendArtifacts) || !isHistoricalDestinationCurrent(packet, runtimeBeforeSend, languageRef.current)) throw new Error(copy.historicalConsentInvalidated);
+
+      const transmissionId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-historical-transport`;
+      const sentAt = new Date();
+      transmission = { id: transmissionId, consentId: consent.id, packetDigest: packet.packetDigest, provider: packet.destination.provider, model: packet.destination.model, outcome: "sent", createdAt: sentAt.toISOString(), expiresAt: new Date(sentAt.getTime() + 30 * 24 * 60 * 60_000).toISOString() };
+      await store.saveHistoricalTransmission(transmission);
+
+      const questions = await sendAuthorizedHistoricalPacket(packet, consent, (authorizedPacket) => chooseProvider(aiRuntime).generateHistoricalReflectionQuestions(authorizedPacket));
+      const beforePersistenceEntries = await store.listExperiences();
+      const beforePersistenceArtifacts = Object.fromEntries(await Promise.all(beforePersistenceEntries.map(async (source) => [source.id, { ...(await store.listArtifacts(source.id)), experience: source }])));
+      const runtimeBeforePersistence = await getAiRuntimeStatus();
+      if (!isHistoricalPacketCurrent(packet, beforePersistenceEntries, beforePersistenceArtifacts) || !isHistoricalDestinationCurrent(packet, runtimeBeforePersistence, languageRef.current)) throw new Error(copy.historicalStaleResponse);
+
+      const generatedAt = new Date().toISOString();
+      const artifact: HistoricalQuestionArtifact = { id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-historical-questions`, currentExperienceId: entry.id, questions, packet, consentId: consent.id, transmissionId, generatedAt };
+      const persisted = await store.saveHistoricalQuestionArtifact(artifact);
+      if (persisted.status === "stale_generation") throw new Error(copy.historicalStaleResponse);
+      setHistoricalQuestionsByEntryId((current) => ({ ...current, [entry.id]: [artifact, ...(current[entry.id] ?? [])] }));
+      setHistoricalPreflight(null);
+      setPortabilityStatus(questions.length ? copy.historicalQuestionsReady : copy.historicalNoQuestion);
+      setStorageError(null);
+    } catch (error) {
+      if (consent && !transmission) await store.saveHistoricalConsent({ ...consent, state: "invalidated" }).catch(() => undefined);
+      if (transmission) {
+        await store.saveHistoricalTransmission({ ...transmission, outcome: "failed" }).catch(() => undefined);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("historical_output_")) {
+        setStorageError(null);
+        setPortabilityStatus(copy.historicalOutputRefused);
+      } else {
+        setPortabilityStatus(null);
+        setStorageError(message);
+      }
+    } finally {
+      setPendingAction(null);
+    }
+  }, [aiRuntime, copy.historicalConsentInvalidated, copy.historicalNoQuestion, copy.historicalOutputRefused, copy.historicalQuestionsReady, copy.historicalStaleResponse, historicalPreflight, store]);
 
   useEffect(() => {
     void refreshEntries();
@@ -1188,6 +1340,14 @@ export function App() {
               const selectedHistoricalCandidates = historicalCandidates.filter((candidate) =>
                 isHistoricalContextSelected(historicalContextSelections, entry.id, candidate.sourceExperienceId),
               );
+              const isHistoricalPending = pendingAction === `historical:${entry.id}`;
+              const entryHistoricalPreflight = historicalPreflight?.entryId === entry.id ? historicalPreflight : null;
+              const eligibleHistoricalArtifactRecords = selectedHistoricalCandidates.flatMap((candidate) => {
+                const eligible = eligibleHistoricalArtifacts(candidate.sourceExperienceId, historicalArtifactsByEntryId[candidate.sourceExperienceId]);
+                const relevanceReason = candidate.reasons.flatMap((reason) => reason.terms).join(", ");
+                return [...eligible.evidence.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "Evidence", content: artifact.text, relevanceReason })), ...eligible.reflections.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "Reflection response", content: artifact.response ?? "", relevanceReason }))];
+              });
+              const savedHistoricalQuestions = historicalQuestionsByEntryId[entry.id] ?? [];
               const createdAtDateTime = toSafeHtmlDateTime(entry.createdAt);
               const createdAtPresentation = formatExperienceTimestamp(
                 entry.createdAt,
@@ -1350,10 +1510,71 @@ export function App() {
                           >
                             {copy.historicalContextClear}
                           </button>
+                          <button
+                            type="button"
+                            className="secondary-button compact"
+                            disabled={selectedHistoricalCount === 0 || isHistoricalPending}
+                            onClick={() => openHistoricalPreflight(entry)}
+                          >
+                            {copy.historicalReviewExactContent}
+                          </button>
                         </div>
+                        {entryHistoricalPreflight ? (
+                          <section className="historical-preflight" aria-label={copy.historicalPreflightAria}>
+                            <h3>{copy.historicalPreflightTitle}</h3>
+                            <p>{copy.historicalPurpose}</p>
+                            <p className="historical-sensitive-warning">{copy.historicalSensitiveWarning}</p>
+                            <dl className="historical-preflight-meta">
+                              <div><dt>{copy.historicalDestination}</dt><dd>{entryHistoricalPreflight.packet.destination.provider} / {entryHistoricalPreflight.packet.destination.model}</dd></div>
+                              <div><dt>{copy.historicalRetention}</dt><dd>{entryHistoricalPreflight.packet.destination.retentionDisclosure}</dd></div>
+                              <div><dt>{copy.historicalCurrentSource}</dt><dd>{entryHistoricalPreflight.packet.currentExperience.id} @ {entryHistoricalPreflight.packet.currentExperience.revision}</dd></div>
+                            </dl>
+                            <div className="historical-exact-content">
+                              <strong>{copy.historicalExactOutgoingContent}</strong>
+                              <article><code>{entryHistoricalPreflight.packet.currentExperience.id}</code><p>{entryHistoricalPreflight.packet.currentExperience.content}</p></article>
+                              {entryHistoricalPreflight.packet.includedItems.filter((item) => item.itemType === "experience").map((item) => (
+                                <article key={`${item.sourceExperienceId}:experience`}>
+                                  <code>{item.sourceExperienceId} @ {item.revision}</code>
+                                  <p>{item.content}</p><small>{copy.historicalRelevance}: {item.relevanceReason}</small>
+                                  <div><button type="button" className="ghost-button compact" onClick={() => toggleHistoricalSource(entry.id, item.sourceExperienceId)}>{copy.historicalContextExclude}</button></div>
+                                </article>
+                              ))}
+                            </div>
+                            {eligibleHistoricalArtifactRecords.length ? (
+                              <div className="historical-artifact-controls">
+                                <strong>{copy.historicalEligibleArtifacts}</strong>
+                                {eligibleHistoricalArtifactRecords.map((artifact) => {
+                                  const included = entryHistoricalPreflight.includedArtifactIds.has(artifact.id);
+                                  return <article key={artifact.id}>
+                                    <code>{artifact.type} / {artifact.id} / {artifact.sourceExperienceId} @ {artifact.revision}</code>
+                                    <p>{artifact.content}</p>
+                                    <small>{copy.historicalRelevance}: {artifact.relevanceReason}</small>
+                                    <button type="button" className="ghost-button compact" onClick={() => toggleHistoricalPreflightArtifact(entry, artifact.id)}>{included ? copy.historicalExcludeExact : copy.historicalIncludeExact}</button>
+                                  </article>;
+                                })}
+                              </div>
+                            ) : null}
+                            <p>{copy.historicalConsentOneUse}</p>
+                            <div className="entry-actions">
+                              <button type="button" className="primary-button" disabled={isHistoricalPending} onClick={() => sendHistoricalReflectionQuestions(entry)}>{isHistoricalPending ? copy.historicalSending : copy.historicalSendSelected}</button>
+                              <button type="button" className="ghost-button" disabled={isHistoricalPending} onClick={cancelHistoricalPreflight}>{copy.cancel}</button>
+                            </div>
+                          </section>
+                        ) : null}
                       </>
                     ) : null}
                   </section>
+
+                  {savedHistoricalQuestions.length ? (
+                    <section className="historical-question-results" aria-label={copy.historicalQuestionsAria}>
+                      <h2>{copy.historicalQuestionsTitle}</h2>
+                      {savedHistoricalQuestions.map((artifact) => <article key={artifact.id}>
+                        <small>{artifact.packet.destination.provider} / {artifact.packet.destination.model} / {artifact.packet.packetDigest.slice(0, 12)}</small>
+                        {artifact.questions.length ? <ul>{artifact.questions.map((question) => <li key={question.id}>{question.text} <code>{question.sourceExperienceIds.join(", ")}</code></li>)}</ul> : <p>{copy.historicalNoQuestion}</p>}
+                        <button type="button" className="danger-button compact" onClick={() => deleteHistoricalQuestionArtifact(entry.id, artifact.id)}>{copy.delete}</button>
+                      </article>)}
+                    </section>
+                  ) : null}
 
                   <section className="review-stack">
                     <section className="review-card evidence-review">

@@ -4,6 +4,7 @@ import { createJsonProvider } from "./sharedJsonProvider";
 import { placeholderProvider } from "./placeholderProvider";
 import { evidence, experience, recovery, reflection } from "../../test/fixtures";
 import { findHistoricalContextCandidates } from "../../historicalContext/retrieve";
+import type { HistoricalContextPacket } from "../../historicalContext/governedPacket";
 describe("shared provider packet and provenance", () => {
   it("passes validated answered recovery and actual metadata", async () => {
     let captured: unknown; const request = vi.fn(async (_instructions: string, input: unknown) => { captured = input; return { candidates: [{ kind: "observation", text: "Direct observation" }] }; });
@@ -72,5 +73,23 @@ describe("shared provider packet and provenance", () => {
     expect(mockResult).not.toContain(historicalSourceId);
     expect(mockResult).not.toContain(historicalSourceText);
     for (const key of historicalTransportKeys) expect(mockArtifact).not.toHaveProperty(key);
+  });
+  it("uses one provider-independent historical contract and never permits mock fallback", async () => {
+    const base: Omit<HistoricalContextPacket, "destination"> = {
+      packetId: "packet", packetDigest: "digest", schemaVersion: "historical-packet-v1", assembledAt: "2026-07-14T00:00:00.000Z", expiresAt: "2026-07-14T00:10:00.000Z",
+      currentExperience: { id: "current", revision: "r-current", content: "Current exact text" }, task: "historical_reflection_questions", purpose: "invite_user_comparison_without_cross_time_conclusions", locale: "en", responseLanguage: "en",
+      versions: { harness: "harness-v1", prompt: "historical-reflection-question-v1", outputSchema: "historical-question-output-v1", safetyContract: "phase-3b-safety-v1" },
+      includedItems: [{ itemType: "experience", sourceExperienceId: "source", artifactId: null, revision: "r-source", authorship: "user", reviewState: "persisted", content: "Historical exact text", relevanceReason: "shared term", retrievalAlgorithmVersion: "local-lexical-v1" }],
+      consent: { reference: "consent", scope: "one_generation_one_purpose" }, limits: { maxSources: 3, maxContentCharacters: 6000 },
+    };
+    const captures: unknown[] = [];
+    for (const providerName of ["openai", "gemini"] as const) {
+      const packet = { ...base, destination: { provider: providerName, model: "model", retentionDisclosure: "disclosed" } } as HistoricalContextPacket;
+      const provider = createJsonProvider(async (_instructions, input) => { captures.push(input); return { questions: [{ text: "What feels important when you read both moments?", sourceExperienceIds: ["source"] }] }; });
+      await expect(provider.generateHistoricalReflectionQuestions(packet)).resolves.toHaveLength(1);
+    }
+    const normalized = captures.map((capture) => ({ ...(capture as Record<string, unknown>), destination: { ...(capture as HistoricalContextPacket).destination, provider: "provider" } }));
+    expect(normalized[0]).toEqual(normalized[1]);
+    await expect(placeholderProvider.generateHistoricalReflectionQuestions({ ...base, destination: { provider: "openai", model: "model", retentionDisclosure: "disclosed" } } as HistoricalContextPacket)).rejects.toThrow("fallback is prohibited");
   });
 });

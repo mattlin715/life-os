@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.5
+version: 0.6
 owner: LIN MENGLUNG
 last_updated: 2026/07/14
 depends:
@@ -39,24 +39,25 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Mirror | `docs/00_Constitution.md` | `docs/03_Principles.md` | `Life_OS_Manifesto.md`, `README.md`, `docs/Reflection.md`, `docs/09_AI.md` |
 | Vision | `docs/01_Vision.md` | `docs/12_Roadmap.md` | `docs/00_Constitution.md`, `docs/11_MVP.md` |
 | Philosophy | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/01_Vision.md`, `docs/09_AI.md` |
-| Context | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
-| Context Before Insight | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
+| Context | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` |
+| Context Before Insight | `docs/02_Philosophy.md` | `docs/03_Principles.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` |
 | Context Recovery | `docs/02_Philosophy.md` | `docs/product/00_MVP_User_Flow.md` | `docs/Reflection.md`, `docs/09_AI.md`, `docs/11_MVP.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
 | Conversation Layer | `docs/09_AI.md` | `docs/product/00_MVP_User_Flow.md` | `docs/02_Philosophy.md`, `docs/appendix/Harness.md`, `docs/12_Roadmap.md` |
 | Identity | `docs/05_Identity.md` | `docs/06_Memory.md` | `docs/Reflection.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
 | Evidence | `docs/03_Principles.md` | `docs/06_Memory.md` | `docs/05_Identity.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
 | Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/10_Privacy.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
-| Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
+| Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
+| Historical Context Consent | `docs/10_Privacy.md` | `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` | `docs/06_Memory.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` |
 | Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
-| Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md` |
+| Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` |
 | Pattern | `docs/05_Identity.md` | `docs/07_Awareness.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
 | Meaning | `docs/Reflection.md` | `docs/02_Philosophy.md` | `docs/05_Identity.md`, `docs/09_AI.md` |
 | Awareness | `docs/07_Awareness.md` | `docs/08_Growth.md` | `docs/06_Memory.md`, `docs/Reflection.md` |
 | Growth | `docs/08_Growth.md` | `docs/03_Principles.md` | `docs/07_Awareness.md`, `docs/Reflection.md` |
-| Privacy | `docs/10_Privacy.md` | `docs/06_Memory.md` | `docs/00_Constitution.md`, `docs/09_AI.md`, `docs/appendix/Harness.md` |
+| Privacy | `docs/10_Privacy.md` | `docs/06_Memory.md` | `docs/00_Constitution.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` |
 | AI Role | `docs/09_AI.md` | `docs/Reflection.md` | `docs/03_Principles.md`, `docs/10_Privacy.md` |
 | AI Hypothesis Protocol | `docs/09_AI.md` | `docs/appendix/Harness.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
-| Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
+| Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
 | MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/12_Roadmap.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
@@ -103,8 +104,11 @@ Lower levels must not override higher levels. When theory and implementation dif
 6. `docs/Reflection.md`
 7. `docs/10_Privacy.md`
 8. `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`
-9. `docs/adr/ADR-0003-identity-is-emergent.md`
-10. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+9. `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`
+10. `docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md`
+11. `docs/adr/ADR-0003-identity-is-emergent.md`
+12. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+13. `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`
 
 ## ADR Index
 
@@ -118,6 +122,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | `ADR-0006-mvp-tech-stack.md` | Accepted | MVP uses Tauri + React + SQLite. |
 | `ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | Accepted | Reviewed AI artifacts persist locally with provenance and user-controlled lifecycle. |
 | `ADR-0008-engineering-harness-governance-is-tool-independent.md` | Accepted | Repository engineering governance is canonical and tool-independent; adapters remain thin. |
+| `ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` | Accepted | Historical provider use requires per-generation consent, an exact bounded packet, actual-use provenance, and the Phase 3B/Phase 4 boundary. |
 
 ## Canonical Definitions
 

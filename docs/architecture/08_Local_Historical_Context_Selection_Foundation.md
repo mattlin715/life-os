@@ -1,6 +1,6 @@
 ---
 status: Implemented
-version: 0.6
+version: 0.7
 owner: product-and-engineering
 last_updated: 2026/07/14
 depends:
@@ -17,6 +17,7 @@ referenced_by:
   - docs/11_MVP.md
   - docs/architecture/00_MVP_Architecture.md
   - docs/product/00_MVP_User_Flow.md
+  - docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md
 ---
 
 # 08 Local Historical Context Selection Foundation (Implemented)
@@ -47,8 +48,8 @@ A pure reconciliation helper retains selections only for an explicitly open pane
 
 ## Provider Boundary
 
-Historical candidates and selection state do not enter `ContextPacket`, the shared OpenAI/Gemini/mock transport payload, provider adapters, mock input, or persistence. Existing evidence, reflection, and pattern requests retain their single-Experience packet. Opening, retrieving, selecting, excluding, or clearing local sources makes no provider call. A later phase needs founder-approved consent and a new transmission design before any selected historical material can be sent to a provider.
+Historical candidates and selection state do not enter `ContextPacket`, the shared OpenAI/Gemini/mock transport payload, provider adapters, mock input, or persistence. Existing evidence, reflection, and pattern requests retain their single-Experience packet. Opening, retrieving, selecting, excluding, or clearing local sources makes no provider call. The separately governed Phase 3B flow in [`architecture/09`](09_Governed_Historical_Context_Assembly_and_Consent.md) requires a new exact preflight and explicit consent before any selected historical material can be sent.
 
 ## Deferred
 
-Durable selection, consent records, historical packet transmission, embeddings, vector search, Cross-Experience Reflection, longitudinal summaries, and Phase 3B policy are deferred.
+Durable selection, embeddings, vector search, Cross-Experience Reflection, and longitudinal summaries remain deferred from Phase 3A. Phase 3B consent records and bounded historical-question transmission are implemented separately and do not change this local-selection behavior.

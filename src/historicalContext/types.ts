@@ -4,6 +4,8 @@ import type { EvidenceCandidate, ExperienceEntry, ReflectionPrompt } from "../ty
 export const HISTORICAL_CONTEXT_ALGORITHM_VERSION = "local-lexical-v1";
 
 export interface HistoricalSourceArtifacts {
+  /** Supplied only to the governed Phase 3B assembler; Phase 3A retrieval ignores it. */
+  experience?: ExperienceEntry;
   evidence: EvidenceCandidate[];
   reflections: ReflectionPrompt[];
 }
