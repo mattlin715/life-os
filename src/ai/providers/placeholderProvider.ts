@@ -24,4 +24,7 @@ export const placeholderProvider: AIProvider = {
     const createdAt = stamp(); const text = isJapanese(packet.currentExperience.body) ? `検討できる仮説のひとつは、「${evidence.text}」に表れたテーマが別の場面にもあるかもしれない、ということです。` : isChinese(packet.currentExperience.body) ? `一個可以檢視的假設是：「${evidence.text}」呈現的主題，也許也出現在其他時刻。` : `One tentative hypothesis to review is whether the theme in "${evidence.text}" may also appear in other moments.`;
     const reflectionIds = packet.answeredReflectionResponses.map((item) => item.id); const note: PatternNote = { id: id(), sourceEntryId: packet.currentExperience.id, sourceEvidenceIds: packet.confirmedEvidence.map((item) => item.id), sourceReflectionPromptIds: reflectionIds.length ? reflectionIds : undefined, text, status: "candidate", provenance: provenance(packet, [...packet.confirmedEvidence.map((item) => item.id), ...reflectionIds], createdAt), createdAt, updatedAt: createdAt }; return [note];
   },
+  async generateHistoricalReflectionQuestions() {
+    throw new Error("Historical provider fallback is prohibited. Select and consent to an available remote destination.");
+  },
 };

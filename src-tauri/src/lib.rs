@@ -81,6 +81,7 @@ async fn generate_gemini_response(instructions: String, input: String) -> Result
         .post(url)
         .header("x-goog-api-key", api_key)
         .json(&json!({
+            "store": false,
             "systemInstruction": {
                 "parts": [
                     { "text": instructions }
@@ -293,7 +294,8 @@ pub fn run() {
             generate_openai_response,
             generate_gemini_response,
             sqlite::initialize_sqlite_database,
-            sqlite::execute_sqlite_transaction
+            sqlite::execute_sqlite_transaction,
+            sqlite::execute_sqlite_historical_transaction
         ])
         .run(tauri::generate_context!())
         .expect("error while running Life OS");

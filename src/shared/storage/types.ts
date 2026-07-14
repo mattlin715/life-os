@@ -1,6 +1,7 @@
 import type { ContextRecoveryTurn, EvidenceCandidate, ExperienceEntry, PatternNote, ReflectionPrompt } from "../../types/domain";
 import type { ExperienceImportEntry, ExperienceImportResult } from "../import/types";
 import type { GenerationSnapshot } from "../../ai/harness/generationSnapshot";
+import type { HistoricalConsentEvent, HistoricalQuestionArtifact, HistoricalTransmissionEvent } from "../../historicalContext/governedPacket";
 
 export interface CreateExperienceInput { body: string; }
 export interface UpdateExperiencePatch { body?: string; }
@@ -42,4 +43,10 @@ export interface LocalEvidenceStore {
     bundle: PersistedArtifactBundle,
     options?: SaveArtifactsOptions,
   ): Promise<SaveArtifactsResult>;
+  saveHistoricalConsent(event: HistoricalConsentEvent): Promise<void>;
+  saveHistoricalTransmission(event: HistoricalTransmissionEvent): Promise<void>;
+  saveHistoricalQuestionArtifact(artifact: HistoricalQuestionArtifact): Promise<{ status: "committed" | "stale_generation" }>;
+  listHistoricalQuestionArtifacts(currentExperienceId: string): Promise<HistoricalQuestionArtifact[]>;
+  deleteHistoricalQuestionArtifact(id: string): Promise<void>;
+  purgeExpiredHistoricalAuditRecords(timestamp: string): Promise<void>;
 }

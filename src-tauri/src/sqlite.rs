@@ -1,38 +1,111 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Connection, Executor, Row, SqliteConnection};
 use std::{path::Path, str::FromStr};
 use tauri::{AppHandle, Manager};
 
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SqlStatement { query: String, values: Vec<Value> }
-
-async fn connect(path: &Path) -> Result<SqliteConnection, String> {
-    let options = sqlx::sqlite::SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))
-        .map_err(|e| e.to_string())?.create_if_missing(true).foreign_keys(true);
-    SqliteConnection::connect_with(&options).await.map_err(|e| e.to_string())
+pub struct SqlStatement {
+    query: String,
+    values: Vec<Value>,
 }
 
-pub async fn migrate_connection(conn: &mut SqliteConnection, inject_failure: bool) -> Result<(), String> {
-    conn.execute("PRAGMA foreign_keys = ON").await.map_err(|e| e.to_string())?;
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedExperienceRevision {
+    id: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedArtifactRevision {
+    id: String,
+    source_entry_id: String,
+    updated_at: String,
+    artifact_kind: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedHistoricalProvenance {
+    consent_id: String,
+    transmission_id: String,
+    packet_digest: String,
+    provider: String,
+    model: String,
+}
+
+async fn connect(path: &Path) -> Result<SqliteConnection, String> {
+    let options =
+        sqlx::sqlite::SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))
+            .map_err(|e| e.to_string())?
+            .create_if_missing(true)
+            .foreign_keys(true);
+    SqliteConnection::connect_with(&options)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+pub async fn migrate_connection(
+    conn: &mut SqliteConnection,
+    inject_failure: bool,
+) -> Result<(), String> {
+    conn.execute("PRAGMA foreign_keys = ON")
+        .await
+        .map_err(|e| e.to_string())?;
     conn.execute("CREATE TABLE IF NOT EXISTS experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)").await.map_err(|e| e.to_string())?;
-    let version: i64 = sqlx::query("PRAGMA user_version").fetch_one(&mut *conn).await.map_err(|e| e.to_string())?.get(0);
-    if version >= SCHEMA_VERSION { return Ok(()); }
+    let version: i64 = sqlx::query("PRAGMA user_version")
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?
+        .get(0);
+    if version >= SCHEMA_VERSION {
+        return Ok(());
+    }
     let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
-    tx.execute("CREATE TABLE IF NOT EXISTS persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(source_entry_id) REFERENCES experience_entries(id) ON DELETE CASCADE)").await.map_err(|e| e.to_string())?;
-    tx.execute("CREATE INDEX IF NOT EXISTS idx_persisted_artifacts_source ON persisted_artifacts(source_entry_id, artifact_kind, created_at)").await.map_err(|e| e.to_string())?;
-    for (table, kind) in [("evidence_candidates", "evidence"), ("reflection_prompts", "reflection"), ("pattern_notes", "pattern")] {
-        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?").bind(table).fetch_one(&mut *tx).await.map_err(|e| e.to_string())?;
-        if exists > 0 {
-            let query = format!("INSERT INTO persisted_artifacts (id, source_entry_id, artifact_kind, payload, created_at, updated_at) SELECT id, source_entry_id, '{kind}', payload, created_at, updated_at FROM {table} WHERE status != 'rejected'");
-            tx.execute(query.as_str()).await.map_err(|e| e.to_string())?;
+    if version < 3 {
+        tx.execute("CREATE TABLE IF NOT EXISTS persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, FOREIGN KEY(source_entry_id) REFERENCES experience_entries(id) ON DELETE CASCADE)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE INDEX IF NOT EXISTS idx_persisted_artifacts_source ON persisted_artifacts(source_entry_id, artifact_kind, created_at)").await.map_err(|e| e.to_string())?;
+        for (table, kind) in [
+            ("evidence_candidates", "evidence"),
+            ("reflection_prompts", "reflection"),
+            ("pattern_notes", "pattern"),
+        ] {
+            let exists: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+            )
+            .bind(table)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+            if exists > 0 {
+                let query = format!("INSERT INTO persisted_artifacts (id, source_entry_id, artifact_kind, payload, created_at, updated_at) SELECT id, source_entry_id, '{kind}', payload, created_at, updated_at FROM {table} WHERE status != 'rejected'");
+                tx.execute(query.as_str())
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
         }
     }
-    if inject_failure { return Err("injected migration failure".into()); }
-    tx.execute("PRAGMA user_version = 3").await.map_err(|e| e.to_string())?;
+    if version < 4 {
+        tx.execute("CREATE TABLE historical_consent_events (id TEXT PRIMARY KEY NOT NULL, packet_digest TEXT NOT NULL, payload TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('granted','consumed','invalidated')), created_at TEXT NOT NULL, expires_at TEXT NOT NULL)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE TABLE historical_transmission_events (id TEXT PRIMARY KEY NOT NULL, consent_id TEXT NOT NULL, packet_digest TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, outcome TEXT NOT NULL CHECK(outcome IN ('sent','failed','refused','cancelled_before_send','cancelled_after_send')), created_at TEXT NOT NULL, expires_at TEXT NOT NULL, FOREIGN KEY(consent_id) REFERENCES historical_consent_events(id) ON DELETE CASCADE)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE TABLE historical_question_artifacts (id TEXT PRIMARY KEY NOT NULL, current_experience_id TEXT NOT NULL, packet_digest TEXT NOT NULL, payload TEXT NOT NULL, packet_snapshot TEXT NOT NULL, consent_id TEXT NOT NULL, transmission_id TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(current_experience_id) REFERENCES experience_entries(id) ON DELETE CASCADE, FOREIGN KEY(consent_id) REFERENCES historical_consent_events(id) ON DELETE CASCADE, FOREIGN KEY(transmission_id) REFERENCES historical_transmission_events(id) ON DELETE CASCADE)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE TABLE historical_artifact_dependencies (historical_artifact_id TEXT NOT NULL, source_entry_id TEXT NOT NULL, source_artifact_id TEXT, source_revision TEXT NOT NULL, PRIMARY KEY(historical_artifact_id, source_entry_id, source_artifact_id), FOREIGN KEY(historical_artifact_id) REFERENCES historical_question_artifacts(id) ON DELETE CASCADE, FOREIGN KEY(source_entry_id) REFERENCES experience_entries(id) ON DELETE CASCADE)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE INDEX idx_historical_dependencies_source ON historical_artifact_dependencies(source_entry_id, source_artifact_id)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE INDEX idx_historical_questions_current ON historical_question_artifacts(current_experience_id, created_at)").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE TRIGGER delete_historical_artifacts_before_source_delete BEFORE DELETE ON experience_entries BEGIN DELETE FROM historical_question_artifacts WHERE id IN (SELECT historical_artifact_id FROM historical_artifact_dependencies WHERE source_entry_id = OLD.id); END").await.map_err(|e| e.to_string())?;
+        tx.execute("CREATE TRIGGER delete_historical_provenance_after_artifact_delete AFTER DELETE ON historical_question_artifacts BEGIN DELETE FROM historical_transmission_events WHERE id = OLD.transmission_id; DELETE FROM historical_consent_events WHERE id = OLD.consent_id; END").await.map_err(|e| e.to_string())?;
+    }
+    if inject_failure {
+        return Err("injected migration failure".into());
+    }
+    tx.execute("PRAGMA user_version = 4")
+        .await
+        .map_err(|e| e.to_string())?;
     tx.commit().await.map_err(|e| e.to_string())
 }
 
@@ -45,30 +118,263 @@ pub async fn initialize_sqlite_database(app: AppHandle) -> Result<(), String> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TransactionResult { status: String }
+pub struct TransactionResult {
+    status: String,
+}
 
-async fn execute_transaction(conn: &mut SqliteConnection, statements: Vec<SqlStatement>, expected_experience_updated_at: Option<String>) -> Result<TransactionResult, String> {
+async fn execute_transaction(
+    conn: &mut SqliteConnection,
+    statements: Vec<SqlStatement>,
+    expected_experience_updated_at: Option<String>,
+) -> Result<TransactionResult, String> {
     let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
     if let Some(expected) = expected_experience_updated_at {
-        let entry_id = statements.first().and_then(|statement| statement.values.first()).and_then(|value| value.as_str()).ok_or_else(|| "Expected-version transaction requires entry id as first bind value".to_string())?;
-        let current: Option<String> = sqlx::query_scalar("SELECT updated_at FROM experience_entries WHERE id = ?").bind(entry_id).fetch_optional(&mut *tx).await.map_err(|e| e.to_string())?;
-        if current.as_deref() != Some(expected.as_str()) { return Ok(TransactionResult { status: "stale_generation".into() }); }
+        let entry_id = statements
+            .first()
+            .and_then(|statement| statement.values.first())
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| {
+                "Expected-version transaction requires entry id as first bind value".to_string()
+            })?;
+        let current: Option<String> =
+            sqlx::query_scalar("SELECT updated_at FROM experience_entries WHERE id = ?")
+                .bind(entry_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+        if current.as_deref() != Some(expected.as_str()) {
+            return Ok(TransactionResult {
+                status: "stale_generation".into(),
+            });
+        }
     }
     for statement in statements {
         let mut query = sqlx::query(&statement.query);
         for value in statement.values {
-            query = match value { Value::String(v) => query.bind(v), Value::Null => query.bind(None::<String>), Value::Number(v) if v.is_i64() => query.bind(v.as_i64()), Value::Bool(v) => query.bind(v), _ => return Err("Unsupported SQLite bind value".into()) };
+            query = match value {
+                Value::String(v) => query.bind(v),
+                Value::Null => query.bind(None::<String>),
+                Value::Number(v) if v.is_i64() => query.bind(v.as_i64()),
+                Value::Bool(v) => query.bind(v),
+                _ => return Err("Unsupported SQLite bind value".into()),
+            };
         }
         query.execute(&mut *tx).await.map_err(|e| e.to_string())?;
     }
     tx.commit().await.map_err(|e| e.to_string())?;
-    Ok(TransactionResult { status: "committed".into() })
+    Ok(TransactionResult {
+        status: "committed".into(),
+    })
 }
 
 #[tauri::command]
-pub async fn execute_sqlite_transaction(app: AppHandle, statements: Vec<SqlStatement>, expected_experience_updated_at: Option<String>) -> Result<TransactionResult, String> {
-    let path = app.path().app_data_dir().map_err(|e| e.to_string())?.join("life-os.db");
-    execute_transaction(&mut connect(&path).await?, statements, expected_experience_updated_at).await
+pub async fn execute_sqlite_transaction(
+    app: AppHandle,
+    statements: Vec<SqlStatement>,
+    expected_experience_updated_at: Option<String>,
+) -> Result<TransactionResult, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("life-os.db");
+    execute_transaction(
+        &mut connect(&path).await?,
+        statements,
+        expected_experience_updated_at,
+    )
+    .await
+}
+
+async fn execute_historical_transaction(
+    conn: &mut SqliteConnection,
+    statements: Vec<SqlStatement>,
+    expected_revisions: Vec<ExpectedExperienceRevision>,
+    expected_artifacts: Vec<ExpectedArtifactRevision>,
+    expected_provenance: ExpectedHistoricalProvenance,
+) -> Result<TransactionResult, String> {
+    let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
+    for expected in expected_revisions {
+        let current: Option<String> =
+            sqlx::query_scalar("SELECT updated_at FROM experience_entries WHERE id = ?")
+                .bind(&expected.id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+        if current.as_deref() != Some(expected.updated_at.as_str()) {
+            return Ok(TransactionResult {
+                status: "stale_generation".into(),
+            });
+        }
+    }
+    for expected in expected_artifacts {
+        let current: Option<(String, String)> = sqlx::query_as("SELECT updated_at, payload FROM persisted_artifacts WHERE id = ? AND source_entry_id = ? AND artifact_kind = ?").bind(&expected.id).bind(&expected.source_entry_id).bind(&expected.artifact_kind).fetch_optional(&mut *tx).await.map_err(|e| e.to_string())?;
+        let Some((updated_at, payload)) = current else {
+            return Ok(TransactionResult {
+                status: "stale_generation".into(),
+            });
+        };
+        if updated_at != expected.updated_at {
+            return Ok(TransactionResult {
+                status: "stale_generation".into(),
+            });
+        }
+        let value: Value = serde_json::from_str(&payload).map_err(|e| e.to_string())?;
+        let mut eligible = match expected.artifact_kind.as_str() {
+            "evidence" => value.get("status").and_then(Value::as_str) == Some("confirmed"),
+            "reflection" => {
+                value.get("status").and_then(Value::as_str) == Some("answered")
+                    && value
+                        .get("response")
+                        .and_then(Value::as_str)
+                        .map(|text| !text.trim().is_empty())
+                        .unwrap_or(false)
+                    && value
+                        .get("responseProvenance")
+                        .and_then(|item| item.get("origin"))
+                        .and_then(Value::as_str)
+                        == Some("user")
+            }
+            _ => false,
+        };
+        if eligible && expected.artifact_kind == "reflection" {
+            let evidence_ids = value
+                .get("sourceEvidenceIds")
+                .and_then(Value::as_array)
+                .filter(|ids| !ids.is_empty());
+            let Some(evidence_ids) = evidence_ids else {
+                return Ok(TransactionResult {
+                    status: "stale_generation".into(),
+                });
+            };
+            for evidence_id in evidence_ids {
+                let Some(evidence_id) = evidence_id.as_str() else {
+                    eligible = false;
+                    break;
+                };
+                let evidence_payload: Option<String> = sqlx::query_scalar(
+                    "SELECT payload FROM persisted_artifacts WHERE id = ? AND source_entry_id = ? AND artifact_kind = 'evidence'",
+                )
+                .bind(evidence_id)
+                .bind(&expected.source_entry_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+                let evidence_is_confirmed = evidence_payload
+                    .as_deref()
+                    .and_then(|payload| serde_json::from_str::<Value>(payload).ok())
+                    .and_then(|record| record.get("status").and_then(Value::as_str).map(str::to_owned))
+                    .as_deref()
+                    == Some("confirmed");
+                if !evidence_is_confirmed {
+                    eligible = false;
+                    break;
+                }
+            }
+        }
+        if !eligible {
+            return Ok(TransactionResult {
+                status: "stale_generation".into(),
+            });
+        }
+    }
+    let consent: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT packet_digest, state, payload FROM historical_consent_events WHERE id = ?",
+    )
+    .bind(&expected_provenance.consent_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+    let consent_matches = consent.as_ref().is_some_and(|(digest, state, payload)| {
+        let Ok(event) = serde_json::from_str::<Value>(payload) else {
+            return false;
+        };
+        digest == &expected_provenance.packet_digest
+            && state == "consumed"
+            && event.get("id").and_then(Value::as_str)
+                == Some(expected_provenance.consent_id.as_str())
+            && event.get("packetDigest").and_then(Value::as_str)
+                == Some(expected_provenance.packet_digest.as_str())
+            && event.get("provider").and_then(Value::as_str)
+                == Some(expected_provenance.provider.as_str())
+            && event.get("model").and_then(Value::as_str)
+                == Some(expected_provenance.model.as_str())
+    });
+    if !consent_matches {
+        return Ok(TransactionResult {
+            status: "stale_generation".into(),
+        });
+    }
+    let transmission: Option<(String, String, String, String, String)> = sqlx::query_as(
+        "SELECT consent_id, packet_digest, provider, model, outcome FROM historical_transmission_events WHERE id = ?",
+    )
+    .bind(&expected_provenance.transmission_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+    if transmission
+        .as_ref()
+        .map(|(consent_id, digest, provider, model, outcome)| {
+            (
+                consent_id.as_str(),
+                digest.as_str(),
+                provider.as_str(),
+                model.as_str(),
+                outcome.as_str(),
+            )
+        })
+        != Some((
+            expected_provenance.consent_id.as_str(),
+            expected_provenance.packet_digest.as_str(),
+            expected_provenance.provider.as_str(),
+            expected_provenance.model.as_str(),
+            "sent",
+        ))
+    {
+        return Ok(TransactionResult {
+            status: "stale_generation".into(),
+        });
+    }
+    for statement in statements {
+        let mut query = sqlx::query(&statement.query);
+        for value in statement.values {
+            query = match value {
+                Value::String(v) => query.bind(v),
+                Value::Null => query.bind(None::<String>),
+                Value::Number(v) if v.is_i64() => query.bind(v.as_i64()),
+                Value::Bool(v) => query.bind(v),
+                _ => return Err("Unsupported SQLite bind value".into()),
+            };
+        }
+        query.execute(&mut *tx).await.map_err(|e| e.to_string())?;
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(TransactionResult {
+        status: "committed".into(),
+    })
+}
+
+#[tauri::command]
+pub async fn execute_sqlite_historical_transaction(
+    app: AppHandle,
+    statements: Vec<SqlStatement>,
+    expected_revisions: Vec<ExpectedExperienceRevision>,
+    expected_artifacts: Vec<ExpectedArtifactRevision>,
+    expected_provenance: ExpectedHistoricalProvenance,
+) -> Result<TransactionResult, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("life-os.db");
+    execute_historical_transaction(
+        &mut connect(&path).await?,
+        statements,
+        expected_revisions,
+        expected_artifacts,
+        expected_provenance,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -81,27 +387,164 @@ mod tests {
     }
     #[tokio::test]
     async fn migrates_v2_and_excludes_rejected() {
-        let file = tempfile::NamedTempFile::new().unwrap(); let mut conn = fixture(file.path()).await;
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = fixture(file.path()).await;
         migrate_connection(&mut conn, false).await.unwrap();
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version").fetch_one(&mut conn).await.unwrap();
-        let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM persisted_artifacts ORDER BY id").fetch_all(&mut conn).await.unwrap();
-        assert_eq!(version, 3); assert_eq!(ids, vec!["keep"]);
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM persisted_artifacts ORDER BY id")
+            .fetch_all(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(version, 4);
+        assert_eq!(ids, vec!["keep"]);
     }
     #[tokio::test]
     async fn injected_failure_rolls_back_and_keeps_version() {
-        let file = tempfile::NamedTempFile::new().unwrap(); let mut conn = fixture(file.path()).await;
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = fixture(file.path()).await;
         assert!(migrate_connection(&mut conn, true).await.is_err());
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version").fetch_one(&mut conn).await.unwrap();
-        let exists: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='persisted_artifacts'").fetch_one(&mut conn).await.unwrap();
-        let legacy: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM evidence_candidates").fetch_one(&mut conn).await.unwrap();
-        assert_eq!(version, 2); assert_eq!(exists, 0); assert_eq!(legacy, 2);
-    }    #[tokio::test]
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        let exists: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='persisted_artifacts'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+        let legacy: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM evidence_candidates")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(version, 2);
+        assert_eq!(exists, 0);
+        assert_eq!(legacy, 2);
+    }
+    #[tokio::test]
     async fn wrong_expected_version_keeps_existing_artifacts() {
-        let file = tempfile::NamedTempFile::new().unwrap(); let mut conn = fixture(file.path()).await;
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = fixture(file.path()).await;
         migrate_connection(&mut conn, false).await.unwrap();
-        let result = execute_transaction(&mut conn, vec![SqlStatement { query: "DELETE FROM persisted_artifacts WHERE source_entry_id = $1".into(), values: vec![Value::String("entry".into())] }], Some("wrong-version".into())).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM persisted_artifacts").fetch_one(&mut conn).await.unwrap();
-        assert_eq!(result.status, "stale_generation"); assert_eq!(count, 1);
+        let result = execute_transaction(
+            &mut conn,
+            vec![SqlStatement {
+                query: "DELETE FROM persisted_artifacts WHERE source_entry_id = $1".into(),
+                values: vec![Value::String("entry".into())],
+            }],
+            Some("wrong-version".into()),
+        )
+        .await
+        .unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM persisted_artifacts")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(count, 1);
     }
 
+    #[tokio::test]
+    async fn v4_adds_governance_tables_without_removing_v3_data() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO persisted_artifacts VALUES ('kept','entry','evidence','{}','t','t'); PRAGMA user_version = 3;").await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        let kept: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM persisted_artifacts WHERE id='kept'")
+                .fetch_one(&mut conn)
+                .await
+                .unwrap();
+        let tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name LIKE 'historical_%'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+        assert_eq!(version, 4);
+        assert_eq!(kept, 1);
+        assert_eq!(tables, 4);
+    }
+
+    #[tokio::test]
+    async fn historical_persistence_revalidates_artifact_eligibility_inside_transaction() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO persisted_artifacts VALUES ('evidence','entry','evidence','{\"status\":\"rejected\"}','t','t'); PRAGMA user_version = 3;").await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        let result = execute_historical_transaction(
+            &mut conn,
+            vec![SqlStatement { query: "INSERT INTO historical_consent_events (id,packet_digest,payload,state,created_at,expires_at) VALUES ('must-not-write','d','{}','granted','t','z')".into(), values: vec![] }],
+            vec![ExpectedExperienceRevision { id: "entry".into(), updated_at: "t".into() }],
+            vec![ExpectedArtifactRevision { id: "evidence".into(), source_entry_id: "entry".into(), updated_at: "t".into(), artifact_kind: "evidence".into() }],
+            ExpectedHistoricalProvenance { consent_id: "missing-consent".into(), transmission_id: "missing-transmission".into(), packet_digest: "d".into(), provider: "openai".into(), model: "model".into() },
+        ).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_consent_events WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn historical_persistence_revalidates_actual_use_provenance_inside_transaction() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); PRAGMA user_version = 3;").await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        conn.execute("INSERT INTO historical_consent_events VALUES ('consent','digest','{}','consumed','t','z'); INSERT INTO historical_transmission_events VALUES ('transmission','consent','digest','openai','model','sent','t','z');").await.unwrap();
+        let result = execute_historical_transaction(
+            &mut conn,
+            vec![SqlStatement { query: "INSERT INTO historical_question_artifacts (id,current_experience_id,packet_digest,payload,packet_snapshot,consent_id,transmission_id,created_at) VALUES ('must-not-write','entry','wrong','{}','{}','consent','transmission','t')".into(), values: vec![] }],
+            vec![ExpectedExperienceRevision { id: "entry".into(), updated_at: "t".into() }],
+            vec![],
+            ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "wrong".into(), provider: "openai".into(), model: "model".into() },
+        ).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn historical_persistence_rejects_consent_destination_mismatch() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); PRAGMA user_version = 3;").await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        conn.execute(r#"INSERT INTO historical_consent_events VALUES ('consent','digest','{"id":"consent","packetDigest":"digest","provider":"gemini","model":"model"}','consumed','t','z'); INSERT INTO historical_transmission_events VALUES ('transmission','consent','digest','openai','model','sent','t','z');"#).await.unwrap();
+        let result = execute_historical_transaction(
+            &mut conn,
+            vec![SqlStatement { query: "INSERT INTO historical_question_artifacts (id,current_experience_id,packet_digest,payload,packet_snapshot,consent_id,transmission_id,created_at) VALUES ('must-not-write','entry','digest','{}','{}','consent','transmission','t')".into(), values: vec![] }],
+            vec![ExpectedExperienceRevision { id: "entry".into(), updated_at: "t".into() }],
+            vec![],
+            ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "digest".into(), provider: "openai".into(), model: "model".into() },
+        ).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn historical_persistence_revalidates_reflection_evidence_dependency() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute(r#"CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE persisted_artifacts (id TEXT PRIMARY KEY NOT NULL, source_entry_id TEXT NOT NULL, artifact_kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO persisted_artifacts VALUES ('evidence','entry','evidence','{"status":"rejected"}','t','t'); INSERT INTO persisted_artifacts VALUES ('reflection','entry','reflection','{"status":"answered","response":"User answer","responseProvenance":{"origin":"user"},"sourceEvidenceIds":["evidence"]}','t','t'); PRAGMA user_version = 3;"#).await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        conn.execute(r#"INSERT INTO historical_consent_events VALUES ('consent','digest','{"id":"consent","packetDigest":"digest","provider":"openai","model":"model"}','consumed','t','z'); INSERT INTO historical_transmission_events VALUES ('transmission','consent','digest','openai','model','sent','t','z');"#).await.unwrap();
+        let result = execute_historical_transaction(
+            &mut conn,
+            vec![SqlStatement { query: "INSERT INTO historical_question_artifacts (id,current_experience_id,packet_digest,payload,packet_snapshot,consent_id,transmission_id,created_at) VALUES ('must-not-write','entry','digest','{}','{}','consent','transmission','t')".into(), values: vec![] }],
+            vec![ExpectedExperienceRevision { id: "entry".into(), updated_at: "t".into() }],
+            vec![ExpectedArtifactRevision { id: "reflection".into(), source_entry_id: "entry".into(), updated_at: "t".into(), artifact_kind: "reflection".into() }],
+            ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "digest".into(), provider: "openai".into(), model: "model".into() },
+        ).await.unwrap();
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(count, 0);
+    }
 }

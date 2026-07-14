@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.8
+version: 0.9
 owner: LIN MENGLUNG
 last_updated: 2026/07/14
 depends:
@@ -22,6 +22,9 @@ depends:
   - docs/11_MVP.md
   - docs/appendix/Harness.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
+  - docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md
+  - docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md
+  - docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md
 referenced_by:
   - docs/11_MVP.md
   - docs/12_Roadmap.md
@@ -210,10 +213,16 @@ The next MVP flow is:
 
 The Experience card presents a valid timestamp with date and time, formatted in the active Life OS language and the device timezone. Historical Context source cards present only the valid source date in that same language and timezone. The user may explicitly open a local-history panel for one Experience. Retrieval begins only then; closed panels and initial hydration do not retrieve candidates. The panel shows a small, deterministic set of inspectable prior sources with that date-only presentation, an excerpt, and visible shared-term reasons. The user can include, exclude, clear, or ignore every candidate. Closing the panel preserves its valid ephemeral selection for the current app session. Reopening retrieves fresh local candidates and removes selections which are no longer eligible before the panel is shown. Invalid, empty, or unsupported imported timestamps cannot crash either presentation; the UI shows a localized calm fallback rather than `Invalid Date` or the malformed raw value, and does not render a `dateTime` attribute. A valid imported source remains raw persisted data, while its HTML `dateTime` attribute is separately normalized from the parsed instant. The stored source value remains unchanged.
 
-Candidate selection is ephemeral and local. It does not send historical content to an AI provider and does not create a cross-Experience conclusion. Cross-Experience Reflection remains deferred.
+Candidate selection is ephemeral and local. Selection, panel opening, and silence do not send historical content or create consent, and they do not create a cross-Experience conclusion.
+
+### Governed Historical Question UX (Phase 3B)
+
+After exact source selection, the user may open a separate preflight that shows source/artifact IDs and revisions, relevance reasons, exact outgoing content, provider/model, purpose, sensitive-content warning, and include/exclude/cancel controls. `Send selected sources` grants consent only for that one immutable packet and the Historical Reflection Question purpose. Changes to source, artifact, task, destination, locale, contract version, or packet digest close or invalidate the preflight and require a new one.
+
+The provider may return one to three neutral questions that cite at least one selected historical source, or an honest no-question result. Recurrence, contradiction, change-over-time, summary, Pattern, Awareness, Growth, advice, diagnosis, sensitive identity inference, and identity finalization are rejected and remain deferred to Phase 4 or later.
 
 ## 9. Persistence Qualification
 
-The current implementation persists Experiences, Context Recovery turns, Evidence Candidates, Reflection Prompts/responses/skips, and Pattern Candidates locally with source relationships and provenance. AI questions and user answers retain distinct authorship metadata. Unsaved Reflection drafts are UI-only, source-scoped by exact Experience and prompt IDs, and are discarded on restart. A failed or stale explicit Save retains its draft. Rejected Evidence/Patterns are excluded from durable storage. Full revision history is not implemented.
+The current implementation persists Experiences, Context Recovery turns, Evidence Candidates, Reflection Prompts/responses/skips, Pattern Candidates, and accepted governed Historical Reflection Question artifacts locally with source relationships and provenance. AI questions and user answers retain distinct authorship metadata. Unsaved Reflection drafts are UI-only, source-scoped by exact Experience and prompt IDs, and are discarded on restart. A failed or stale explicit Save retains its draft. Rejected Evidence/Patterns are excluded from durable storage. Full revision history is not implemented.
 
 Until artifact export is implemented, export must be described accurately as Experience-only JSON/Markdown export.
