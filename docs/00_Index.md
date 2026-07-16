@@ -1,6 +1,6 @@
 ---
 status: Draft
-version: 0.7
+version: 0.8
 owner: LIN MENGLUNG
 last_updated: 2026/07/16
 depends:
@@ -47,6 +47,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Evidence | `docs/03_Principles.md` | `docs/06_Memory.md` | `docs/05_Identity.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
 | Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/10_Privacy.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
 | Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
+| Artifact Lifecycle And Portable Provenance | `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md` | `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/02_Experience_Export_Boundary.md`, `docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md`, `docs/adr/ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md` |
 | Historical Context Consent | `docs/10_Privacy.md` | `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` | `docs/06_Memory.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` |
 | Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
 | Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/architecture/11_Cross_Experience_Reflection_Design_Gate.md` |
@@ -124,6 +125,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | `ADR-0008-engineering-harness-governance-is-tool-independent.md` | Accepted | Repository engineering governance is canonical and tool-independent; adapters remain thin. |
 | `ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` | Accepted | Historical provider use requires per-generation consent, an exact bounded packet, actual-use provenance, and the Phase 3B/Phase 4 boundary. |
 | `ADR-0010-govern-cross-experience-reflection-as-user-owned-hypothesis.md` | Accepted | Phase 4 is bounded to founder-approved, consented, source-citing, user-owned Cross-Experience Hypotheses; acceptance does not authorize implementation before Phase 3 exits. |
+| `ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md` | Accepted | Phase 3C uses founder-approved append-only revisions, explicit lifecycle events, revision-bound dependencies, deletion-aware provenance, and complete export as a design policy; no migration or implementation is authorized. |
 
 ## Canonical Definitions
 
