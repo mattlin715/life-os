@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-18-pilot-1-dev-runbook",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-17T16:35:09.712Z",
+  "repository_head": "d68a24a2b5e91200b6bbbf43c0593f46d2b8879f",
+  "working_branch": "codex/orchestration-pilot-1-dev-runbook",
+  "working_tree_digest": "cbd5577fa40ac3f99cf2fdd4d732d2c2845798983b847118728e8c65fd00ab81",
+  "last_event_id": "2026-07-18-pilot-1-dev-runbook:0023",
+  "last_event_hash": "3ba8dda4c3acfe7f84043d56d8712f5c57991306b96ccec98b8490b978812993",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
