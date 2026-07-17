@@ -1,12 +1,13 @@
 ---
 status: Draft
-version: 0.1
+version: 0.2
 owner: LIN MENGLUNG
-last_updated: 2026/07/08
+last_updated: 2026/07/18
 depends:
   - docs/dev/01_Environment_Setup.md
   - docs/dev/03_Tauri_Runtime_Verification.md
   - docs/dev/04_Dependency_Installation_Log.md
+  - docs/dev/08_Engineering_Harness.md
 referenced_by:
   - docs/dev/00_Local_Development.md
 ---
@@ -118,9 +119,8 @@ From the repository root:
 ```powershell
 .\scripts\use-local-dev-env.ps1
 pnpm install
-pnpm run typecheck
-pnpm run build
-pnpm run tauri:dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+pnpm run start:desktop
 ```
 
 Expected results:
@@ -128,9 +128,16 @@ Expected results:
 | Command | Expected Result |
 | --- | --- |
 | `pnpm install` | Completes with `pnpm v11.10.0`. |
-| `pnpm run typecheck` | TypeScript passes. |
-| `pnpm run build` | Vite builds `dist/`. |
-| `pnpm run tauri:dev` | Opens the Life OS desktop window. |
+| `scripts/verify.ps1` | Runs the canonical deterministic Engineering Harness checks, including tests, typecheck, build, Rust checks, and repository hygiene. |
+| `pnpm run start:desktop` | Loads the repository-local environment and optional `.env.local`, then opens the Life OS desktop development window. |
+
+Canonical verification does not replace manual desktop verification. Confirm the
+window and intended behavior separately when the sprint requires a Founder UI
+check.
+
+Use `pnpm run tauri:dev` when you specifically need the lower-level direct Tauri
+development loop. `start:desktop` is the easiest self-serve launch entry point;
+both commands use the same Tauri desktop runtime.
 
 ## Background Launch Procedure
 

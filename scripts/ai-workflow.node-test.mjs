@@ -9,15 +9,38 @@ import { createTransition, loadContract, validateWorkflow } from "./ai-workflow.
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
+const currentWorkflowTemplates = {
+  "CURRENT_MISSION.md": "current-mission.template.md",
+  "PRODUCT_REVIEW.md": "product-review.template.md",
+  "ENGINEERING_PLAN.md": "engineering-plan.template.md",
+  "ENGINEERING_REPORT.md": "engineering-report.template.md",
+  "THEORY_ALIGNMENT_REVIEW.md": "theory-alignment-review.template.md",
+  "DECISION_REQUIRED.md": "decision-required.template.md",
+  "SPRINT_REPORT.md": "sprint-report.template.md",
+  "WORKFLOW_STATE.json": "workflow-state.template.json",
+};
+
+function resetCopiedWorkflowToIdle(root) {
+  for (const [target, template] of Object.entries(currentWorkflowTemplates)) {
+    copyFileSync(
+      join(root, ".ai", "templates", template),
+      join(root, ".ai", "workflow", target),
+    );
+  }
+  writeFileSync(join(root, ".ai", "workflow", "EVENTS.jsonl"), "");
+}
+
 function withWorkflow(callback) {
   const root = mkdtempSync(join(tmpdir(), "life-os-ai-workflow-"));
   cpSync(join(repositoryRoot, ".ai"), join(root, ".ai"), { recursive: true });
+  resetCopiedWorkflowToIdle(root);
   try { callback(root); } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
 function withGitWorkflow(callback) {
   const root = mkdtempSync(join(tmpdir(), "life-os-ai-workflow-git-"));
   cpSync(join(repositoryRoot, ".ai"), join(root, ".ai"), { recursive: true });
+  resetCopiedWorkflowToIdle(root);
   mkdirSync(join(root, "scripts"), { recursive: true });
   cpSync(join(repositoryRoot, "scripts", "ai-workflow.mjs"), join(root, "scripts", "ai-workflow.mjs"));
   const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
@@ -72,6 +95,14 @@ function completeOpenDecision(root, sprintId) {
 
 test("idle repository workflow validates", () => {
   withWorkflow((root) => assert.deepEqual(validateWorkflow(root), []));
+});
+
+test("copied test workflow resets an active repository state to idle", () => {
+  withWorkflow((root) => {
+    const state = idleState(root);
+    assert.equal(state.status, "idle");
+    assert.equal(readFileSync(join(root, ".ai", "workflow", "EVENTS.jsonl"), "utf8"), "");
+  });
 });
 
 test("contract rejects a direct intake to implementation transition", () => {
