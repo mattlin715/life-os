@@ -40,11 +40,37 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+let atomicRenameAttempt = 0;
+
+function renameAtomicTemporary(temporary, path) {
+  atomicRenameAttempt += 1;
+  const injectedAttempt = Number(process.env.LIFE_OS_AI_WORKFLOW_TEST_FAIL_ATOMIC_RENAME_AT);
+  if (process.env.NODE_ENV === "test" && Number.isInteger(injectedAttempt) && injectedAttempt === atomicRenameAttempt) {
+    const error = new Error(`Injected atomic rename failure at attempt ${atomicRenameAttempt} for ${path}`);
+    error.code = "EINJECTED";
+    throw error;
+  }
+  renameSync(temporary, path);
+}
+
 function writeAtomic(path, content) {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
-  writeFileSync(temporary, content);
-  renameSync(temporary, path);
+  try {
+    writeFileSync(temporary, content);
+    renameAtomicTemporary(temporary, path);
+  } catch (error) {
+    try {
+      if (existsSync(temporary)) rmSync(temporary, { force: true });
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        `${error.message}; failed to remove atomic-write temp ${temporary}: ${cleanupError.message}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 function runGit(root, args) {
@@ -308,14 +334,29 @@ function buildEvent(previousState, nextState, snapshot, contract, options) {
 function appendEventAndState(root, previous, next, event) {
   const paths = workflowPaths(root);
   const existing = existsSync(paths.events) ? readFileSync(paths.events, "utf8") : "";
+  const previousState = readFileSync(paths.state, "utf8");
   next.state_revision = event.sequence;
   next.last_event_id = event.event_id;
   next.last_event_hash = event.event_hash;
   next.repository_head = event.repository_head;
   next.working_branch = event.working_branch;
   next.working_tree_digest = event.working_tree_digest;
-  writeAtomic(paths.events, `${existing}${existing && !existing.endsWith("\n") ? "\n" : ""}${JSON.stringify(event)}\n`);
-  writeAtomic(paths.state, `${JSON.stringify(next, null, 2)}\n`);
+  try {
+    writeAtomic(paths.events, `${existing}${existing && !existing.endsWith("\n") ? "\n" : ""}${JSON.stringify(event)}\n`);
+    writeAtomic(paths.state, `${JSON.stringify(next, null, 2)}\n`);
+  } catch (error) {
+    const rollbackErrors = [];
+    try { writeAtomic(paths.events, existing); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+    try { writeAtomic(paths.state, previousState); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+    if (rollbackErrors.length) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        `${error.message}; workflow pair rollback failed: ${rollbackErrors.map((item) => item.message).join("; ")}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 function parseArgs(args) {

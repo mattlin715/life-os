@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 26,
+  "last_event_id": "2026-07-18-pilot-2-interruption-recovery:0026",
+  "last_event_hash": "a60f4794aa28c75c11858eb3be6eb021a287bfdbea276f293330deac49ce2f00",
+  "sprint_id": "2026-07-18-pilot-2-interruption-recovery",
+  "mission_title": "Evaluate Stage 1 interruption and recovery through repository-only checkpoints",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/orchestration-pilot-2-interruption-recovery",
+  "repository_head": "af2d8736a20cc1820dacc566e25c5accd6b41d59",
+  "working_tree_digest": "bc59d2da148232efc47b4e4bdb4887beecd6c6544696135884105a97f467725d",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-17T18:21:49.753Z",
+      "repository_head": "af2d8736a20cc1820dacc566e25c5accd6b41d59",
+      "working_tree_digest": "bc59d2da148232efc47b4e4bdb4887beecd6c6544696135884105a97f467725d"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-17T17:08:00.996Z",
+  "updated_at": "2026-07-17T18:23:41.278Z"
+}
