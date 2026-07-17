@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-18-pilot-2-interruption-recovery",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-17T18:24:13.436Z",
+  "repository_head": "af2d8736a20cc1820dacc566e25c5accd6b41d59",
+  "working_branch": "codex/orchestration-pilot-2-interruption-recovery",
+  "working_tree_digest": "bc59d2da148232efc47b4e4bdb4887beecd6c6544696135884105a97f467725d",
+  "last_event_id": "2026-07-18-pilot-2-interruption-recovery:0026",
+  "last_event_hash": "a60f4794aa28c75c11858eb3be6eb021a287bfdbea276f293330deac49ce2f00",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

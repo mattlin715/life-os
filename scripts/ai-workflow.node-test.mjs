@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -93,6 +93,67 @@ function completeOpenDecision(root, sprintId) {
   writeFileSync(join(root, ".ai", "workflow", "DECISION_REQUIRED.md"), `${content}\n`);
 }
 
+function capturePlanningTransitionSnapshots(root, sprintId) {
+  const script = join(root, "scripts", "ai-workflow.mjs");
+  const run = (...args) => {
+    const result = spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+  const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+
+  run("start", "--sprint-id", sprintId, "--mission-title", "Torn projection test");
+  completeCurrentMission(root);
+  run("record-artifact", "--artifact", "current_mission", "--status", "ready", "--expected-sequence", "1");
+  run("transition", "--to", "product_review", "--expected-sequence", "2");
+  completeArtifact(root, "PRODUCT_REVIEW.md", "approved", sprintId);
+  run("record-artifact", "--artifact", "product_review", "--status", "approved", "--expected-sequence", "3");
+
+  const before = {
+    state: readFileSync(statePath, "utf8"),
+    events: readFileSync(eventsPath, "utf8"),
+  };
+  run("transition", "--to", "engineering_planning", "--expected-sequence", "4");
+  const after = {
+    state: readFileSync(statePath, "utf8"),
+    events: readFileSync(eventsPath, "utf8"),
+  };
+
+  return { statePath, eventsPath, before, after };
+}
+
+function assertAtomicTransitionFailureRollsBack(root, sprintId, failAt) {
+  const fixture = capturePlanningTransitionSnapshots(root, sprintId);
+  writeFileSync(fixture.statePath, fixture.before.state);
+  writeFileSync(fixture.eventsPath, fixture.before.events);
+  assert.deepEqual(validateWorkflow(root), []);
+
+  const script = join(root, "scripts", "ai-workflow.mjs");
+  const result = spawnSync(
+    process.execPath,
+    [script, "transition", "--to", "engineering_planning", "--expected-sequence", "4"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        LIFE_OS_AI_WORKFLOW_TEST_FAIL_ATOMIC_RENAME_AT: String(failAt),
+      },
+    },
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, new RegExp(`Injected atomic rename failure at attempt ${failAt}`));
+  assert.equal(readFileSync(fixture.eventsPath, "utf8"), fixture.before.events);
+  assert.equal(readFileSync(fixture.statePath, "utf8"), fixture.before.state);
+  assert.deepEqual(
+    readdirSync(join(root, ".ai", "workflow")).filter((name) => name.includes(".tmp-")),
+    [],
+  );
+  assert.deepEqual(validateWorkflow(root), []);
+}
+
 test("idle repository workflow validates", () => {
   withWorkflow((root) => assert.deepEqual(validateWorkflow(root), []));
 });
@@ -170,6 +231,44 @@ test("validator rejects an over-limit review cycle", () => {
     state.review_cycle = 4;
     writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
     assert.ok(validateWorkflow(root).some((error) => error.includes("review_cycle")));
+  });
+});
+
+test("validator fails closed when the event journal is ahead of workflow state", () => {
+  withGitWorkflow((root) => {
+    const fixture = capturePlanningTransitionSnapshots(root, "2026-07-18-event-ahead");
+    writeFileSync(fixture.statePath, fixture.before.state);
+    writeFileSync(fixture.eventsPath, fixture.after.events);
+
+    const errors = validateWorkflow(root);
+    assert.ok(errors.includes("state_revision 4 does not match event count 5"));
+    assert.ok(errors.includes("state last event does not match EVENTS.jsonl"));
+    assert.ok(errors.includes("state status/sprint does not match last event"));
+  });
+});
+
+test("validator fails closed when workflow state is ahead of the event journal", () => {
+  withGitWorkflow((root) => {
+    const fixture = capturePlanningTransitionSnapshots(root, "2026-07-18-state-ahead");
+    writeFileSync(fixture.statePath, fixture.after.state);
+    writeFileSync(fixture.eventsPath, fixture.before.events);
+
+    const errors = validateWorkflow(root);
+    assert.ok(errors.includes("state_revision 5 does not match event count 4"));
+    assert.ok(errors.includes("state last event does not match EVENTS.jsonl"));
+    assert.ok(errors.includes("state status/sprint does not match last event"));
+  });
+});
+
+test("first atomic rename failure removes its temp and preserves the workflow pair", () => {
+  withGitWorkflow((root) => {
+    assertAtomicTransitionFailureRollsBack(root, "2026-07-18-first-rename-failure", 1);
+  });
+});
+
+test("second atomic rename failure restores events and state without orphan temps", () => {
+  withGitWorkflow((root) => {
+    assertAtomicTransitionFailureRollsBack(root, "2026-07-18-second-rename-failure", 2);
   });
 });
 
