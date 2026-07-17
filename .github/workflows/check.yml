@@ -33,6 +33,12 @@ jobs:
       - name: Tests
         run: pnpm run test:run
 
+      - name: AI workflow contract tests
+        run: pnpm run test:workflow
+
+      - name: AI workflow state validation
+        run: pnpm run verify:workflow
+
       - name: Typecheck
         run: pnpm run typecheck
 

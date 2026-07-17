@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 0,
+  "last_event_id": null,
+  "last_event_hash": null,
+  "sprint_id": null,
+  "mission_title": null,
+  "status": "idle",
+  "current_phase": "intake",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": null,
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": null,
+  "repository_head": null,
+  "working_tree_digest": null,
+  "artifacts": {
+    "current_mission": "idle",
+    "product_review": "pending",
+    "engineering_plan": "pending",
+    "engineering_report": "pending",
+    "theory_alignment_review": "pending",
+    "decision_required": "not_required",
+    "sprint_report": "pending"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "not_run",
+      "command": null,
+      "exit_code": null,
+      "completed_at": null,
+      "repository_head": null,
+      "working_tree_digest": null
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": null,
+  "updated_at": null
+}
