@@ -14,7 +14,17 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:workflow": "node --test scripts/ai-workflow.node-test.mjs",
+    "verify:workflow": "node scripts/ai-workflow.mjs validate",
+    "workflow:validate": "node scripts/ai-workflow.mjs validate",
+    "workflow:status": "node scripts/ai-workflow.mjs status",
+    "workflow:start": "node scripts/ai-workflow.mjs start",
+    "workflow:record-artifact": "node scripts/ai-workflow.mjs record-artifact",
+    "workflow:transition": "node scripts/ai-workflow.mjs transition",
+    "workflow:resolve-decision": "node scripts/ai-workflow.mjs resolve-decision",
+    "workflow:record-verification": "node scripts/ai-workflow.mjs record-verification",
+    "workflow:archive": "node scripts/ai-workflow.mjs archive"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

@@ -21,9 +21,20 @@ The human founder is the final constitutional authority. Preserve: **We Build Mi
 | Persistence / migrations | `docs/architecture/01_Local_Evidence_Store.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`, `src/shared/storage/`, `src-tauri/` |
 | UI / product flow | `docs/11_MVP.md`, `docs/product/`, relevant architecture boundary, and `src/app/` |
 | Documentation | `docs/00_Index.md`, affected document metadata, hierarchy, and ADR implications |
+| Multi-role sprint orchestration | `.ai/README.md`, `.ai/workflow/WORKFLOW.md`, then the applicable role specification |
 | Sprint completion | `docs/dev/08_Engineering_Harness.md` and `scripts/verify.ps1` |
 
 For substantive work, read `AI_CONTRIBUTOR_GUIDE.md` before editing.
+
+## Multi-Role Sprint Orchestration
+
+For a substantive sprint that benefits from explicit product, engineering, and
+alignment handoffs, use the tool-independent artifacts in `.ai/`. They remain
+below this file and the Engineering Harness in authority. Apply the roles
+sequentially in one writable worktree, record workflow truth in the repository,
+and stop at `human_decision_required` rather than resolving a consequential
+founder decision. `.ai/README.md` is navigation, not a second execution entry
+point.
 
 ## Hard constraints
 
@@ -46,7 +57,12 @@ It does not replace founder manual UI verification.
 
 ## Founder checkpoints
 
-Require explicit founder review before changing the Constitution, sensitive inference, longitudinal-memory consent, destructive migration policy, historical provider transmission, a new product worldview, or identity-finalization behavior.
+Require explicit founder review before changing the Constitution, a Book Zero
+primary definition, Product Harness behavior policy, ADR acceptance/status, any
+implementation authority explicitly withheld by an ADR or architecture
+document, sensitive inference, longitudinal-memory consent, destructive
+migration policy, historical provider transmission, a new product worldview,
+or identity-finalization behavior.
 
 ## Completion report
 

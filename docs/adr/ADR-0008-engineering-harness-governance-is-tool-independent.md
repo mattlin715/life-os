@@ -10,6 +10,7 @@ depends:
 referenced_by:
   - docs/00_Index.md
   - docs/dev/08_Engineering_Harness.md
+  - docs/architecture/14_AI_Orchestration_Evolution.md
 ---
 
 # ADR-0008: Engineering Harness Governance Is Tool-Independent
