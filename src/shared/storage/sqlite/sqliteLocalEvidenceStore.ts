@@ -10,9 +10,17 @@ interface ExperienceEntryRow { id: string; content: string; created_at: string; 
 interface ArtifactRow { payload: string; }
 interface HistoricalArtifactRow { payload: string; packet_snapshot: string; }
 interface SqlStatement { query: string; values: unknown[]; }
+interface ExperienceRecordInput { id: string; content: string; createdAt: string; updatedAt: string; }
+interface ExperienceMutationResult { status: "committed" | "stale_generation" | "not_found"; }
 const now = (): ISODateTime => new Date().toISOString();
+const nextRevisionAt = (current: ISODateTime): ISODateTime => {
+  const currentTime = Date.parse(current);
+  const nextTime = Number.isNaN(currentTime) ? Date.now() : Math.max(Date.now(), currentTime + 1);
+  return new Date(nextTime).toISOString();
+};
 const createId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 const mapExperience = (row: ExperienceEntryRow): ExperienceEntry => ({ id: row.id, body: row.content, createdAt: row.created_at, updatedAt: row.updated_at, userEditable: true });
+const toExperienceRecord = (entry: ExperienceEntry): ExperienceRecordInput => ({ id: entry.id, content: entry.body, createdAt: entry.createdAt, updatedAt: entry.updatedAt });
 const legacyProvenance = (entryId: string): ArtifactProvenance => ({ origin: "legacy_unknown", sourceEntryId: entryId, sourceArtifactIds: [], provider: "legacy_unknown", model: null, harnessVersion: null, promptVersion: null, generatedAt: null });
 async function executeTransaction(statements: SqlStatement[], expectedExperienceUpdatedAt?: string) { return invoke<{ status: "committed" | "stale_generation" }>("execute_sqlite_transaction", { statements, expectedExperienceUpdatedAt }); }
 async function executeHistoricalTransaction(statements: SqlStatement[], expectedRevisions: Array<{ id: string; updatedAt: string }>, expectedArtifacts: Array<{ id: string; sourceEntryId: string; updatedAt: string; artifactKind: "evidence" | "reflection" }>, expectedProvenance: { consentId: string; transmissionId: string; packetDigest: string; provider: string; model: string }) { return invoke<{ status: "committed" | "stale_generation" }>("execute_sqlite_historical_transaction", { statements, expectedRevisions, expectedArtifacts, expectedProvenance }); }
@@ -29,12 +37,12 @@ export function createSqliteLocalEvidenceStore(dbPromise: Promise<Database> = in
   const getExperience = async (id: string) => { const rows = await (await dbPromise).select<ExperienceEntryRow[]>("SELECT id, content, created_at, updated_at FROM experience_entries WHERE id = $1 LIMIT 1", [id]); return rows[0] ? mapExperience(rows[0]) : null; };
   const listByKind = async <T extends Record<string, unknown>>(entryId: string, kind: ArtifactKind): Promise<T[]> => (await (await dbPromise).select<ArtifactRow[]>("SELECT payload FROM persisted_artifacts WHERE source_entry_id = $1 AND artifact_kind = $2 ORDER BY created_at ASC", [entryId, kind])).map(({ payload }) => hydrate(JSON.parse(payload), entryId, kind) as T);
   return {
-    async createExperience(input: CreateExperienceInput) { const createdAt = now(); const entry: ExperienceEntry = { id: createId(), body: input.body, createdAt, updatedAt: createdAt, userEditable: true }; await (await dbPromise).execute("INSERT INTO experience_entries (id, content, created_at, updated_at) VALUES ($1,$2,$3,$4)", [entry.id, entry.body, entry.createdAt, entry.updatedAt]); return entry; },
-    async importExperiences(entries) { let importedCount = 0, skippedCount = 0; const db = await dbPromise; for (const entry of entries) { if (await getExperience(entry.id)) { skippedCount++; continue; } await db.execute("INSERT INTO experience_entries (id, content, created_at, updated_at) VALUES ($1,$2,$3,$4)", [entry.id, entry.body, entry.createdAt, entry.updatedAt]); importedCount++; } return { importedCount, skippedCount }; },
+    async createExperience(input: CreateExperienceInput) { const createdAt = now(); const entry: ExperienceEntry = { id: createId(), body: input.body, createdAt, updatedAt: createdAt, userEditable: true }; await invoke("create_sqlite_experience", { experience: toExperienceRecord(entry) }); return entry; },
+    async importExperiences(entries) { return invoke<{ importedCount: number; skippedCount: number }>("import_sqlite_experiences", { experiences: entries.map((entry) => toExperienceRecord({ ...entry, userEditable: true })) }); },
     async listExperiences() { return (await (await dbPromise).select<ExperienceEntryRow[]>("SELECT id, content, created_at, updated_at FROM experience_entries ORDER BY created_at DESC")).map(mapExperience); },
     getExperience,
-    async updateExperience(id: string, patch: UpdateExperiencePatch) { const existing = await getExperience(id); if (!existing) return null; const updated = { ...existing, body: patch.body ?? existing.body, updatedAt: now() }; await executeTransaction([{ query: "DELETE FROM historical_question_artifacts WHERE current_experience_id = $1 OR id IN (SELECT historical_artifact_id FROM historical_artifact_dependencies WHERE source_entry_id = $1)", values: [id] }, { query: "UPDATE experience_entries SET content = $1, updated_at = $2 WHERE id = $3", values: [updated.body, updated.updatedAt, id] }, { query: "DELETE FROM persisted_artifacts WHERE source_entry_id = $1", values: [id] }]); return updated; },
-    async deleteExperience(id: string) { await executeTransaction([{ query: "DELETE FROM persisted_artifacts WHERE source_entry_id = $1", values: [id] }, { query: "DELETE FROM experience_entries WHERE id = $1", values: [id] }]); },
+    async updateExperience(id: string, patch: UpdateExperiencePatch) { const existing = await getExperience(id); if (!existing) return null; const updated = { ...existing, body: patch.body ?? existing.body, updatedAt: nextRevisionAt(existing.updatedAt) }; const result = await invoke<ExperienceMutationResult>("update_sqlite_experience", { id, content: updated.body, expectedUpdatedAt: existing.updatedAt, updatedAt: updated.updatedAt }); if (result.status === "stale_generation") throw new Error("stale_generation"); if (result.status === "not_found") return null; return updated; },
+    async deleteExperience(id: string) { await invoke<ExperienceMutationResult>("delete_sqlite_experience", { id }); },
     async listArtifacts(entryId: string) { const [evidence, reflections, patterns, recoveryTurns] = await Promise.all([listByKind<EvidenceCandidate & Record<string, unknown>>(entryId, "evidence"), listByKind<ReflectionPrompt & Record<string, unknown>>(entryId, "reflection"), listByKind<PatternNote & Record<string, unknown>>(entryId, "pattern"), listByKind<ContextRecoveryTurn & Record<string, unknown>>(entryId, "recovery_turn")]); return { evidence, reflections, patterns, recoveryTurns }; },
     async saveArtifacts(entryId, bundle, options = {}) {
       if (!(await getExperience(entryId))) throw new Error("Cannot save artifacts for a missing experience.");

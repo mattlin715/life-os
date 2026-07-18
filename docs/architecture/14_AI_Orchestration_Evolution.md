@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.2
+version: 0.3
 owner: product-and-engineering
-last_updated: 2026/07/17
+last_updated: 2026/07/19
 depends:
   - AGENTS.md
   - AI_CONTRIBUTOR_GUIDE.md
@@ -23,6 +23,11 @@ manually triggered Codex App thread to more automated orchestration without
 making a vendor, chat session, or hidden agent state the source of governance.
 
 The repository-native Stage 1 structural foundation under `.ai/` is implemented.
+After five bounded real sprints, the Founder resolved `HL-001` as `HL-A` on
+2026/07/19: Stage 1 is operationally adequate for manually triggered,
+repository-mediated Life OS product sprints with Founder checkpoints and one
+writable worker. This provides no independent-review assurance and authorizes
+neither Stage 2, Stage 3, autonomous orchestration, nor deployment.
 Its operational reliability is not yet established and remains gated by the
 pilot evaluation below. The foundation coordinates engineering work only; it
 does not change Life OS runtime behavior,
@@ -134,15 +139,14 @@ Symphony-style coordinator. This stage would add significant complexity:
 - vendor portability and a supported manual fallback;
 - security review for autonomous tool use.
 
-Persistent orchestration is not justified until several Stage 1 sprints show
-that the role boundaries, state schema, escalation behavior, verification, and
-interruption recovery work in practice.
+The five-sprint Stage 1 evaluation established the bounded manual operating
+conclusion above. It did not justify persistent or autonomous orchestration.
 
 ## Evolution Gate
 
-After three to five bounded Stage 1 sprints, evaluate
-`.ai/workflow/WORKFLOW_EVALUATION.md`. Event-driven work should remain disabled
-unless the evidence shows:
+The completed five-sprint evaluation is recorded in
+`.ai/workflow/WORKFLOW_EVALUATION.md`. Its accepted Stage 1 conclusion does not
+enable event-driven work. Any future proposal must still show:
 
 - complete repository-mediated handoffs;
 - stable and machine-readable artifacts;

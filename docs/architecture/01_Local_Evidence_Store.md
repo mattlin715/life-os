@@ -1,8 +1,8 @@
 ﻿---
 status: Draft
-version: 0.2
+version: 0.3
 owner: LIN MENGLUNG
-last_updated: 2026/07/12
+last_updated: 2026/07/19
 depends:
   - docs/architecture/00_MVP_Architecture.md
   - docs/product/00_MVP_User_Flow.md
@@ -210,7 +210,21 @@ The SQLite implementation maps `content` to the domain field `body`.
 
 The domain field `userEditable` is not persisted yet because it is currently an invariant of user-authored experience entries.
 
-Initialization uses SQLite `PRAGMA user_version` migrations. Experience deletion explicitly removes all dependent artifact rows, preventing orphaned insight.
+Initialization uses SQLite `PRAGMA user_version` migrations. Production schema
+and `user_version` remain v4.
+
+Experience create, update, delete, and import use typed Rust commands. The
+renderer sends typed records rather than SQL for those four mutation paths.
+Update conditionally matches the durable `updated_at` revision before changing
+content or invalidating dependents; a stale revision fails closed. Delete relies
+on the existing schema-v4 foreign keys and triggers so source artifacts,
+dependent Historical Questions, and their consent/transmission provenance are
+removed atomically. Import is one duplicate-skipping transaction and rolls back
+the whole batch on non-conflict failure.
+
+This typed boundary is deliberately partial. Artifact, historical, consent,
+transmission, and audit mutation paths still use the existing generic
+transaction boundary pending separately authorized Slice 1B-2 work.
 
 SQLite is implemented through the Tauri SQL plugin.
 
