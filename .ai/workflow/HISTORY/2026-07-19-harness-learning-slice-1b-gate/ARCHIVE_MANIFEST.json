@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-19-harness-learning-slice-1b-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-18T20:00:48.399Z",
+  "repository_head": "6e9dd6615cb7f99556d258080f6a45140fd55b68",
+  "working_branch": "codex/harness-learning-slice-1b-gate",
+  "working_tree_digest": "34eb902d6a4be3fcfbd496655657d0d2d82f40b98ef03af9a5b4c370fda70569",
+  "last_event_id": "2026-07-19-harness-learning-slice-1b-gate:0029",
+  "last_event_hash": "5694dc07fc6d1ab5ac45a78d0b7b66305be5deda10be1f467b7b52222b35300a",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

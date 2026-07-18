@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.5
+version: 0.6
 owner: product-and-engineering
-last_updated: 2026/07/18
+last_updated: 2026/07/19
 depends:
   - AI_CONTRIBUTOR_GUIDE.md
   - docs/00_Constitution.md
@@ -105,10 +105,14 @@ CI alignment, review checkpoints, repository-native sequential role
 orchestration, a machine-validated sprint contract, explicit sprint state and
 handoffs, append-only transition events, a bounded revision loop, structured
 human-decision resume evidence, and a future evaluation boundary. This is a
-structural foundation. Four bounded real sprints are archived as operational
-evidence, but formal Founder evaluation remains pending. Because one
+structural foundation. Five bounded real sprints are archived as operational
+evidence, including two product sprints. On 2026/07/19, the Founder accepted the
+bounded conclusion that Stage 1 is operationally adequate for manually
+triggered, repository-mediated Life OS product sprints with Founder checkpoints
+and one writable worker. Because one
 orchestrator thread applies every role, those sprints are not independent-review
-assurance and do not establish readiness for Stage 2 or Stage 3. The durable
+assurance and do not establish or authorize readiness for Stage 2 or Stage 3.
+This acceptance does not authorize autonomous orchestration or deployment. The durable
 repository-architecture decision is
 recorded in [`ADR-0008`](../adr/ADR-0008-engineering-harness-governance-is-tool-independent.md),
 and the evolution boundary is described in

@@ -72,6 +72,15 @@ pub struct ExpectedHistoricalProvenance {
     model: String,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceRecord {
+    id: String,
+    content: String,
+    created_at: String,
+    updated_at: String,
+}
+
 async fn connect(path: &Path) -> Result<SqliteConnection, String> {
     let options =
         sqlx::sqlite::SqliteConnectOptions::from_str(&format!("sqlite://{}", path.display()))
@@ -207,10 +216,219 @@ pub async fn initialize_sqlite_database(app: AppHandle) -> Result<(), String> {
     migrate_connection(&mut connect(&path).await?, false).await
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionResult {
     status: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceImportResult {
+    imported_count: u64,
+    skipped_count: u64,
+}
+
+async fn create_experience_record(
+    conn: &mut SqliteConnection,
+    experience: ExperienceRecord,
+) -> Result<TransactionResult, String> {
+    ensure_supported_schema(conn).await?;
+    let mut tx = conn
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(
+        "INSERT INTO experience_entries (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(experience.id)
+    .bind(experience.content)
+    .bind(experience.created_at)
+    .bind(experience.updated_at)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(TransactionResult {
+        status: "committed".into(),
+    })
+}
+
+async fn update_experience_record(
+    conn: &mut SqliteConnection,
+    id: String,
+    content: String,
+    expected_updated_at: String,
+    updated_at: String,
+) -> Result<TransactionResult, String> {
+    ensure_supported_schema(conn).await?;
+    if updated_at == expected_updated_at {
+        return Err("invalid_revision: updated_at must advance".into());
+    }
+    let mut tx = conn
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|e| e.to_string())?;
+    let update = sqlx::query(
+        "UPDATE experience_entries SET content = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
+    )
+    .bind(content)
+    .bind(updated_at)
+    .bind(&id)
+    .bind(expected_updated_at)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if update.rows_affected() == 0 {
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM experience_entries WHERE id = ?)")
+                .bind(&id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|e| e.to_string())?;
+        tx.rollback().await.map_err(|e| e.to_string())?;
+        return Ok(TransactionResult {
+            status: if exists {
+                "stale_generation".into()
+            } else {
+                "not_found".into()
+            },
+        });
+    }
+
+    sqlx::query("DELETE FROM historical_question_artifacts WHERE current_experience_id = ? OR id IN (SELECT historical_artifact_id FROM historical_artifact_dependencies WHERE source_entry_id = ?)")
+        .bind(&id)
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM persisted_artifacts WHERE source_entry_id = ?")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(TransactionResult {
+        status: "committed".into(),
+    })
+}
+
+async fn delete_experience_record(
+    conn: &mut SqliteConnection,
+    id: String,
+) -> Result<TransactionResult, String> {
+    ensure_supported_schema(conn).await?;
+    let mut tx = conn
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|e| e.to_string())?;
+    let deleted = sqlx::query("DELETE FROM experience_entries WHERE id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(TransactionResult {
+        status: if deleted.rows_affected() == 0 {
+            "not_found".into()
+        } else {
+            "committed".into()
+        },
+    })
+}
+
+async fn import_experience_records(
+    conn: &mut SqliteConnection,
+    experiences: Vec<ExperienceRecord>,
+    inject_failure_after: Option<usize>,
+) -> Result<ExperienceImportResult, String> {
+    ensure_supported_schema(conn).await?;
+    let mut tx = conn
+        .begin_with("BEGIN IMMEDIATE")
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut imported_count = 0_u64;
+    let mut skipped_count = 0_u64;
+    for (index, experience) in experiences.into_iter().enumerate() {
+        if inject_failure_after == Some(index) {
+            tx.rollback().await.map_err(|e| e.to_string())?;
+            return Err("injected experience import failure".into());
+        }
+        let inserted = sqlx::query("INSERT INTO experience_entries (id, content, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
+            .bind(experience.id)
+            .bind(experience.content)
+            .bind(experience.created_at)
+            .bind(experience.updated_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+        if inserted.rows_affected() == 1 {
+            imported_count += 1;
+        } else {
+            skipped_count += 1;
+        }
+    }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    Ok(ExperienceImportResult {
+        imported_count,
+        skipped_count,
+    })
+}
+
+fn database_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("life-os.db"))
+}
+
+#[tauri::command]
+pub async fn create_sqlite_experience(
+    app: AppHandle,
+    experience: ExperienceRecord,
+) -> Result<TransactionResult, String> {
+    create_experience_record(&mut connect(&database_path(&app)?).await?, experience).await
+}
+
+#[tauri::command]
+pub async fn update_sqlite_experience(
+    app: AppHandle,
+    id: String,
+    content: String,
+    expected_updated_at: String,
+    updated_at: String,
+) -> Result<TransactionResult, String> {
+    update_experience_record(
+        &mut connect(&database_path(&app)?).await?,
+        id,
+        content,
+        expected_updated_at,
+        updated_at,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_sqlite_experience(
+    app: AppHandle,
+    id: String,
+) -> Result<TransactionResult, String> {
+    delete_experience_record(&mut connect(&database_path(&app)?).await?, id).await
+}
+
+#[tauri::command]
+pub async fn import_sqlite_experiences(
+    app: AppHandle,
+    experiences: Vec<ExperienceRecord>,
+) -> Result<ExperienceImportResult, String> {
+    import_experience_records(
+        &mut connect(&database_path(&app)?).await?,
+        experiences,
+        None,
+    )
+    .await
 }
 
 async fn execute_transaction(
@@ -785,5 +1003,289 @@ mod tests {
         .unwrap();
         assert_eq!(result.status, "stale_generation");
         assert_eq!(count, 0);
+    }
+
+    fn experience(id: &str, content: &str, updated_at: &str) -> ExperienceRecord {
+        ExperienceRecord {
+            id: id.into(),
+            content: content.into(),
+            created_at: "created".into(),
+            updated_at: updated_at.into(),
+        }
+    }
+
+    async fn empty_v4_database(path: &Path) -> SqliteConnection {
+        let mut conn = connect(path).await.unwrap();
+        migrate_connection(&mut conn, false).await.unwrap();
+        assert_eq!(read_schema_version(&mut conn).await.unwrap(), 4);
+        conn
+    }
+
+    async fn insert_historical_dependency_fixture(conn: &mut SqliteConnection) {
+        conn.execute(
+            r#"
+            INSERT INTO experience_entries VALUES ('source','before','created','revision-1');
+            INSERT INTO experience_entries VALUES ('current','current','created','current-revision');
+            INSERT INTO persisted_artifacts VALUES ('evidence','source','evidence','{"status":"confirmed"}','created','artifact-revision');
+            INSERT INTO historical_consent_events VALUES ('consent','digest','{}','consumed','created','expires');
+            INSERT INTO historical_transmission_events VALUES ('transmission','consent','digest','openai','model','sent','created','expires');
+            INSERT INTO historical_question_artifacts VALUES ('question','current','digest','{}','{}','consent','transmission','created');
+            INSERT INTO historical_artifact_dependencies VALUES ('question','source','evidence','artifact-revision');
+            "#,
+        )
+        .await
+        .unwrap();
+    }
+
+    async fn count(conn: &mut SqliteConnection, table: &str) -> i64 {
+        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {table}"))
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap()
+    }
+
+    async fn assert_database_integrity(conn: &mut SqliteConnection) {
+        let foreign_key_errors: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM pragma_foreign_key_check")
+                .fetch_one(&mut *conn)
+                .await
+                .unwrap();
+        let integrity: String = sqlx::query_scalar("PRAGMA integrity_check")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+        assert_eq!(foreign_key_errors, 0);
+        assert_eq!(integrity, "ok");
+    }
+
+    #[tokio::test]
+    async fn typed_create_and_import_preserve_exact_records_and_duplicate_counts() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+        let created = experience("created-id", "created body", "created-revision");
+
+        let result = create_experience_record(&mut conn, created.clone())
+            .await
+            .unwrap();
+        let import = import_experience_records(
+            &mut conn,
+            vec![
+                created,
+                experience("imported-id", "imported body", "imported-revision"),
+            ],
+            None,
+        )
+        .await
+        .unwrap();
+        let rows: Vec<(String, String, String, String)> = sqlx::query_as(
+            "SELECT id, content, created_at, updated_at FROM experience_entries ORDER BY id",
+        )
+        .fetch_all(&mut conn)
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, "committed");
+        assert_eq!(
+            import,
+            ExperienceImportResult {
+                imported_count: 1,
+                skipped_count: 1
+            }
+        );
+        assert_eq!(
+            rows,
+            vec![
+                (
+                    "created-id".into(),
+                    "created body".into(),
+                    "created".into(),
+                    "created-revision".into()
+                ),
+                (
+                    "imported-id".into(),
+                    "imported body".into(),
+                    "created".into(),
+                    "imported-revision".into()
+                ),
+            ]
+        );
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn typed_import_failure_rolls_back_the_entire_batch() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+
+        let error = import_experience_records(
+            &mut conn,
+            vec![
+                experience("first", "one", "r1"),
+                experience("second", "two", "r2"),
+            ],
+            Some(1),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("injected experience import failure"));
+        assert_eq!(count(&mut conn, "experience_entries").await, 0);
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn typed_update_revalidates_revision_before_invalidating_dependents() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+        insert_historical_dependency_fixture(&mut conn).await;
+
+        let result = update_experience_record(
+            &mut conn,
+            "source".into(),
+            "must-not-commit".into(),
+            "wrong-revision".into(),
+            "revision-2".into(),
+        )
+        .await
+        .unwrap();
+        let source: (String, String) = sqlx::query_as(
+            "SELECT content, updated_at FROM experience_entries WHERE id = 'source'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, "stale_generation");
+        assert_eq!(source, ("before".into(), "revision-1".into()));
+        assert_eq!(count(&mut conn, "persisted_artifacts").await, 1);
+        assert_eq!(count(&mut conn, "historical_question_artifacts").await, 1);
+        assert_eq!(count(&mut conn, "historical_consent_events").await, 1);
+        assert_eq!(count(&mut conn, "historical_transmission_events").await, 1);
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn typed_update_refuses_a_non_advancing_revision_without_invalidating_dependents() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+        insert_historical_dependency_fixture(&mut conn).await;
+
+        let error = update_experience_record(
+            &mut conn,
+            "source".into(),
+            "must-not-commit".into(),
+            "revision-1".into(),
+            "revision-1".into(),
+        )
+        .await
+        .unwrap_err();
+        let source: (String, String) = sqlx::query_as(
+            "SELECT content, updated_at FROM experience_entries WHERE id = 'source'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+
+        assert!(error.contains("invalid_revision"));
+        assert_eq!(source, ("before".into(), "revision-1".into()));
+        assert_eq!(count(&mut conn, "persisted_artifacts").await, 1);
+        assert_eq!(count(&mut conn, "historical_question_artifacts").await, 1);
+        assert_eq!(count(&mut conn, "historical_consent_events").await, 1);
+        assert_eq!(count(&mut conn, "historical_transmission_events").await, 1);
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn typed_update_commits_content_and_existing_provenance_cascades_atomically() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+        insert_historical_dependency_fixture(&mut conn).await;
+
+        let result = update_experience_record(
+            &mut conn,
+            "source".into(),
+            "after".into(),
+            "revision-1".into(),
+            "revision-2".into(),
+        )
+        .await
+        .unwrap();
+        let source: (String, String) = sqlx::query_as(
+            "SELECT content, updated_at FROM experience_entries WHERE id = 'source'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+
+        assert_eq!(result.status, "committed");
+        assert_eq!(source, ("after".into(), "revision-2".into()));
+        assert_eq!(count(&mut conn, "persisted_artifacts").await, 0);
+        assert_eq!(count(&mut conn, "historical_question_artifacts").await, 0);
+        assert_eq!(count(&mut conn, "historical_consent_events").await, 0);
+        assert_eq!(count(&mut conn, "historical_transmission_events").await, 0);
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn typed_delete_uses_the_existing_schema_v4_full_cascade() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = empty_v4_database(file.path()).await;
+        insert_historical_dependency_fixture(&mut conn).await;
+
+        let result = delete_experience_record(&mut conn, "source".into())
+            .await
+            .unwrap();
+
+        assert_eq!(result.status, "committed");
+        assert_eq!(count(&mut conn, "experience_entries").await, 1);
+        assert_eq!(count(&mut conn, "persisted_artifacts").await, 0);
+        assert_eq!(count(&mut conn, "historical_question_artifacts").await, 0);
+        assert_eq!(count(&mut conn, "historical_consent_events").await, 0);
+        assert_eq!(count(&mut conn, "historical_transmission_events").await, 0);
+        assert_database_integrity(&mut conn).await;
+    }
+
+    #[tokio::test]
+    async fn all_typed_experience_mutations_refuse_a_newer_schema_without_writing() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('before'); PRAGMA user_version = 5;")
+            .await
+            .unwrap();
+
+        assert!(
+            create_experience_record(&mut conn, experience("new", "body", "r"))
+                .await
+                .unwrap_err()
+                .contains(NEWER_SCHEMA_ERROR)
+        );
+        assert!(update_experience_record(
+            &mut conn,
+            "new".into(),
+            "body".into(),
+            "r".into(),
+            "r2".into()
+        )
+        .await
+        .unwrap_err()
+        .contains(NEWER_SCHEMA_ERROR));
+        assert!(delete_experience_record(&mut conn, "new".into())
+            .await
+            .unwrap_err()
+            .contains(NEWER_SCHEMA_ERROR));
+        assert!(import_experience_records(
+            &mut conn,
+            vec![experience("import", "body", "r")],
+            None
+        )
+        .await
+        .unwrap_err()
+        .contains(NEWER_SCHEMA_ERROR));
+        let marker: String = sqlx::query_scalar("SELECT value FROM marker")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(marker, "before");
+        assert_eq!(read_schema_version(&mut conn).await.unwrap(), 5);
     }
 }

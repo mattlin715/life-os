@@ -295,6 +295,10 @@ pub fn run() {
             generate_gemini_response,
             sqlite::inspect_sqlite_database,
             sqlite::initialize_sqlite_database,
+            sqlite::create_sqlite_experience,
+            sqlite::update_sqlite_experience,
+            sqlite::delete_sqlite_experience,
+            sqlite::import_sqlite_experiences,
             sqlite::execute_sqlite_transaction,
             sqlite::execute_sqlite_historical_transaction
         ])
