@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-18-pilot-3-human-decision-resume",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-17T20:40:49.537Z",
+  "repository_head": "f15477271b1d0d1df1c080c1f7b99b2fd96ae477",
+  "working_branch": "codex/orchestration-pilot-3-human-decision-resume",
+  "working_tree_digest": "26b8e658a1671e711e1563bdc86ce3cb90bac56b64071d40bcc0ca197d63ef2b",
+  "last_event_id": "2026-07-18-pilot-3-human-decision-resume:0020",
+  "last_event_hash": "e1e751ab12da3793884fa2117de6905ed2c00ee407cab38d869375e68eeaa0dd",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
