@@ -1,10 +1,43 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{Connection, Executor, Row, SqliteConnection};
+use sqlx::{Connection, Executor, SqliteConnection};
 use std::{path::Path, str::FromStr};
 use tauri::{AppHandle, Manager};
 
 const SCHEMA_VERSION: i64 = 4;
+const NEWER_SCHEMA_ERROR: &str = "database_schema_newer_than_supported";
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseStartupState {
+    state: String,
+    reason: Option<String>,
+    detected_schema_version: Option<i64>,
+    supported_schema_version: i64,
+    initialization_required: bool,
+}
+
+impl DatabaseStartupState {
+    fn ready(detected_schema_version: Option<i64>) -> Self {
+        Self {
+            state: "ready".into(),
+            reason: None,
+            detected_schema_version,
+            supported_schema_version: SCHEMA_VERSION,
+            initialization_required: detected_schema_version.unwrap_or(0) < SCHEMA_VERSION,
+        }
+    }
+
+    fn newer_schema(detected_schema_version: i64) -> Self {
+        Self {
+            state: "blocked".into(),
+            reason: Some("newer_schema".into()),
+            detected_schema_version: Some(detected_schema_version),
+            supported_schema_version: SCHEMA_VERSION,
+            initialization_required: false,
+        }
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +83,49 @@ async fn connect(path: &Path) -> Result<SqliteConnection, String> {
         .map_err(|e| e.to_string())
 }
 
+async fn read_schema_version(conn: &mut SqliteConnection) -> Result<i64, String> {
+    sqlx::query_scalar("PRAGMA user_version")
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn newer_schema_error(version: i64) -> String {
+    format!("{NEWER_SCHEMA_ERROR}: detected={version} supported={SCHEMA_VERSION}")
+}
+
+async fn ensure_supported_schema(conn: &mut SqliteConnection) -> Result<i64, String> {
+    let version = read_schema_version(conn).await?;
+    if version > SCHEMA_VERSION {
+        return Err(newer_schema_error(version));
+    }
+    Ok(version)
+}
+
+async fn inspect_database_path(path: &Path) -> Result<DatabaseStartupState, String> {
+    if !path.exists() {
+        return Ok(DatabaseStartupState::ready(None));
+    }
+
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(path)
+        .read_only(true)
+        .create_if_missing(false)
+        .foreign_keys(true);
+    let mut conn = SqliteConnection::connect_with(&options)
+        .await
+        .map_err(|e| format!("database_inspection_failed: {e}"))?;
+    let version = read_schema_version(&mut conn)
+        .await
+        .map_err(|e| format!("database_inspection_failed: {e}"))?;
+
+    if version > SCHEMA_VERSION {
+        Ok(DatabaseStartupState::newer_schema(version))
+    } else {
+        Ok(DatabaseStartupState::ready(Some(version)))
+    }
+}
+
 pub async fn migrate_connection(
     conn: &mut SqliteConnection,
     inject_failure: bool,
@@ -57,13 +133,9 @@ pub async fn migrate_connection(
     conn.execute("PRAGMA foreign_keys = ON")
         .await
         .map_err(|e| e.to_string())?;
+    let version = ensure_supported_schema(conn).await?;
     conn.execute("CREATE TABLE IF NOT EXISTS experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)").await.map_err(|e| e.to_string())?;
-    let version: i64 = sqlx::query("PRAGMA user_version")
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(|e| e.to_string())?
-        .get(0);
-    if version >= SCHEMA_VERSION {
+    if version == SCHEMA_VERSION {
         return Ok(());
     }
     let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
@@ -110,10 +182,29 @@ pub async fn migrate_connection(
 }
 
 #[tauri::command]
+pub async fn inspect_sqlite_database(app: AppHandle) -> Result<DatabaseStartupState, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("life-os.db");
+    inspect_database_path(&path).await
+}
+
+#[tauri::command]
 pub async fn initialize_sqlite_database(app: AppHandle) -> Result<(), String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = dir.join("life-os.db");
+    let startup = inspect_database_path(&path).await?;
+    if startup.state == "blocked" {
+        return Err(newer_schema_error(
+            startup
+                .detected_schema_version
+                .unwrap_or(SCHEMA_VERSION + 1),
+        ));
+    }
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    migrate_connection(&mut connect(&dir.join("life-os.db")).await?, false).await
+    migrate_connection(&mut connect(&path).await?, false).await
 }
 
 #[derive(Serialize)]
@@ -127,6 +218,7 @@ async fn execute_transaction(
     statements: Vec<SqlStatement>,
     expected_experience_updated_at: Option<String>,
 ) -> Result<TransactionResult, String> {
+    ensure_supported_schema(conn).await?;
     let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
     if let Some(expected) = expected_experience_updated_at {
         let entry_id = statements
@@ -193,6 +285,7 @@ async fn execute_historical_transaction(
     expected_artifacts: Vec<ExpectedArtifactRevision>,
     expected_provenance: ExpectedHistoricalProvenance,
 ) -> Result<TransactionResult, String> {
+    ensure_supported_schema(conn).await?;
     let mut tx = conn.begin().await.map_err(|e| e.to_string())?;
     for expected in expected_revisions {
         let current: Option<String> =
@@ -263,7 +356,12 @@ async fn execute_historical_transaction(
                 let evidence_is_confirmed = evidence_payload
                     .as_deref()
                     .and_then(|payload| serde_json::from_str::<Value>(payload).ok())
-                    .and_then(|record| record.get("status").and_then(Value::as_str).map(str::to_owned))
+                    .and_then(|record| {
+                        record
+                            .get("status")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
                     .as_deref()
                     == Some("confirmed");
                 if !evidence_is_confirmed {
@@ -380,6 +478,127 @@ pub async fn execute_sqlite_historical_transaction(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn missing_database_inspection_does_not_create_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.db");
+
+        let state = inspect_database_path(&path).await.unwrap();
+
+        assert_eq!(state, DatabaseStartupState::ready(None));
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn v4_inspection_is_read_only_and_reports_ready() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('preserve-me'); PRAGMA user_version = 4;")
+            .await
+            .unwrap();
+        drop(conn);
+        let before = std::fs::read(file.path()).unwrap();
+
+        let state = inspect_database_path(file.path()).await.unwrap();
+        let after = std::fs::read(file.path()).unwrap();
+
+        assert_eq!(state, DatabaseStartupState::ready(Some(4)));
+        assert_eq!(after, before);
+    }
+
+    #[tokio::test]
+    async fn v4_migration_preserves_existing_create_if_missing_behavior() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("PRAGMA user_version = 4;").await.unwrap();
+
+        migrate_connection(&mut conn, false).await.unwrap();
+
+        let experience_table: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='experience_entries'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+        assert_eq!(experience_table, 1);
+        assert_eq!(read_schema_version(&mut conn).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn newer_schema_is_refused_before_migration_ddl() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('preserve-me'); PRAGMA user_version = 5;")
+            .await
+            .unwrap();
+        drop(conn);
+
+        let state = inspect_database_path(file.path()).await.unwrap();
+        assert_eq!(state, DatabaseStartupState::newer_schema(5));
+
+        let mut conn = connect(file.path()).await.unwrap();
+        let error = migrate_connection(&mut conn, false).await.unwrap_err();
+        assert!(error.contains(NEWER_SCHEMA_ERROR));
+        let version: i64 = read_schema_version(&mut conn).await.unwrap();
+        let experience_table: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='experience_entries'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+        let marker: String = sqlx::query_scalar("SELECT value FROM marker")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+        assert_eq!(version, 5);
+        assert_eq!(experience_table, 0);
+        assert_eq!(marker, "preserve-me");
+    }
+
+    #[tokio::test]
+    async fn malformed_database_inspection_fails_without_changing_bytes() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), b"not-a-sqlite-database").unwrap();
+        let before = std::fs::read(file.path()).unwrap();
+
+        let error = inspect_database_path(file.path()).await.unwrap_err();
+        let after = std::fs::read(file.path()).unwrap();
+
+        assert!(error.contains("database_inspection_failed"));
+        assert_eq!(after, before);
+    }
+
+    #[tokio::test]
+    async fn generic_transaction_refuses_a_newer_schema_without_writing() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut conn = connect(file.path()).await.unwrap();
+        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('before'); PRAGMA user_version = 5;")
+            .await
+            .unwrap();
+
+        let error = match execute_transaction(
+            &mut conn,
+            vec![SqlStatement {
+                query: "UPDATE marker SET value = 'after'".into(),
+                values: vec![],
+            }],
+            None,
+        )
+        .await
+        {
+            Err(error) => error,
+            Ok(_) => panic!("newer schema transaction must fail closed"),
+        };
+        let marker: String = sqlx::query_scalar("SELECT value FROM marker")
+            .fetch_one(&mut conn)
+            .await
+            .unwrap();
+
+        assert!(error.contains(NEWER_SCHEMA_ERROR));
+        assert_eq!(marker, "before");
+    }
+
     async fn fixture(path: &Path) -> SqliteConnection {
         let mut conn = connect(path).await.unwrap();
         conn.execute("CREATE TABLE experience_entries (id TEXT PRIMARY KEY NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); INSERT INTO experience_entries VALUES ('entry','body','t','t'); CREATE TABLE evidence_candidates (id TEXT PRIMARY KEY, source_entry_id TEXT, status TEXT, payload TEXT, created_at TEXT, updated_at TEXT); INSERT INTO evidence_candidates VALUES ('keep','entry','confirmed','{\"id\":\"keep\"}','t','t'); INSERT INTO evidence_candidates VALUES ('drop','entry','rejected','{\"id\":\"drop\"}','t','t'); PRAGMA user_version = 2;").await.unwrap();
@@ -486,7 +705,12 @@ mod tests {
             vec![ExpectedArtifactRevision { id: "evidence".into(), source_entry_id: "entry".into(), updated_at: "t".into(), artifact_kind: "evidence".into() }],
             ExpectedHistoricalProvenance { consent_id: "missing-consent".into(), transmission_id: "missing-transmission".into(), packet_digest: "d".into(), provider: "openai".into(), model: "model".into() },
         ).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_consent_events WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM historical_consent_events WHERE id='must-not-write'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
         assert_eq!(result.status, "stale_generation");
         assert_eq!(count, 0);
     }
@@ -505,7 +729,12 @@ mod tests {
             vec![],
             ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "wrong".into(), provider: "openai".into(), model: "model".into() },
         ).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
         assert_eq!(result.status, "stale_generation");
         assert_eq!(count, 0);
     }
@@ -524,7 +753,12 @@ mod tests {
             vec![],
             ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "digest".into(), provider: "openai".into(), model: "model".into() },
         ).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
         assert_eq!(result.status, "stale_generation");
         assert_eq!(count, 0);
     }
@@ -543,7 +777,12 @@ mod tests {
             vec![ExpectedArtifactRevision { id: "reflection".into(), source_entry_id: "entry".into(), updated_at: "t".into(), artifact_kind: "reflection".into() }],
             ExpectedHistoricalProvenance { consent_id: "consent".into(), transmission_id: "transmission".into(), packet_digest: "digest".into(), provider: "openai".into(), model: "model".into() },
         ).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'").fetch_one(&mut conn).await.unwrap();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM historical_question_artifacts WHERE id='must-not-write'",
+        )
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
         assert_eq!(result.status, "stale_generation");
         assert_eq!(count, 0);
     }

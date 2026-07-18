@@ -293,6 +293,7 @@ pub fn run() {
             get_ai_runtime_status,
             generate_openai_response,
             generate_gemini_response,
+            sqlite::inspect_sqlite_database,
             sqlite::initialize_sqlite_database,
             sqlite::execute_sqlite_transaction,
             sqlite::execute_sqlite_historical_transaction

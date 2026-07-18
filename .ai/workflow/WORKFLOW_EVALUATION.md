@@ -1,9 +1,21 @@
 # Workflow Evaluation
 
-Status: not_started
+Status: founder_evaluation_pending
 
 Evaluate this repository-native operating model after three to five real,
 bounded Codex App sprints. Do not infer readiness from the scaffolding alone.
+
+## Current Evidence State
+
+Four bounded real sprints are archived under `.ai/workflow/HISTORY/`: Pilot 1
+through Pilot 3 exercised runbook correction, interruption recovery, and an
+exact human-decision pause/resume; Pilot 4 used the same workflow for the real
+Phase 3C Slice 0 product contract sprint. This is operational evidence, not a
+formal reliability approval.
+
+Formal Founder evaluation remains pending. Stage 1 has not been independently
+reviewed, because one orchestrator thread applies all roles, and this evidence
+does not establish that Stage 2 or Stage 3 is ready.
 
 ## Evaluation Matrix
 

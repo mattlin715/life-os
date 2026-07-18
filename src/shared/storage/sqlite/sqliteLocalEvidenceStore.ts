@@ -16,7 +16,7 @@ const mapExperience = (row: ExperienceEntryRow): ExperienceEntry => ({ id: row.i
 const legacyProvenance = (entryId: string): ArtifactProvenance => ({ origin: "legacy_unknown", sourceEntryId: entryId, sourceArtifactIds: [], provider: "legacy_unknown", model: null, harnessVersion: null, promptVersion: null, generatedAt: null });
 async function executeTransaction(statements: SqlStatement[], expectedExperienceUpdatedAt?: string) { return invoke<{ status: "committed" | "stale_generation" }>("execute_sqlite_transaction", { statements, expectedExperienceUpdatedAt }); }
 async function executeHistoricalTransaction(statements: SqlStatement[], expectedRevisions: Array<{ id: string; updatedAt: string }>, expectedArtifacts: Array<{ id: string; sourceEntryId: string; updatedAt: string; artifactKind: "evidence" | "reflection" }>, expectedProvenance: { consentId: string; transmissionId: string; packetDigest: string; provider: string; model: string }) { return invoke<{ status: "committed" | "stale_generation" }>("execute_sqlite_historical_transaction", { statements, expectedRevisions, expectedArtifacts, expectedProvenance }); }
-async function initializeDatabase() { await invoke("initialize_sqlite_database"); return Database.load(DATABASE_PATH); }
+export async function initializeSqliteDatabaseConnection() { await invoke("initialize_sqlite_database"); return Database.load(DATABASE_PATH); }
 function hydrate<T extends Record<string, unknown>>(record: T, entryId: string, kind: ArtifactKind): T {
   if (kind === "recovery_turn") return (record.promptProvenance ? record : { ...record, promptProvenance: record.provenance ?? legacyProvenance(entryId) }) as T;
   if (kind === "reflection") {
@@ -25,8 +25,7 @@ function hydrate<T extends Record<string, unknown>>(record: T, entryId: string, 
   }
   return (record.provenance ? record : { ...record, provenance: legacyProvenance(entryId) }) as T;
 }
-export function createSqliteLocalEvidenceStore(): LocalEvidenceStore {
-  const dbPromise = initializeDatabase();
+export function createSqliteLocalEvidenceStore(dbPromise: Promise<Database> = initializeSqliteDatabaseConnection()): LocalEvidenceStore {
   const getExperience = async (id: string) => { const rows = await (await dbPromise).select<ExperienceEntryRow[]>("SELECT id, content, created_at, updated_at FROM experience_entries WHERE id = $1 LIMIT 1", [id]); return rows[0] ? mapExperience(rows[0]) : null; };
   const listByKind = async <T extends Record<string, unknown>>(entryId: string, kind: ArtifactKind): Promise<T[]> => (await (await dbPromise).select<ArtifactRow[]>("SELECT payload FROM persisted_artifacts WHERE source_entry_id = $1 AND artifact_kind = $2 ORDER BY created_at ASC", [entryId, kind])).map(({ payload }) => hydrate(JSON.parse(payload), entryId, kind) as T);
   return {
