@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 20,
+  "last_event_id": "2026-07-18-pilot-3-human-decision-resume:0020",
+  "last_event_hash": "e1e751ab12da3793884fa2117de6905ed2c00ee407cab38d869375e68eeaa0dd",
+  "sprint_id": "2026-07-18-pilot-3-human-decision-resume",
+  "mission_title": "Validate founder-gated human decision pause and repository-only resume",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PILOT3-RESUME-001 by selecting Option A. I authorize Stage 1 Operational Pilot 3B to record this exact decision evidence, resume at product_review, complete only the repository-native workflow evaluation through planning, a no-implementation-file control-plane observation phase, validation, theory review, archive/reset, and stop at Founder diff review. architecture/13 remains excluded. I do not authorize implementation-file changes, autonomous repair, recover command, event replay, commit, push, merge, Stage 2, Stage 3, product functionality, migration, or deployment.",
+    "selected_option": "Option A",
+    "authorized_scope": "Pilot 3B/3C repository-native workflow only: resume at product_review; planning; no-implementation-file control-plane observation; validation; theory review; archive/reset; stop at Founder diff review. architecture/13 excluded. No implementation-file changes, autonomous repair, recover command, event replay, commit, push, merge, Stage 2/3, product functionality, migration, or deployment.",
+    "decided_at": "2026-07-17T20:27:38.730Z",
+    "evidence_reference": "founder-message:PILOT3-RESUME-001:2026-07-18"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": "Archive terminal evidence, reset to idle, rerun canonical verification, and stop at Founder diff review",
+  "base_branch": "develop",
+  "working_branch": "codex/orchestration-pilot-3-human-decision-resume",
+  "repository_head": "f15477271b1d0d1df1c080c1f7b99b2fd96ae477",
+  "working_tree_digest": "26b8e658a1671e711e1563bdc86ce3cb90bac56b64071d40bcc0ca197d63ef2b",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-17T20:36:35.111Z",
+      "repository_head": "f15477271b1d0d1df1c080c1f7b99b2fd96ae477",
+      "working_tree_digest": "26b8e658a1671e711e1563bdc86ce3cb90bac56b64071d40bcc0ca197d63ef2b"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-17T19:52:13.271Z",
+  "updated_at": "2026-07-17T20:40:29.304Z"
+}
