@@ -28,7 +28,7 @@ try {
   Invoke-VerificationStep 'Vitest' { pnpm run test:run }
   Invoke-VerificationStep 'TypeScript typecheck' { pnpm run typecheck }
   Invoke-VerificationStep 'Frontend build' { pnpm run build }
-  Invoke-VerificationStep 'SQLite Rust tests' { cargo test --manifest-path src-tauri/Cargo.toml sqlite::tests -- --nocapture }
+  Invoke-VerificationStep 'Rust tests' { cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture }
   Invoke-VerificationStep 'Rust check' { cargo check --manifest-path src-tauri/Cargo.toml }
   Invoke-VerificationStep 'Unstaged whitespace errors' { git diff --check }
   Invoke-VerificationStep 'Staged whitespace errors' { git diff --cached --check }

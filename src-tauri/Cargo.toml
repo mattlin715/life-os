@@ -23,5 +23,6 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 
 [dev-dependencies]
+sha2 = "0.10"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
