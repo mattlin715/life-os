@@ -13,7 +13,13 @@ import {
   summarizeEvidenceCandidates,
 } from "../shared/evidence/evidenceSummary";
 import { summarizeReflectionPrompts } from "../shared/reflection/reflectionSummary";
-import { createArtifactMutationRunner, createLocalEvidenceStore, type ArtifactMutation, type SaveArtifactsOptions } from "../shared/storage";
+import {
+  createArtifactMutationRunner,
+  createLocalEvidenceStoreRuntime,
+  type ArtifactMutation,
+  type DatabaseStartupState,
+  type SaveArtifactsOptions,
+} from "../shared/storage";
 import {
   evidenceKindLabel,
   languageOptions,
@@ -127,6 +133,8 @@ type PendingAction =
   | `reflection:${string}`
   | `pattern:${string}`
   | `historical:${string}`;
+
+type DatabaseStartupViewState = { state: "checking" } | DatabaseStartupState;
 
 function summarizePatternNotes(patternNotes: PatternNote[]) {
   return {
@@ -521,7 +529,11 @@ function readBrowserTextFile(accept: string): Promise<SelectedTextFile | null> {
 }
 
 export function App() {
-  const store = useMemo(() => createLocalEvidenceStore(), []);
+  const storageRuntime = useMemo(() => createLocalEvidenceStoreRuntime(), []);
+  const store = storageRuntime.store;
+  const [databaseStartup, setDatabaseStartup] = useState<DatabaseStartupViewState>({
+    state: "checking",
+  });
   const [language, setLanguage] = useState<AppLanguage>(() =>
     readInitialLanguage(),
   );
@@ -560,6 +572,17 @@ export function App() {
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void storageRuntime.startup.then((state) => {
+      if (active) setDatabaseStartup(state);
+    });
+    return () => {
+      active = false;
+    };
+  }, [storageRuntime]);
+
   const artifactMutationRunner = useMemo(() => createArtifactMutationRunner({
     store,
     onCommitted: (entryId, committed) => {
@@ -1101,8 +1124,10 @@ export function App() {
   }, [aiRuntime, copy.historicalConsentInvalidated, copy.historicalNoQuestion, copy.historicalOutputRefused, copy.historicalQuestionsReady, copy.historicalStaleResponse, historicalPreflight, store]);
 
   useEffect(() => {
-    void refreshEntries();
-  }, [refreshEntries]);
+    if (databaseStartup.state === "ready") {
+      void refreshEntries();
+    }
+  }, [databaseStartup.state, refreshEntries]);
 
   useLayoutEffect(() => {
     if (historicalContextOpenPanels.size === 0) {
@@ -1168,6 +1193,65 @@ export function App() {
       : aiRuntime?.provider === "openai"
         ? copy.aiAvailable("OpenAI")
         : copy.aiFallbackDetail;
+  if (databaseStartup.state !== "ready") {
+    const blockedMessage = databaseStartup.state === "checking"
+      ? copy.databaseChecking
+      : databaseStartup.reason === "newer_schema"
+        ? copy.databaseNewerSchema(
+            databaseStartup.detectedSchemaVersion ?? databaseStartup.supportedSchemaVersion + 1,
+            databaseStartup.supportedSchemaVersion,
+          )
+        : databaseStartup.reason === "initialization_failed"
+          ? copy.databaseInitializationFailed
+          : copy.databaseInspectionFailed;
+
+    return (
+      <main className="app-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <section className="product-frame" aria-label={copy.appAria}>
+          <header className="top-bar">
+            <div>
+              <p className="eyebrow">{copy.alpha}</p>
+              <p className="top-bar-title">{copy.motto}</p>
+            </div>
+            <label className="language-switcher">
+              <span>{copy.languageLabel}</span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as AppLanguage)}
+              >
+                {languageOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </header>
+          <section
+            className="welcome-card"
+            role={databaseStartup.state === "checking" ? "status" : "alert"}
+            aria-live="polite"
+          >
+            <div className="welcome-copy">
+              <p className="soft-label">{copy.databaseLocalLabel}</p>
+              <h1>
+                {databaseStartup.state === "checking"
+                  ? copy.databaseCheckingTitle
+                  : copy.databaseBlockedTitle}
+              </h1>
+              <p className="welcome-subtitle">{blockedMessage}</p>
+              {databaseStartup.state === "blocked" ? (
+                <p className="summary-note">{copy.databaseBlockedAction}</p>
+              ) : null}
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
   const isSaving = pendingAction === "saving";
 
   return (

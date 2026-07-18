@@ -30,4 +30,12 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].dateUnavailable).toBe("日期無法使用");
     expect(uiText.ja.dateUnavailable).toBe("日付を表示できません");
   });
+  it("keeps the local database refusal boundary equivalent in every language", () => {
+    expect(uiText.en.databaseNewerSchema(5, 4)).toContain("Nothing was changed");
+    expect(uiText["zh-TW"].databaseNewerSchema(5, 4)).toContain("資料未被修改");
+    expect(uiText.ja.databaseNewerSchema(5, 4)).toContain("データは変更されていません");
+    expect(uiText.en.databaseBlockedAction).toContain("will not repair, downgrade, or write");
+    expect(uiText["zh-TW"].databaseBlockedAction).toContain("不會自動修復、降版或寫入");
+    expect(uiText.ja.databaseBlockedAction).toContain("自動修復、ダウングレード、書き込みは行いません");
+  });
 });

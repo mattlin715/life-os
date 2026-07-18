@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 0.4
+version: 0.6
 owner: product-and-engineering
 last_updated: 2026/07/18
 depends:
@@ -29,7 +29,7 @@ referenced_by: []
 
 This document records the Founder-approved exact schema v5 migration, cutover, recovery, and implementation sequence for the Founder-approved Phase 3C lifecycle foundation.
 
-It is a **Founder-approved authorization gate with Slice 0 authority only**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorizes fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation only after this document is promoted to clean `develop`. It does not authorize production migration, user-database mutation, production initialization, `user_version` or application-version changes, startup behavior, backup, restore, cleanup, lifecycle UI or writes, export v2, import, provider or ContextPacket changes, Slice 1 or later, staging, commit, push, merge, or Phase 4 work.
+It is a **Founder-approved authorization gate whose Slice 0 authority has been exercised and promoted**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorized fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation after this document was promoted to clean `develop`. Slice 0 was subsequently promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized only the bounded Slice 1A startup-safety foundation now implemented in this unpromoted working tree. This does not authorize Slice 1B, production schema-v5 DDL, `user_version = 5`, live user-database migration or test mutation, backup, restore, retention cleanup, later slices, Phase 4, provider or ContextPacket changes, staging, commit, push, merge, PR, or deployment.
 
 ADR-0011 is Accepted and `architecture/12` is Founder-approved, but both explicitly withhold migration implementation authority. All five Phase 3 exit gaps remain blocking. This plan addresses the storage foundation for four gaps; explicit emotion, relationship, value-conflict, and time-range retrieval remains a separate blocker.
 
@@ -42,7 +42,7 @@ The proposal is based on the current repository, not an assumed storage layer.
 ### SQLite and Rust
 
 - `src-tauri/src/sqlite.rs` sets `SCHEMA_VERSION` to `4`.
-- `initialize_sqlite_database` resolves `<app_data_dir>/life-os.db`, creates the directory, and runs `migrate_connection`.
+- The authorized Slice 1A working tree adds read-only presence/version inspection before writable initialization. `initialize_sqlite_database` rechecks the same path and refuses `user_version > 4` before directory creation, writable connection, or migration DDL.
 - Schema v3 introduced `persisted_artifacts`; schema v4 added the four `historical_*` tables, two indexes, and deletion triggers.
 - DDL and `PRAGMA user_version` changes run in one SQLx transaction, with an injected-failure test.
 - `execute_sqlite_transaction` accepts statement arrays from TypeScript and optionally checks one Experience `updated_at` value.
@@ -51,7 +51,7 @@ The proposal is based on the current repository, not an assumed storage layer.
 ### TypeScript storage and mutation
 
 - `LocalEvidenceStore` exposes current-state Experience CRUD, whole-bundle artifact replacement, Phase 3B audit/artifact operations, and startup audit cleanup.
-- `sqliteLocalEvidenceStore.ts` starts Rust initialization through `dbPromise`, then opens the same database through `@tauri-apps/plugin-sql`.
+- The authorized Slice 1A working tree defers `sqliteLocalEvidenceStore` construction until Rust inspection and initialization succeed; an incompatible database exposes no cleanup, read, or write-capable store.
 - `saveArtifacts` deletes all source-scoped `persisted_artifacts` and reinserts the validated current bundle. It also deletes dependent Historical Questions.
 - `createArtifactMutationRunner` serializes mutations in one renderer queue, re-reads durable state, checks generation snapshots, and delegates the durable transaction to the store.
 - Domain objects combine current content, review status, timestamps, and provenance in JSON payloads. Reflection prompt and user response provenance are distinct fields inside one record.
@@ -59,10 +59,10 @@ The proposal is based on the current repository, not an assumed storage layer.
 
 ### Startup and export
 
-- `App` creates the store during render, then `refreshEntries` waits for initialization indirectly through `dbPromise` before startup audit cleanup and timeline reads.
-- There is no explicit database-state screen, migration authorization screen, backup disclosure, or newer-schema refusal state.
+- The authorized Slice 1A working tree exposes an explicit local startup state. `App` waits for `ready` before startup audit cleanup or timeline reads and renders a calm fail-closed state for newer, unreadable, or initialization-failed databases.
+- Slice 1A does not add a migration authorization screen, backup disclosure, automatic repair, downgrade, or schema-v5 activation.
 - Current JSON/Markdown export is Experience-only format `0.1` and writes directly to the selected destination. It is not the founder-approved `life-os-export-v2` graph and is not atomic through a temporary file.
-- Application versions in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` are currently `0.1.0`.
+- The authorized Slice 1A working tree synchronizes application versions in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` to `0.2.0`. This version synchronization does not assert schema-v5 compatibility or activate schema v5.
 
 ## Non-Negotiable Cutover Rules
 
@@ -1186,11 +1186,12 @@ Reads and provenance inspection remain available. Unsupported mutations fail clo
 
 ## Validation Evidence And Reproducibility Boundary
 
-Three evidence levels must not be conflated:
+Four evidence levels must not be conflated:
 
 1. **Corrective-pass syntax probe (completed once, non-authoritative):** the embedded candidate DDL was extracted from this document and executed against a synthetic in-memory SQLite v4 fixture. This catches immediate SQL syntax, constraint, trigger, and ordering defects, but it is not stored as a repository test and is not production migration evidence.
-2. **Slice 0 contract tests (implemented in the current unpromoted working tree):** Pilot 4 preserves repository-owned v2/v3/v4 fixtures, the fixed DDL and schema-object digests, and eight test-only Rust integration cases. Local canonical verification and the focused integration suite pass, and local/remote Rust test selection is aligned in the diff. This evidence remains awaiting Founder diff review and promotion. It does not authorize production DDL execution.
-3. **Production migration evidence (not authorized):** only later temporary-file and real-application-path tests can prove backup, failure injection, startup refusal, backfill reconciliation, restart recovery, and user-database safety. Neither this document nor the one-time probe supplies that evidence.
+2. **Slice 0 contract tests (promoted):** Pilot 4 preserved repository-owned v2/v3/v4 fixtures, the fixed DDL and schema-object digests, and eight test-only Rust integration cases. Feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` was promoted to `develop` by non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. Local canonical verification and the focused integration suite passed before and after promotion, and local/remote Rust test selection is aligned. This reproducible evidence does not authorize production DDL execution or any Slice 1 behavior.
+3. **Slice 1A startup-safety evidence (current unpromoted working tree):** disposable-file Rust tests cover missing, v4, newer-version, malformed, and guarded-transaction cases; a renderer runtime regression proves that newer schemas do not construct a SQLite store or expose cleanup, read, or write operations. Focused tests pass, but this evidence remains pending canonical verification, Theory Alignment Review, Founder diff review, and promotion.
+4. **Production migration evidence (not authorized):** only later temporary-file and real-application-path tests can prove backup, v5 failure injection, backfill reconciliation, restart recovery, and user-database safety. Neither this document, Slice 0, nor Slice 1A supplies that evidence.
 
 The one-time corrective-pass probe on 2026/07/16 produced:
 
@@ -1217,11 +1218,18 @@ No slice is authorized by this plan alone.
 - Freeze expanded DDL, schema-object digest, canonicalization, manifests, deterministic IDs, error classes, and synthetic v2/v3/v4 fixtures.
 - No production database mutation.
 
-### Slice 1 — Startup inspection and typed v4 parity
+### Slice 1A — Startup safety foundation
 
-- Add maximum-version refusal, explicit startup state, application-version synchronization, and typed Rust commands that preserve current v4 behavior.
-- Remove renderer generic-SQL use from production mutation paths before guards exist.
-- Schema remains v4.
+- Founder-authorized on 2026/07/18 through `PHASE3C-SLICE1A-001` Option A and implemented in the current unpromoted working tree pending Founder diff review.
+- Adds read-only presence/version inspection before writable initialization, refuses `user_version > 4`, exposes an explicit local startup state, and blocks store construction, cleanup, reads, and writes for incompatible databases.
+- Preserves fresh/v2/v3/v4 initialization behavior and keeps production `SCHEMA_VERSION` and SQLite `user_version` at 4.
+- Synchronizes application declarations to `0.2.0`; this is not schema-v5 readiness or migration authority.
+- Uses only synthetic/disposable fixtures for refusal, immutability, malformed-database, and store-blocking regressions.
+
+### Slice 1B — Typed v4 mutation parity
+
+- Not authorized. Renderer-supplied generic SQL mutation paths remain to be replaced by typed Rust commands in a separate Founder-gated slice.
+- Schema must remain v4.
 
 ### Slice 2 — Backup and restoration harness
 
@@ -1327,7 +1335,7 @@ Rejected for v5 lifecycle writes. Arbitrary statement arrays cannot reliably enf
 - Large databases may make one backfill transaction slow; performance thresholds must be measured with synthetic fixtures before production authorization.
 - Restoration loses local changes created after the backup timestamp.
 - Guard-trigger or projection drift is a blocking integrity failure, not a condition to auto-repair silently.
-- The one-time in-memory probe alone is not reproducible CI evidence. The current unpromoted Slice 0 fixtures and tests add that reproducibility, but neither a passing test suite nor later promotion can make the candidate production-authorized SQL without the separate post-Slice-0 Founder checkpoint.
+- The one-time in-memory probe alone is not reproducible CI evidence. The promoted Slice 0 fixtures and tests add that reproducibility, but neither a passing test suite nor their promotion makes the candidate production-authorized SQL. Slice 1 and production migration still require separate explicit Founder authority.
 - The compatibility token is not an authentication boundary. Safety still depends on typed Rust commands, one-connection transaction ownership, exact invariant revalidation, and the token being empty at commit and restart.
 
 ## Founder Authorization Decisions
@@ -1454,6 +1462,8 @@ All sixteen decisions were explicitly approved by the founder on 2026/07/17. The
 
 On 2026/07/17, the founder accepted this architecture, approved Decisions `1A, 2A, 3A, 4A, 5A, 6A, 7A, 8A, 9A, 10A, 11A, 12A, 13A, 14A, 15A, 16B`, and approved the document as `Founder-approved`.
 
-The founder authorized **Slice 0 only**, after this document is promoted to clean `develop`: fixed contracts, synthetic fixtures, test-only DDL execution, invariant verification, and documentation synchronized with reproducible evidence. Slice 0 must stop with evidence for Founder review.
+The founder authorized **Slice 0 only** after this document was promoted to clean `develop`: fixed contracts, synthetic fixtures, test-only DDL execution, invariant verification, and documentation synchronized with reproducible evidence. Slice 0 completed Founder review and was promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and merge commit `7921affde544a5852aa58782a1acb0a4f189520e`.
 
-This acceptance does **not** authorize production migration, user-database mutation, production initialization, `user_version` or application-version changes, startup behavior, backup creation, restoration, retention cleanup, lifecycle UI or production writes, export v2, import, provider or ContextPacket changes, Slice 1 or later, or Phase 4. Production DDL execution requires a separate post-Slice-0 Founder checkpoint. Silence or successful Slice 0 tests do not grant that authority.
+Slice 0 promotion did **not** authorize later work. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized only pre-writable presence/version inspection, refusal above supported maximum 4, explicit local compatibility state, incompatible-store blocking, preservation of fresh/v2/v3/v4 behavior, application-version synchronization to `0.2.0`, synthetic/disposable tests, factual documentation, verification, theory review, and archive/reset. That bounded implementation is present only in the current unpromoted working tree and remains pending Founder diff review.
+
+Slice 1B, production schema-v5 DDL, `user_version = 5`, live user-database migration or test mutation, backup, restore, retention cleanup, Slices 2–6, Phase 4, provider or ContextPacket changes, staging, commit, push, merge, PR, and deployment remain unauthorized.

@@ -38,6 +38,15 @@ export const uiText = {
     exportMarkdown: "Export Markdown",
     importJson: "Import JSON",
     storageErrorPrefix: "Local storage error:",
+    databaseLocalLabel: "Local database",
+    databaseCheckingTitle: "Checking your local data",
+    databaseChecking: "Life OS is checking database compatibility before opening your timeline.",
+    databaseBlockedTitle: "This database cannot be opened safely",
+    databaseNewerSchema: (detected: number, supported: number) =>
+      `This local database uses schema version ${detected}, but this Life OS version safely supports up to ${supported}. Nothing was changed.`,
+    databaseInspectionFailed: "Life OS could not safely inspect the local database. Nothing was changed.",
+    databaseInitializationFailed: "Life OS could not safely initialize the supported local database. Nothing was migrated beyond the existing schema-v4 path.",
+    databaseBlockedAction: "Close Life OS and use a compatible application version. Life OS will not repair, downgrade, or write to this database automatically.",
     currentSession: "Current session",
     summary: (entries: number, total: number, confirmed: number, rejected: number, pending: number) =>
       `${entries} entries / ${total} evidence candidates / ${confirmed} confirmed / ${rejected} rejected / ${pending} pending`,
@@ -270,6 +279,15 @@ export const uiText = {
     exportMarkdown: "匯出 Markdown",
     importJson: "匯入 JSON",
     storageErrorPrefix: "本機儲存錯誤：",
+    databaseLocalLabel: "本機資料庫",
+    databaseCheckingTitle: "正在檢查你的本機資料",
+    databaseChecking: "Life OS 會先確認資料庫相容性，再開啟時間軸。",
+    databaseBlockedTitle: "目前無法安全開啟此資料庫",
+    databaseNewerSchema: (detected: number, supported: number) =>
+      `此本機資料庫使用 schema version ${detected}，但目前的 Life OS 最多只安全支援 ${supported}。資料未被修改。`,
+    databaseInspectionFailed: "Life OS 無法安全檢查本機資料庫。資料未被修改。",
+    databaseInitializationFailed: "Life OS 無法安全初始化受支援的本機資料庫。除了既有 schema v4 路徑外，沒有執行其他 migration。",
+    databaseBlockedAction: "請關閉 Life OS，並使用相容的應用程式版本。Life OS 不會自動修復、降版或寫入此資料庫。",
     currentSession: "目前 session",
     summary: (entries: number, total: number, confirmed: number, rejected: number, pending: number) =>
       `${entries} 筆紀錄 / ${total} 個 evidence candidates / ${confirmed} 已確認 / ${rejected} 已排除 / ${pending} 待檢視`,
@@ -502,6 +520,15 @@ export const uiText = {
     exportMarkdown: "Markdown をエクスポート",
     importJson: "JSON をインポート",
     storageErrorPrefix: "ローカル保存エラー:",
+    databaseLocalLabel: "ローカルデータベース",
+    databaseCheckingTitle: "ローカルデータを確認しています",
+    databaseChecking: "タイムラインを開く前に、Life OS がデータベースの互換性を確認しています。",
+    databaseBlockedTitle: "このデータベースを安全に開けません",
+    databaseNewerSchema: (detected: number, supported: number) =>
+      `このローカルデータベースは schema version ${detected} ですが、この Life OS が安全に対応できるのは ${supported} までです。データは変更されていません。`,
+    databaseInspectionFailed: "Life OS はローカルデータベースを安全に確認できませんでした。データは変更されていません。",
+    databaseInitializationFailed: "Life OS は対応するローカルデータベースを安全に初期化できませんでした。既存の schema v4 経路以外の migration は実行されていません。",
+    databaseBlockedAction: "Life OS を閉じ、互換性のあるアプリケーションバージョンを使用してください。自動修復、ダウングレード、書き込みは行いません。",
     currentSession: "現在の session",
     summary: (entries: number, total: number, confirmed: number, rejected: number, pending: number) =>
       `${entries} 件 / ${total} evidence candidates / ${confirmed} 確認済み / ${rejected} 除外 / ${pending} 保留`,

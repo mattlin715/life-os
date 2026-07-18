@@ -1,4 +1,5 @@
-export { createLocalEvidenceStore } from "./createLocalEvidenceStore";
+export { createLocalEvidenceStore, createLocalEvidenceStoreRuntime } from "./createLocalEvidenceStore";
+export type { DatabaseStartupState, LocalEvidenceStoreRuntime } from "./createLocalEvidenceStore";
 export { createInMemoryLocalEvidenceStore } from "./inMemoryLocalEvidenceStore";
 export { createSqliteLocalEvidenceStore } from "./sqlite/sqliteLocalEvidenceStore";
 export type {
