@@ -63,8 +63,8 @@ jobs:
             libssl-dev \
             libwebkit2gtk-4.1-dev
 
-      - name: SQLite persistence tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml sqlite::tests -- --nocapture
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture
 
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml

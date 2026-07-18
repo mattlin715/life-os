@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-18-pilot-4-schema-v5-slice-0",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-18T10:41:47.207Z",
+  "repository_head": "b781071fbf726cde69e93cb9cd98c74abdff0ba3",
+  "working_branch": "codex/phase-3c-schema-v5-slice-0-contracts",
+  "working_tree_digest": "945577a4b9c9afe8dae82a5f790c1222b84898771d266274dfb6c0521883182c",
+  "last_event_id": "2026-07-18-pilot-4-schema-v5-slice-0:0014",
+  "last_event_hash": "25c4e10e8b88092dbde3931361f623e8d563f5a457b6523ed518b8961bedcc62",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

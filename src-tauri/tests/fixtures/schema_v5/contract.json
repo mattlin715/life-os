@@ -1,0 +1,1058 @@
+{
+  "contract_version": "phase-3c-schema-v5-slice0-v1",
+  "scope": "test-only; no production migration or user_version mutation",
+  "digest_contract": {
+    "algorithm": "sha256",
+    "text_normalization": "UTF-8; CRLF normalized to LF; exactly one final LF",
+    "schema_object_body_normalization": "SQLite sqlite_master SQL; CRLF to LF; trailing horizontal whitespace removed per line; outer whitespace removed",
+    "schema_object_manifest_framing": "sorted by type then name; type + NUL + name + NUL + lowercase body SHA-256 + LF",
+    "candidate_ddl_sha256": "396c06634ab871f892be36280468726cda1777b6bdf18039ea165d6b54e126dc",
+    "full_schema_object_manifest_sha256": "bc92f25e12f8a6829c152d4b51fcf741872d94724afaccdb2236d399f5b8abe8"
+  },
+  "canonicalization": {
+    "utf8-text-v1": "exact UTF-8 bytes; preserve line endings and Unicode code points",
+    "canonical-json-v1": "recursive lexicographic object-key order; preserve array order; no insignificant whitespace; UTF-8; locale-independent number formatting; no Unicode normalization",
+    "legacy-v4-raw": "exact stored payload bytes; do not parse or reserialize",
+    "adr-0009-packet": "unchanged and outside this canonicalizer"
+  },
+  "deterministic_ids": {
+    "field_framing": "domain ASCII bytes + NUL, followed by each UTF-8 field as unsigned 64-bit big-endian byte length plus exact bytes",
+    "source_revision": {
+      "prefix": "v5sr_",
+      "domain": "life-os/source-revision-id-v1",
+      "fields": [
+        "source_id",
+        "updated_at",
+        "content_digest"
+      ]
+    },
+    "artifact_revision": {
+      "prefix": "v5ar_",
+      "domain": "life-os/artifact-revision-id-v1",
+      "fields": [
+        "artifact_id",
+        "artifact_kind",
+        "updated_at",
+        "raw_payload_digest"
+      ]
+    },
+    "collision_policy": "same ID with non-identical canonical fields aborts; never overwrite"
+  },
+  "manifest_contract": {
+    "row_order": "primary-key order",
+    "field_framing": "each field is type tag + unsigned 64-bit big-endian byte length + exact bytes; SQL NULL has a distinct null tag and zero bytes",
+    "aggregation": "Rust ordered iteration; SQLite group_concat prohibited",
+    "source_tables": [
+      "experience_entries",
+      "persisted_artifacts",
+      "historical_consent_events",
+      "historical_transmission_events",
+      "historical_question_artifacts",
+      "historical_artifact_dependencies"
+    ]
+  },
+  "error_classes": [
+    "schema_v5_requires_compatible_application",
+    "schema_v5_reconciliation_failed",
+    "unexpected_rejected_v4_payload",
+    "schema_migration_receipt_immutable",
+    "source_revision_immutable",
+    "artifact_revision_immutable",
+    "provenance_immutable",
+    "review_event_immutable",
+    "lifecycle_event_immutable",
+    "dependency_immutable",
+    "source_revision_content_immutable",
+    "artifact_revision_content_immutable",
+    "content_tombstone_immutable",
+    "current_source_revision_content_missing",
+    "current_artifact_revision_content_missing",
+    "cannot_purge_current_source_revision",
+    "cannot_purge_current_artifact_revision"
+  ],
+  "fixtures": {
+    "v2": {
+      "user_version": 2,
+      "sha256": "5e86786e43afb2a7ec6af928018e03524b5ff167c43df2fa176ed92ae3a138bc"
+    },
+    "v3": {
+      "user_version": 3,
+      "sha256": "fe256143999a080fdf82d4e91a4a90e646147505237d2213d0324991af393530"
+    },
+    "v4": {
+      "user_version": 4,
+      "sha256": "cb98f11fed73df14713bfcbd7f41bafced4cb9ccb0ed9de5f37a795878f8261d"
+    }
+  },
+  "candidate_object_counts": {
+    "table": 17,
+    "index": 12,
+    "trigger": 55
+  },
+  "full_fixture_object_counts": {
+    "table": 23,
+    "index": 15,
+    "trigger": 57
+  },
+  "candidate_objects": [
+    {
+      "type": "index",
+      "name": "idx_artifact_heads_current_state",
+      "body_sha256": "0af939c688330104ec3bbc72525ee3db8358c68596e03712906cae9fb439f51b"
+    },
+    {
+      "type": "index",
+      "name": "idx_artifact_heads_source_kind",
+      "body_sha256": "e0769c2f6de9fca09e21eba039d2463bd1c1fed725971ffd61eec222463a39df"
+    },
+    {
+      "type": "index",
+      "name": "idx_artifact_revisions_artifact",
+      "body_sha256": "cef2e7549b59e70bf5d9d59c0f1f06eabf9dbe5856c6e6d874167bbe64342865"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_dependent",
+      "body_sha256": "a467daa2479d38f3aa0fb5d1c1f1b220d59d43631f93d52d66ad8d02ef2e3dd8"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_source_artifact_revision",
+      "body_sha256": "55f9f0078c9f0514d9d560f15c2d3bfa62b318ef6e174625e0ec130a970182f3"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_source_revision",
+      "body_sha256": "62d78a8057459504c495b0614b1015730ddcc2308339ee334e435224c8104bfd"
+    },
+    {
+      "type": "index",
+      "name": "idx_lifecycle_events_artifact_time",
+      "body_sha256": "b7b24effae5bbf54987f0958706e7e35382cfbe33ee1c4a4d2d78c8e52bea767"
+    },
+    {
+      "type": "index",
+      "name": "idx_review_events_artifact_time",
+      "body_sha256": "0b295d4b0ef3735144e8f2a35c7ae9a09fc38d5fe084a17b9bc1852563bd7cd5"
+    },
+    {
+      "type": "index",
+      "name": "idx_source_revisions_source",
+      "body_sha256": "2d14b596c495b75969218fb4cac661f29ebbc2345d98ee92271ac42aaa2911f6"
+    },
+    {
+      "type": "index",
+      "name": "idx_tombstones_artifact",
+      "body_sha256": "81f84a93b3ce0c066b820143a13ade1eda99eb8ef0d78b39eb33a77d48df9bd4"
+    },
+    {
+      "type": "index",
+      "name": "uq_dependencies_source_artifact_revision",
+      "body_sha256": "908d931b10cddc837b07b3e0ec2754eacd853735893e1ed97b6649da2205d044"
+    },
+    {
+      "type": "index",
+      "name": "uq_dependencies_source_revision",
+      "body_sha256": "360ee5aaa8470bbb099fa17a96bab5c5be80d901792469f04f242f32a20a1523"
+    },
+    {
+      "type": "table",
+      "name": "artifact_dependencies",
+      "body_sha256": "06156756b17ad91812ab1c5478dd1b97faae085667e749b9156611fc1f1f5be1"
+    },
+    {
+      "type": "table",
+      "name": "artifact_heads",
+      "body_sha256": "3ac48ecbaf06f55258cfd375d1e53254c71265e110981dab2b85cb3a844ac552"
+    },
+    {
+      "type": "table",
+      "name": "artifact_lifecycle_events",
+      "body_sha256": "3f394e12fff98146b5ee4dba1e3fc08c049f831d9ae14718e1f22e884223f9d5"
+    },
+    {
+      "type": "table",
+      "name": "artifact_review_events",
+      "body_sha256": "c22bf432c977a123de00f8e562d5ca22b5b551e7d6d46f3482ae13f49cfb56d4"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revision_content",
+      "body_sha256": "4ccd49a3296f2f1f3f1193e513e38829e4b294337b74aca79c0733ed4d519726"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revision_provenance",
+      "body_sha256": "9a2456e8f7cff01d65510b583a9164fb7026d67b4d93552be314ac18985f0b22"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revisions",
+      "body_sha256": "f1f4034aa770ed6733900862d943b0dd4fa924deda12f4765625fc78c28e18b6"
+    },
+    {
+      "type": "table",
+      "name": "content_tombstones",
+      "body_sha256": "70ff4ea985977ab38167e3c768d8bd3276582aa21e7be4e3ef0077ebcd05713d"
+    },
+    {
+      "type": "table",
+      "name": "database_contract",
+      "body_sha256": "cd877f86a0588b6a49ebd2ab4636df99a06fbb2dda306c55b4ef92708db8d02e"
+    },
+    {
+      "type": "table",
+      "name": "historical_question_lifecycle_links",
+      "body_sha256": "9c23ead47a1cacfc2a54376a15ad15e4a8070b622e1e95aad10b43425cbba049"
+    },
+    {
+      "type": "table",
+      "name": "provenance_records",
+      "body_sha256": "e299f440e517fb0534fde63d68e5b4830f562d3530e61e30a293192a878bb634"
+    },
+    {
+      "type": "table",
+      "name": "schema_migration_receipts",
+      "body_sha256": "8be4ce5c4065daa28efa25af1fd4088491e38157fe4b035320aa83b0269431cb"
+    },
+    {
+      "type": "table",
+      "name": "source_heads",
+      "body_sha256": "3cd1ce8a764503ac63758504fc5f967d87aea9b6dfc96e9136b42e470b7c0def"
+    },
+    {
+      "type": "table",
+      "name": "source_revision_content",
+      "body_sha256": "8e4f00a36de36c47529cc713ed6ea1fd4b07bc9eff7e1e464fde54a74343b31d"
+    },
+    {
+      "type": "table",
+      "name": "source_revision_provenance",
+      "body_sha256": "4f2dfc73464f215262462e5e3cd2e8a3b079cd2f11974be4da978ed8a02347c6"
+    },
+    {
+      "type": "table",
+      "name": "source_revisions",
+      "body_sha256": "e40578c0e6c019b9758b5762796df68b9ae2c6c5d0daeb6ea0f3ddb564bd87b7"
+    },
+    {
+      "type": "table",
+      "name": "v5_compatibility_write_guard",
+      "body_sha256": "91b15e0eae1bb0b3b7f6ec5c53f91cde88e324a80e7e9c8615bbf938f27de8ed"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_head_current_requires_content",
+      "body_sha256": "1c02cc6f85b608a9a6216784dfe4b6b2fcec4b01dcaec27f1b00a17ec6fd6ec3"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_head_insert_requires_content",
+      "body_sha256": "161ff9c7ce91a12d428e4a3dd48b4ebb566836a03e1e10d0f18d32efddcce72c"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_content_delete_requires_guard",
+      "body_sha256": "3cc21f6728badc48c5e35853bc886e6b8a3f600f6b8dc1b0604ae57d3f2b16da"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_content_immutable_update",
+      "body_sha256": "b6823e948fa1bc35ed229a371a3d8bbbe7df08d40df8bf0a454033176aa6b7c5"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_provenance_delete_requires_guard",
+      "body_sha256": "7c44925ac647fc2e00832c74e106a70d16a90cd10368218281f1e2d5f7c69d48"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_provenance_immutable_update",
+      "body_sha256": "522fa036af5262954fd41a40f2488824f64b650edc14e8cfcab92b1ae722950c"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revisions_delete_requires_guard",
+      "body_sha256": "74c9a8ce22f37455a0419259ade2f449c518bf808e6b739b24c69a3033a4662a"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revisions_immutable_update",
+      "body_sha256": "aa79d675a66c314ccaf8b66429b107407c4ada9ec60797c5e036ee4260d53a4d"
+    },
+    {
+      "type": "trigger",
+      "name": "compatibility_guard_immutable_update",
+      "body_sha256": "15b01958cd374253c45eb460f58e570268810655e17868d25b9d254153ba449b"
+    },
+    {
+      "type": "trigger",
+      "name": "current_artifact_content_cannot_be_purged",
+      "body_sha256": "f10b159622f7908eb5ef87154bd24208c09c5c1f2a3f77fee6a465b8e10e19c9"
+    },
+    {
+      "type": "trigger",
+      "name": "current_source_content_cannot_be_purged",
+      "body_sha256": "e5599c04f16972f08e124d7aecb77b97691d7f875c2b28112b64b8f4bfa5ab31"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_delete_requires_guard",
+      "body_sha256": "da64ea17a973bd0f145bc97c47a6ebb53b03c78a325628974e10a5c9f080e9d6"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_insert_requires_guard",
+      "body_sha256": "ccc095dd4b8744047274d33f3ad0658e3a3eefe1ca73dfa2631b78092864fff0"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_update_requires_guard",
+      "body_sha256": "4b985977679d0a4b38047f09392a97b618fabeb5f0091b5f33fa7ee8736deeb0"
+    },
+    {
+      "type": "trigger",
+      "name": "delete_v5_historical_projection_before_historical_delete",
+      "body_sha256": "edbe6d75e90098927a6d895ffc6c7ebfd7ae3874e959a86233876fc517d2ba38"
+    },
+    {
+      "type": "trigger",
+      "name": "dependencies_immutable_update",
+      "body_sha256": "67c4b21f9e1692599200eeaf43322e847bb266ac9ad2e7bdc4eb8f70758a9977"
+    },
+    {
+      "type": "trigger",
+      "name": "dependency_delete_requires_guard",
+      "body_sha256": "3e85fab7f6134250a46dc3df76d0fee83eafcf7096bae6c28f5159129d1f244f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_delete",
+      "body_sha256": "357217fa680d43e845d5c8e9a7e6dd9fc6460a70c093a3f01b922fad36c9df9e"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_insert",
+      "body_sha256": "c7adef7761c112f755f5a0e811d45ed867f1c4056dfbe4834be246d30ba703c7"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_update",
+      "body_sha256": "1da0e107de6639e18982beb8a12151a6d0fb098eb60517abbcdd920a9e1c8705"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_delete",
+      "body_sha256": "f7dcbf2efbea8403c2f598fb99b13eb3ad88182b6cd8a420919435797f16d684"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_insert",
+      "body_sha256": "08bdff26145c62e781f1e55306a84297783d97a71fc10575e4d2ed3e99d447d5"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_update",
+      "body_sha256": "9c18665900af0538e9a90b6275951a6791a787b05c61b8080ef7a0ebef94262d"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_delete",
+      "body_sha256": "0bb2c023bc05cea802ad791ef6304cf4c9de2439d646ec20abba5afd0dbd5c8c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_insert",
+      "body_sha256": "0ea822c2d73538148cffa07efa4ca7171d8021d87024987402d03a2b4707963c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_update",
+      "body_sha256": "dbcf9d706aab31e059ddc6b7381bbb9063747fc07bd5e08b920841f40501d26f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_delete",
+      "body_sha256": "e565f1479a7f12dfa6ab3de893592282d08b922b536ae7fd47e9a77f8faaf281"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_insert",
+      "body_sha256": "a5e6eb658844af5f25606787902991890d70d03db4dce8ea673df2a451775c9c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_update",
+      "body_sha256": "4d6c0f4afe6c2ffd8d0d345fd597d610f54d556d83b8a21b1d9e84b2afb4e018"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_delete",
+      "body_sha256": "7e8f64220b286d506dbfbd2873fa0266473007bd27b09d24d45b4ad41c302ec9"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_insert",
+      "body_sha256": "2a3d33af1527c093ff1a308bb8867d32d9680800f55e45a6233ccee93457acae"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_update",
+      "body_sha256": "0c364f8c70ef5591198ae7dbd4b70ffb77c422013341359ad79585248adcb05f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_delete",
+      "body_sha256": "5da4e81daa88d8f94fa48b4e21e235045da183ee4c0194b496bf9a226714f13f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_insert",
+      "body_sha256": "9f821a665d9912c8ee9643d06554deae83460cc403589d0a4ec3859b69891db1"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_update",
+      "body_sha256": "382d829eab3fc84253936c1f7b2965bc4cab68595645e5dc4ad2d5f17242e12e"
+    },
+    {
+      "type": "trigger",
+      "name": "historical_lifecycle_link_delete_requires_guard",
+      "body_sha256": "b8bfcf87ea29ff7f1eda7304b2b7edc9e047b1b2ebcd8c3f2089193d3bb94ec9"
+    },
+    {
+      "type": "trigger",
+      "name": "historical_lifecycle_links_immutable_update",
+      "body_sha256": "c4c305ccd6408958a183c9240d82dd8629f9baebcf571aafd26e22974f7eec4d"
+    },
+    {
+      "type": "trigger",
+      "name": "lifecycle_event_delete_requires_guard",
+      "body_sha256": "3f92cf408a1af4958bd6233545eadd2f99849cac86f93e0cd0f7ce179a6b2d56"
+    },
+    {
+      "type": "trigger",
+      "name": "lifecycle_events_immutable_update",
+      "body_sha256": "1f5c6d4b86e1f5ee837e5970737c706d8c1d837199a82a12943c1ad97443305d"
+    },
+    {
+      "type": "trigger",
+      "name": "migration_receipts_immutable_delete",
+      "body_sha256": "4953f1410e31347148f66be4ee0facdfeb84f66cc259738f51e646ed7aef3223"
+    },
+    {
+      "type": "trigger",
+      "name": "migration_receipts_immutable_update",
+      "body_sha256": "d124790154776b1813d2c089e49140509ccbc614cf41911c3532e7da5cfc5460"
+    },
+    {
+      "type": "trigger",
+      "name": "provenance_delete_requires_guard",
+      "body_sha256": "3d7aba58a42c5a5586018b1f856d53564acc8a9f06f133901f5e1d38272a5b31"
+    },
+    {
+      "type": "trigger",
+      "name": "provenance_records_immutable_update",
+      "body_sha256": "9339894c17c9696104ecb7df1edc3ca4dd55dcde3fac03263e3fa505810be90b"
+    },
+    {
+      "type": "trigger",
+      "name": "review_event_delete_requires_guard",
+      "body_sha256": "f69836f64eb86dbf294d33181177e801c0c1a55bad1eaa07851ff225966c6dd1"
+    },
+    {
+      "type": "trigger",
+      "name": "review_events_immutable_update",
+      "body_sha256": "b219d6d6c55b22e4c0a6436da1650597cee98919a7b8ab40531753969d1f4b95"
+    },
+    {
+      "type": "trigger",
+      "name": "source_head_current_requires_content",
+      "body_sha256": "5ea02bdad531e2e9deb70b5bbd85d66fa466bbcfe4d021b4c2f7c33d3ea3466a"
+    },
+    {
+      "type": "trigger",
+      "name": "source_head_insert_requires_content",
+      "body_sha256": "cd13b043b107f8785236f52096bd40f14bb4042a517196394d920102080bff69"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_content_delete_requires_guard",
+      "body_sha256": "5e5e020c0f3141a591bff681768b8903f333e8f770f2d2fe46478694dd587446"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_content_immutable_update",
+      "body_sha256": "d382dedbb42767c92d6d51570592572a53be58e237c5ff6a3cd6727c03858ffe"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_provenance_delete_requires_guard",
+      "body_sha256": "c17b073007e94fcea88b729fe7e9093e28f0a0f15adb395fb58d73944804449b"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_provenance_immutable_update",
+      "body_sha256": "40df177b6c57e475e1c3f4f9d7fcd5e8130235d4a84126452d505a498402460b"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revisions_delete_requires_guard",
+      "body_sha256": "057325c164cd2492f55f1247b1b1a33f4fb26390ed58c820317335dfccc1189e"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revisions_immutable_update",
+      "body_sha256": "c7cfe3de3d9e6633fcbbabff7ad544ef4f63de79cbd1288b43ff351c79caa528"
+    },
+    {
+      "type": "trigger",
+      "name": "tombstone_delete_requires_guard",
+      "body_sha256": "af3f7f4acf7e9f868e2507fbd59c1d98e6a17aa1a13af34ee8f7dbfa72289c36"
+    },
+    {
+      "type": "trigger",
+      "name": "tombstones_immutable_update",
+      "body_sha256": "835a47080102a46b9d4f77584cd1189b676852568675f021de3232314d8ae6e1"
+    }
+  ],
+  "full_schema_objects": [
+    {
+      "type": "index",
+      "name": "idx_artifact_heads_current_state",
+      "body_sha256": "0af939c688330104ec3bbc72525ee3db8358c68596e03712906cae9fb439f51b"
+    },
+    {
+      "type": "index",
+      "name": "idx_artifact_heads_source_kind",
+      "body_sha256": "e0769c2f6de9fca09e21eba039d2463bd1c1fed725971ffd61eec222463a39df"
+    },
+    {
+      "type": "index",
+      "name": "idx_artifact_revisions_artifact",
+      "body_sha256": "cef2e7549b59e70bf5d9d59c0f1f06eabf9dbe5856c6e6d874167bbe64342865"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_dependent",
+      "body_sha256": "a467daa2479d38f3aa0fb5d1c1f1b220d59d43631f93d52d66ad8d02ef2e3dd8"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_source_artifact_revision",
+      "body_sha256": "55f9f0078c9f0514d9d560f15c2d3bfa62b318ef6e174625e0ec130a970182f3"
+    },
+    {
+      "type": "index",
+      "name": "idx_dependencies_source_revision",
+      "body_sha256": "62d78a8057459504c495b0614b1015730ddcc2308339ee334e435224c8104bfd"
+    },
+    {
+      "type": "index",
+      "name": "idx_historical_dependencies_source",
+      "body_sha256": "00ee32e8e3a007f58b346188e4657269a9186ea4c0061c020a1dca1e02e768b4"
+    },
+    {
+      "type": "index",
+      "name": "idx_historical_questions_current",
+      "body_sha256": "ea8822189f3055babc5339be4f5787ad058baf051cc8367b6b1d652867bef23a"
+    },
+    {
+      "type": "index",
+      "name": "idx_lifecycle_events_artifact_time",
+      "body_sha256": "b7b24effae5bbf54987f0958706e7e35382cfbe33ee1c4a4d2d78c8e52bea767"
+    },
+    {
+      "type": "index",
+      "name": "idx_persisted_artifacts_source",
+      "body_sha256": "24e62c85d53709d01cf4d3f4eb89ac3ecdb1fe121b5c72fe9f05764225b2d27c"
+    },
+    {
+      "type": "index",
+      "name": "idx_review_events_artifact_time",
+      "body_sha256": "0b295d4b0ef3735144e8f2a35c7ae9a09fc38d5fe084a17b9bc1852563bd7cd5"
+    },
+    {
+      "type": "index",
+      "name": "idx_source_revisions_source",
+      "body_sha256": "2d14b596c495b75969218fb4cac661f29ebbc2345d98ee92271ac42aaa2911f6"
+    },
+    {
+      "type": "index",
+      "name": "idx_tombstones_artifact",
+      "body_sha256": "81f84a93b3ce0c066b820143a13ade1eda99eb8ef0d78b39eb33a77d48df9bd4"
+    },
+    {
+      "type": "index",
+      "name": "uq_dependencies_source_artifact_revision",
+      "body_sha256": "908d931b10cddc837b07b3e0ec2754eacd853735893e1ed97b6649da2205d044"
+    },
+    {
+      "type": "index",
+      "name": "uq_dependencies_source_revision",
+      "body_sha256": "360ee5aaa8470bbb099fa17a96bab5c5be80d901792469f04f242f32a20a1523"
+    },
+    {
+      "type": "table",
+      "name": "artifact_dependencies",
+      "body_sha256": "06156756b17ad91812ab1c5478dd1b97faae085667e749b9156611fc1f1f5be1"
+    },
+    {
+      "type": "table",
+      "name": "artifact_heads",
+      "body_sha256": "3ac48ecbaf06f55258cfd375d1e53254c71265e110981dab2b85cb3a844ac552"
+    },
+    {
+      "type": "table",
+      "name": "artifact_lifecycle_events",
+      "body_sha256": "3f394e12fff98146b5ee4dba1e3fc08c049f831d9ae14718e1f22e884223f9d5"
+    },
+    {
+      "type": "table",
+      "name": "artifact_review_events",
+      "body_sha256": "c22bf432c977a123de00f8e562d5ca22b5b551e7d6d46f3482ae13f49cfb56d4"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revision_content",
+      "body_sha256": "4ccd49a3296f2f1f3f1193e513e38829e4b294337b74aca79c0733ed4d519726"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revision_provenance",
+      "body_sha256": "9a2456e8f7cff01d65510b583a9164fb7026d67b4d93552be314ac18985f0b22"
+    },
+    {
+      "type": "table",
+      "name": "artifact_revisions",
+      "body_sha256": "f1f4034aa770ed6733900862d943b0dd4fa924deda12f4765625fc78c28e18b6"
+    },
+    {
+      "type": "table",
+      "name": "content_tombstones",
+      "body_sha256": "70ff4ea985977ab38167e3c768d8bd3276582aa21e7be4e3ef0077ebcd05713d"
+    },
+    {
+      "type": "table",
+      "name": "database_contract",
+      "body_sha256": "cd877f86a0588b6a49ebd2ab4636df99a06fbb2dda306c55b4ef92708db8d02e"
+    },
+    {
+      "type": "table",
+      "name": "experience_entries",
+      "body_sha256": "4537be66a8b2860fe9b8afb11230b1f052008b7d5d252fb0240396077b56978f"
+    },
+    {
+      "type": "table",
+      "name": "historical_artifact_dependencies",
+      "body_sha256": "561036fdd49c7693042c01604722b412b8f421358e431bd3d59db7118d99d485"
+    },
+    {
+      "type": "table",
+      "name": "historical_consent_events",
+      "body_sha256": "1a1f82f192f34d131d3e6c6d05e2e8ef6edd0c39e2fa689eb101a73367ac0c00"
+    },
+    {
+      "type": "table",
+      "name": "historical_question_artifacts",
+      "body_sha256": "ef2ded332c98775b1cb5e877d9c2ea26e460306f5bdb5c6ed6b23a0e838f3641"
+    },
+    {
+      "type": "table",
+      "name": "historical_question_lifecycle_links",
+      "body_sha256": "9c23ead47a1cacfc2a54376a15ad15e4a8070b622e1e95aad10b43425cbba049"
+    },
+    {
+      "type": "table",
+      "name": "historical_transmission_events",
+      "body_sha256": "f0bcd2f06c4656d69333953d0a1a8a6503fa3b53c2901db03cc3d8e79e945a01"
+    },
+    {
+      "type": "table",
+      "name": "persisted_artifacts",
+      "body_sha256": "fa79d4f2534323fa50bf56426fba1d5f067cf7786b962db553f8b03530176a7b"
+    },
+    {
+      "type": "table",
+      "name": "provenance_records",
+      "body_sha256": "e299f440e517fb0534fde63d68e5b4830f562d3530e61e30a293192a878bb634"
+    },
+    {
+      "type": "table",
+      "name": "schema_migration_receipts",
+      "body_sha256": "8be4ce5c4065daa28efa25af1fd4088491e38157fe4b035320aa83b0269431cb"
+    },
+    {
+      "type": "table",
+      "name": "source_heads",
+      "body_sha256": "3cd1ce8a764503ac63758504fc5f967d87aea9b6dfc96e9136b42e470b7c0def"
+    },
+    {
+      "type": "table",
+      "name": "source_revision_content",
+      "body_sha256": "8e4f00a36de36c47529cc713ed6ea1fd4b07bc9eff7e1e464fde54a74343b31d"
+    },
+    {
+      "type": "table",
+      "name": "source_revision_provenance",
+      "body_sha256": "4f2dfc73464f215262462e5e3cd2e8a3b079cd2f11974be4da978ed8a02347c6"
+    },
+    {
+      "type": "table",
+      "name": "source_revisions",
+      "body_sha256": "e40578c0e6c019b9758b5762796df68b9ae2c6c5d0daeb6ea0f3ddb564bd87b7"
+    },
+    {
+      "type": "table",
+      "name": "v5_compatibility_write_guard",
+      "body_sha256": "91b15e0eae1bb0b3b7f6ec5c53f91cde88e324a80e7e9c8615bbf938f27de8ed"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_head_current_requires_content",
+      "body_sha256": "1c02cc6f85b608a9a6216784dfe4b6b2fcec4b01dcaec27f1b00a17ec6fd6ec3"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_head_insert_requires_content",
+      "body_sha256": "161ff9c7ce91a12d428e4a3dd48b4ebb566836a03e1e10d0f18d32efddcce72c"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_content_delete_requires_guard",
+      "body_sha256": "3cc21f6728badc48c5e35853bc886e6b8a3f600f6b8dc1b0604ae57d3f2b16da"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_content_immutable_update",
+      "body_sha256": "b6823e948fa1bc35ed229a371a3d8bbbe7df08d40df8bf0a454033176aa6b7c5"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_provenance_delete_requires_guard",
+      "body_sha256": "7c44925ac647fc2e00832c74e106a70d16a90cd10368218281f1e2d5f7c69d48"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revision_provenance_immutable_update",
+      "body_sha256": "522fa036af5262954fd41a40f2488824f64b650edc14e8cfcab92b1ae722950c"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revisions_delete_requires_guard",
+      "body_sha256": "74c9a8ce22f37455a0419259ade2f449c518bf808e6b739b24c69a3033a4662a"
+    },
+    {
+      "type": "trigger",
+      "name": "artifact_revisions_immutable_update",
+      "body_sha256": "aa79d675a66c314ccaf8b66429b107407c4ada9ec60797c5e036ee4260d53a4d"
+    },
+    {
+      "type": "trigger",
+      "name": "compatibility_guard_immutable_update",
+      "body_sha256": "15b01958cd374253c45eb460f58e570268810655e17868d25b9d254153ba449b"
+    },
+    {
+      "type": "trigger",
+      "name": "current_artifact_content_cannot_be_purged",
+      "body_sha256": "f10b159622f7908eb5ef87154bd24208c09c5c1f2a3f77fee6a465b8e10e19c9"
+    },
+    {
+      "type": "trigger",
+      "name": "current_source_content_cannot_be_purged",
+      "body_sha256": "e5599c04f16972f08e124d7aecb77b97691d7f875c2b28112b64b8f4bfa5ab31"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_delete_requires_guard",
+      "body_sha256": "da64ea17a973bd0f145bc97c47a6ebb53b03c78a325628974e10a5c9f080e9d6"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_insert_requires_guard",
+      "body_sha256": "ccc095dd4b8744047274d33f3ad0658e3a3eefe1ca73dfa2631b78092864fff0"
+    },
+    {
+      "type": "trigger",
+      "name": "database_contract_update_requires_guard",
+      "body_sha256": "4b985977679d0a4b38047f09392a97b618fabeb5f0091b5f33fa7ee8736deeb0"
+    },
+    {
+      "type": "trigger",
+      "name": "delete_historical_artifacts_before_source_delete",
+      "body_sha256": "3a7da7184cd5bc4dde789eb29d2310a34b9d901fece6c46036a5982529fc4b0d"
+    },
+    {
+      "type": "trigger",
+      "name": "delete_historical_provenance_after_artifact_delete",
+      "body_sha256": "c36472ae0dc37063e467285fdd5c1de456a1352ede722325b1d4d59b6cab0761"
+    },
+    {
+      "type": "trigger",
+      "name": "delete_v5_historical_projection_before_historical_delete",
+      "body_sha256": "edbe6d75e90098927a6d895ffc6c7ebfd7ae3874e959a86233876fc517d2ba38"
+    },
+    {
+      "type": "trigger",
+      "name": "dependencies_immutable_update",
+      "body_sha256": "67c4b21f9e1692599200eeaf43322e847bb266ac9ad2e7bdc4eb8f70758a9977"
+    },
+    {
+      "type": "trigger",
+      "name": "dependency_delete_requires_guard",
+      "body_sha256": "3e85fab7f6134250a46dc3df76d0fee83eafcf7096bae6c28f5159129d1f244f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_delete",
+      "body_sha256": "357217fa680d43e845d5c8e9a7e6dd9fc6460a70c093a3f01b922fad36c9df9e"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_insert",
+      "body_sha256": "c7adef7761c112f755f5a0e811d45ed867f1c4056dfbe4834be246d30ba703c7"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_experience_entries_update",
+      "body_sha256": "1da0e107de6639e18982beb8a12151a6d0fb098eb60517abbcdd920a9e1c8705"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_delete",
+      "body_sha256": "f7dcbf2efbea8403c2f598fb99b13eb3ad88182b6cd8a420919435797f16d684"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_insert",
+      "body_sha256": "08bdff26145c62e781f1e55306a84297783d97a71fc10575e4d2ed3e99d447d5"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_artifact_dependencies_update",
+      "body_sha256": "9c18665900af0538e9a90b6275951a6791a787b05c61b8080ef7a0ebef94262d"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_delete",
+      "body_sha256": "0bb2c023bc05cea802ad791ef6304cf4c9de2439d646ec20abba5afd0dbd5c8c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_insert",
+      "body_sha256": "0ea822c2d73538148cffa07efa4ca7171d8021d87024987402d03a2b4707963c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_consent_events_update",
+      "body_sha256": "dbcf9d706aab31e059ddc6b7381bbb9063747fc07bd5e08b920841f40501d26f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_delete",
+      "body_sha256": "e565f1479a7f12dfa6ab3de893592282d08b922b536ae7fd47e9a77f8faaf281"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_insert",
+      "body_sha256": "a5e6eb658844af5f25606787902991890d70d03db4dce8ea673df2a451775c9c"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_question_artifacts_update",
+      "body_sha256": "4d6c0f4afe6c2ffd8d0d345fd597d610f54d556d83b8a21b1d9e84b2afb4e018"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_delete",
+      "body_sha256": "7e8f64220b286d506dbfbd2873fa0266473007bd27b09d24d45b4ad41c302ec9"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_insert",
+      "body_sha256": "2a3d33af1527c093ff1a308bb8867d32d9680800f55e45a6233ccee93457acae"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_historical_transmission_events_update",
+      "body_sha256": "0c364f8c70ef5591198ae7dbd4b70ffb77c422013341359ad79585248adcb05f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_delete",
+      "body_sha256": "5da4e81daa88d8f94fa48b4e21e235045da183ee4c0194b496bf9a226714f13f"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_insert",
+      "body_sha256": "9f821a665d9912c8ee9643d06554deae83460cc403589d0a4ec3859b69891db1"
+    },
+    {
+      "type": "trigger",
+      "name": "guard_persisted_artifacts_update",
+      "body_sha256": "382d829eab3fc84253936c1f7b2965bc4cab68595645e5dc4ad2d5f17242e12e"
+    },
+    {
+      "type": "trigger",
+      "name": "historical_lifecycle_link_delete_requires_guard",
+      "body_sha256": "b8bfcf87ea29ff7f1eda7304b2b7edc9e047b1b2ebcd8c3f2089193d3bb94ec9"
+    },
+    {
+      "type": "trigger",
+      "name": "historical_lifecycle_links_immutable_update",
+      "body_sha256": "c4c305ccd6408958a183c9240d82dd8629f9baebcf571aafd26e22974f7eec4d"
+    },
+    {
+      "type": "trigger",
+      "name": "lifecycle_event_delete_requires_guard",
+      "body_sha256": "3f92cf408a1af4958bd6233545eadd2f99849cac86f93e0cd0f7ce179a6b2d56"
+    },
+    {
+      "type": "trigger",
+      "name": "lifecycle_events_immutable_update",
+      "body_sha256": "1f5c6d4b86e1f5ee837e5970737c706d8c1d837199a82a12943c1ad97443305d"
+    },
+    {
+      "type": "trigger",
+      "name": "migration_receipts_immutable_delete",
+      "body_sha256": "4953f1410e31347148f66be4ee0facdfeb84f66cc259738f51e646ed7aef3223"
+    },
+    {
+      "type": "trigger",
+      "name": "migration_receipts_immutable_update",
+      "body_sha256": "d124790154776b1813d2c089e49140509ccbc614cf41911c3532e7da5cfc5460"
+    },
+    {
+      "type": "trigger",
+      "name": "provenance_delete_requires_guard",
+      "body_sha256": "3d7aba58a42c5a5586018b1f856d53564acc8a9f06f133901f5e1d38272a5b31"
+    },
+    {
+      "type": "trigger",
+      "name": "provenance_records_immutable_update",
+      "body_sha256": "9339894c17c9696104ecb7df1edc3ca4dd55dcde3fac03263e3fa505810be90b"
+    },
+    {
+      "type": "trigger",
+      "name": "review_event_delete_requires_guard",
+      "body_sha256": "f69836f64eb86dbf294d33181177e801c0c1a55bad1eaa07851ff225966c6dd1"
+    },
+    {
+      "type": "trigger",
+      "name": "review_events_immutable_update",
+      "body_sha256": "b219d6d6c55b22e4c0a6436da1650597cee98919a7b8ab40531753969d1f4b95"
+    },
+    {
+      "type": "trigger",
+      "name": "source_head_current_requires_content",
+      "body_sha256": "5ea02bdad531e2e9deb70b5bbd85d66fa466bbcfe4d021b4c2f7c33d3ea3466a"
+    },
+    {
+      "type": "trigger",
+      "name": "source_head_insert_requires_content",
+      "body_sha256": "cd13b043b107f8785236f52096bd40f14bb4042a517196394d920102080bff69"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_content_delete_requires_guard",
+      "body_sha256": "5e5e020c0f3141a591bff681768b8903f333e8f770f2d2fe46478694dd587446"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_content_immutable_update",
+      "body_sha256": "d382dedbb42767c92d6d51570592572a53be58e237c5ff6a3cd6727c03858ffe"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_provenance_delete_requires_guard",
+      "body_sha256": "c17b073007e94fcea88b729fe7e9093e28f0a0f15adb395fb58d73944804449b"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revision_provenance_immutable_update",
+      "body_sha256": "40df177b6c57e475e1c3f4f9d7fcd5e8130235d4a84126452d505a498402460b"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revisions_delete_requires_guard",
+      "body_sha256": "057325c164cd2492f55f1247b1b1a33f4fb26390ed58c820317335dfccc1189e"
+    },
+    {
+      "type": "trigger",
+      "name": "source_revisions_immutable_update",
+      "body_sha256": "c7cfe3de3d9e6633fcbbabff7ad544ef4f63de79cbd1288b43ff351c79caa528"
+    },
+    {
+      "type": "trigger",
+      "name": "tombstone_delete_requires_guard",
+      "body_sha256": "af3f7f4acf7e9f868e2507fbd59c1d98e6a17aa1a13af34ee8f7dbfa72289c36"
+    },
+    {
+      "type": "trigger",
+      "name": "tombstones_immutable_update",
+      "body_sha256": "835a47080102a46b9d4f77584cd1189b676852568675f021de3232314d8ae6e1"
+    }
+  ],
+  "canonicalization_vectors": [
+    {
+      "input": "{\"z\":\"e?\",\"a\":[3,{\"b\":2,\"a\":1}],\"line\":\"a\\r\\nb\"}",
+      "canonical": "{\"a\":[3,{\"a\":1,\"b\":2}],\"line\":\"a\\r\\nb\",\"z\":\"e?\"}",
+      "sha256": "98e9773a1352f43bac8fc450b3de46a1bf5ce379dde0fe22ae47797c40256ec2"
+    }
+  ],
+  "deterministic_id_vectors": [
+    {
+      "kind": "source_revision",
+      "fields": [
+        "source-?",
+        "2026-07-18T00:00:00.000Z",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "expected": "v5sr_ea06b11bf4d1459e886aa956bd1c71d41f15c4a52488966fba30ad3a563f23c5"
+    },
+    {
+      "kind": "artifact_revision",
+      "fields": [
+        "artifact-?",
+        "reflection",
+        "2026-07-18T00:00:01.000Z",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      ],
+      "expected": "v5ar_dfe79cbd46d0b6fc4b5af4cc023d49a22ffa848adc20b8d3f329c6d58c8db7fb"
+    }
+  ],
+  "ddl_error_codes": [
+    "artifact_content_delete_requires_lifecycle_transaction",
+    "artifact_revision_content_immutable",
+    "artifact_revision_delete_requires_lifecycle_transaction",
+    "artifact_revision_immutable",
+    "artifact_revision_provenance_delete_requires_lifecycle_transaction",
+    "artifact_revision_provenance_immutable",
+    "cannot_purge_current_artifact_revision",
+    "cannot_purge_current_source_revision",
+    "compatibility_guard_token_immutable",
+    "content_tombstone_immutable",
+    "current_artifact_revision_content_missing",
+    "current_source_revision_content_missing",
+    "database_contract_requires_lifecycle_transaction",
+    "dependency_delete_requires_lifecycle_transaction",
+    "dependency_immutable",
+    "historical_lifecycle_link_delete_requires_lifecycle_transaction",
+    "historical_lifecycle_link_immutable",
+    "lifecycle_event_delete_requires_lifecycle_transaction",
+    "lifecycle_event_immutable",
+    "provenance_delete_requires_lifecycle_transaction",
+    "provenance_immutable",
+    "review_event_delete_requires_lifecycle_transaction",
+    "review_event_immutable",
+    "schema_migration_receipt_immutable",
+    "schema_v5_requires_compatible_application",
+    "source_content_delete_requires_lifecycle_transaction",
+    "source_revision_content_immutable",
+    "source_revision_delete_requires_lifecycle_transaction",
+    "source_revision_immutable",
+    "source_revision_provenance_delete_requires_lifecycle_transaction",
+    "source_revision_provenance_immutable",
+    "tombstone_delete_requires_lifecycle_transaction"
+  ]
+}

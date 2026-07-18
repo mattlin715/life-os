@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.3
+version: 0.4
 owner: product-and-engineering
-last_updated: 2026/07/17
+last_updated: 2026/07/18
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -1189,7 +1189,7 @@ Reads and provenance inspection remain available. Unsupported mutations fail clo
 Three evidence levels must not be conflated:
 
 1. **Corrective-pass syntax probe (completed once, non-authoritative):** the embedded candidate DDL was extracted from this document and executed against a synthetic in-memory SQLite v4 fixture. This catches immediate SQL syntax, constraint, trigger, and ordering defects, but it is not stored as a repository test and is not production migration evidence.
-2. **Slice 0 contract tests (not yet authorized or implemented):** reproducible repository-owned fixtures must freeze the DDL text/object digest and rerun every positive and negative invariant case in CI. Passing Slice 0 is required before a separate Founder checkpoint may authorize production DDL implementation.
+2. **Slice 0 contract tests (implemented in the current unpromoted working tree):** Pilot 4 preserves repository-owned v2/v3/v4 fixtures, the fixed DDL and schema-object digests, and eight test-only Rust integration cases. Local canonical verification and the focused integration suite pass, and local/remote Rust test selection is aligned in the diff. This evidence remains awaiting Founder diff review and promotion. It does not authorize production DDL execution.
 3. **Production migration evidence (not authorized):** only later temporary-file and real-application-path tests can prove backup, failure injection, startup refusal, backfill reconciliation, restart recovery, and user-database safety. Neither this document nor the one-time probe supplies that evidence.
 
 The one-time corrective-pass probe on 2026/07/16 produced:
@@ -1327,7 +1327,7 @@ Rejected for v5 lifecycle writes. Arbitrary statement arrays cannot reliably enf
 - Large databases may make one backfill transaction slow; performance thresholds must be measured with synthetic fixtures before production authorization.
 - Restoration loses local changes created after the backup timestamp.
 - Guard-trigger or projection drift is a blocking integrity failure, not a condition to auto-repair silently.
-- The one-time in-memory probe is not reproducible CI evidence; candidate DDL can still change during Slice 0 and therefore cannot yet be treated as production-authorized SQL.
+- The one-time in-memory probe alone is not reproducible CI evidence. The current unpromoted Slice 0 fixtures and tests add that reproducibility, but neither a passing test suite nor later promotion can make the candidate production-authorized SQL without the separate post-Slice-0 Founder checkpoint.
 - The compatibility token is not an authentication boundary. Safety still depends on typed Rust commands, one-connection transaction ownership, exact invariant revalidation, and the token being empty at commit and restart.
 
 ## Founder Authorization Decisions
