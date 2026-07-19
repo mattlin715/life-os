@@ -299,8 +299,12 @@ pub fn run() {
             sqlite::update_sqlite_experience,
             sqlite::delete_sqlite_experience,
             sqlite::import_sqlite_experiences,
-            sqlite::execute_sqlite_transaction,
-            sqlite::execute_sqlite_historical_transaction
+            sqlite::save_sqlite_artifacts,
+            sqlite::save_sqlite_historical_consent,
+            sqlite::save_sqlite_historical_transmission,
+            sqlite::save_sqlite_historical_question_artifact,
+            sqlite::delete_sqlite_historical_question_artifact,
+            sqlite::purge_sqlite_expired_historical_audit_records
         ])
         .run(tauri::generate_context!())
         .expect("error while running Life OS");

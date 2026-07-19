@@ -1,6 +1,6 @@
 ﻿---
 status: Draft
-version: 0.3
+version: 0.4
 owner: LIN MENGLUNG
 last_updated: 2026/07/19
 depends:
@@ -222,9 +222,17 @@ dependent Historical Questions, and their consent/transmission provenance are
 removed atomically. Import is one duplicate-skipping transaction and rolls back
 the whole batch on non-conflict failure.
 
-This typed boundary is deliberately partial. Artifact, historical, consent,
-transmission, and audit mutation paths still use the existing generic
-transaction boundary pending separately authorized Slice 1B-2 work.
+The Founder-authorized Slice 1B-2 working tree extends the typed Rust boundary
+to whole-bundle artifact replacement, historical consent, transmission with
+atomic consent consumption, Historical Question persistence and deletion, and
+expired historical-audit cleanup. Renderer mutation adapters send typed domain
+records, identifiers, and timestamps rather than SQL or arbitrary statement
+arrays. Rust owns fixed SQL, transaction ordering, schema compatibility checks,
+artifact/dependency derivation, and ADR-0009 persistence-time revalidation.
+Read-only renderer queries remain intentionally outside this mutation-parity
+slice. The working tree remains unpromoted; its repository sprint records
+canonical verification and Theory Alignment Review before Founder diff review
+and any separate promotion authority.
 
 SQLite is implemented through the Tauri SQL plugin.
 

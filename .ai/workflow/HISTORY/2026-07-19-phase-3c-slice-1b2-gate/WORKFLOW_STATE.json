@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 27,
+  "last_event_id": "2026-07-19-phase-3c-slice-1b2-gate:0027",
+  "last_event_hash": "4e5f88a817ed23bf58c6be6ab63b30275fc32d031ad1925609b87a517cdc80bf",
+  "sprint_id": "2026-07-19-phase-3c-slice-1b2-gate",
+  "mission_title": "Phase 3C Slice 1B-2 typed mutation parity founder gate",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE1B2-001 by selecting Option A. I authorize Phase 3C Slice 1B-2 only: typed Rust commands and typed TypeScript adapters for saveArtifacts, historical consent, historical transmission with atomic consent consumption, Historical Question persistence with all current ADR-0009 revalidation and exact dependencies, Historical Question deletion, and expired historical audit cleanup; removal of generic renderer mutation SQL and generic statement-array Tauri command exposure after callers are removed; preservation of schema v4 and current product, consent, retention, deletion, provenance, and provider behavior; synthetic/disposable tests; factual documentation; canonical verification; Theory Alignment Review; archive/reset; and stop at Founder diff review. I do not authorize schema v5, user_version 5, migration, real user-database testing, backup, restore, retention-policy changes, lifecycle UI, Slices 2-6, Phase 4, provider or ContextPacket changes, Harness expansion, Stage 2, Stage 3, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "Option A",
+    "authorized_scope": "Slice 1B-2 only: typed Rust and typed TypeScript mutation boundaries for artifact save, historical consent, transmission and atomic consent consumption, Historical Question save/delete, expired audit cleanup, generic renderer mutation SQL command removal, schema-v4 behavior preservation, synthetic tests, factual docs, verification, theory review, archive/reset, and stop at Founder diff review; all explicitly excluded scopes remain unauthorized.",
+    "decided_at": "2026-07-18T20:44:11.068Z",
+    "evidence_reference": ".ai/workflow/DECISION_REQUIRED.md#PHASE3C-SLICE1B2-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice-1b2-gate",
+  "repository_head": "1ef3aa0acd57756f7593e3fa792c321f0e164dcc",
+  "working_tree_digest": "bfad89edd14271b79ad561764ee57658f0cc61a6ea5fbfde29d8c4a6bf453aaf",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-18T21:27:56.978Z",
+      "repository_head": "1ef3aa0acd57756f7593e3fa792c321f0e164dcc",
+      "working_tree_digest": "bfad89edd14271b79ad561764ee57658f0cc61a6ea5fbfde29d8c4a6bf453aaf"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-18T20:28:51.914Z",
+  "updated_at": "2026-07-18T21:29:38.569Z"
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-19-phase-3c-slice-1b2-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-18T21:29:40.284Z",
+  "repository_head": "1ef3aa0acd57756f7593e3fa792c321f0e164dcc",
+  "working_branch": "codex/phase-3c-slice-1b2-gate",
+  "working_tree_digest": "bfad89edd14271b79ad561764ee57658f0cc61a6ea5fbfde29d8c4a6bf453aaf",
+  "last_event_id": "2026-07-19-phase-3c-slice-1b2-gate:0027",
+  "last_event_hash": "4e5f88a817ed23bf58c6be6ab63b30275fc32d031ad1925609b87a517cdc80bf",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
