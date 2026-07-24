@@ -3,7 +3,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{raw_sql, Connection, Executor, Row, SqliteConnection};
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const V4_FIXTURE: &str = include_str!("fixtures/schema_v5/v4.sql");
@@ -34,6 +35,29 @@ struct BackupManifest {
     created_at: String,
     expires_at: String,
     verification_result: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CanonicalV4Record {
+    table: &'static str,
+    values: Vec<Option<String>>,
+}
+
+#[derive(Clone, Debug)]
+struct RestoreExpectations {
+    database_sha256: String,
+    source_manifest_digest: String,
+    records: Vec<CanonicalV4Record>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum RestoreFailureInjection {
+    #[default]
+    None,
+    PreReplacementDigestMismatch,
+    PermissionDenied,
+    ReplacementFailure,
+    InterruptedAfterReplacement,
 }
 
 #[derive(Clone, Copy)]
@@ -130,6 +154,34 @@ async fn create_version_fixture(path: &Path, version: i64) {
         .await
         .expect("version fixture must set user_version");
     connection.close().await.expect("fixture must close");
+}
+
+async fn v4_record_snapshot(
+    connection: &mut SqliteConnection,
+) -> Result<Vec<CanonicalV4Record>, String> {
+    let mut records = Vec::new();
+    for spec in TABLE_MANIFESTS {
+        let rows = sqlx::query(spec.query)
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(|error| format!("record_snapshot_query_failed:{}:{error}", spec.name))?;
+        for row in rows {
+            let mut values = Vec::with_capacity(spec.field_count);
+            for index in 0..spec.field_count {
+                values.push(row.try_get(index).map_err(|error| {
+                    format!(
+                        "record_snapshot_decode_failed:{}:{index}:{error}",
+                        spec.name
+                    )
+                })?);
+            }
+            records.push(CanonicalV4Record {
+                table: spec.name,
+                values,
+            });
+        }
+    }
+    Ok(records)
 }
 
 async fn v4_source_manifest(connection: &mut SqliteConnection) -> Result<String, String> {
@@ -345,12 +397,219 @@ async fn create_verified_backup(
     result
 }
 
+async fn restore_expectations(backup: &Path, manifest: &BackupManifest) -> RestoreExpectations {
+    let mut connection = connect(backup, false, true)
+        .await
+        .expect("verified backup must open");
+    let records = v4_record_snapshot(&mut connection)
+        .await
+        .expect("verified backup records must decode");
+    connection
+        .close()
+        .await
+        .expect("verified backup must close");
+    RestoreExpectations {
+        database_sha256: manifest.database_sha256.clone(),
+        source_manifest_digest: manifest.source_manifest_digest.clone(),
+        records,
+    }
+}
+
+async fn verify_restore_candidate(
+    path: &Path,
+    label: &str,
+    expectations: &RestoreExpectations,
+) -> Result<(), String> {
+    let mut connection = connect(path, false, true)
+        .await
+        .map_err(|error| format!("{label}_open_failed:{error}"))?;
+    let verification = async {
+        require_v4(&mut connection, label).await?;
+        require_foreign_keys(&mut connection).await?;
+        require_integrity(&mut connection).await?;
+        let manifest = v4_source_manifest(&mut connection).await?;
+        if manifest != expectations.source_manifest_digest {
+            return Err(format!("{label}_source_manifest_mismatch"));
+        }
+        let records = v4_record_snapshot(&mut connection).await?;
+        if records != expectations.records {
+            return Err(format!("{label}_record_snapshot_mismatch"));
+        }
+        Ok(())
+    }
+    .await;
+    connection
+        .close()
+        .await
+        .map_err(|error| format!("{label}_close_failed:{error}"))?;
+    verification
+}
+
+async fn restore_verified_backup_inner(
+    backup: &Path,
+    live: &Path,
+    staging: &Path,
+    expectations: &RestoreExpectations,
+    injection: RestoreFailureInjection,
+) -> Result<(), String> {
+    let backup_bytes =
+        fs::read(backup).map_err(|error| format!("restore_backup_read_failed:{error}"))?;
+    if sha256_hex(&backup_bytes) != expectations.database_sha256 {
+        return Err("restore_backup_digest_mismatch".into());
+    }
+    verify_restore_candidate(backup, "restore_backup", expectations).await?;
+
+    let mut staging_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(staging)
+        .map_err(|error| format!("restore_staging_create_failed:{error}"))?;
+    staging_file
+        .write_all(&backup_bytes)
+        .map_err(|error| format!("restore_staging_write_failed:{error}"))?;
+    staging_file
+        .sync_all()
+        .map_err(|error| format!("restore_staging_sync_failed:{error}"))?;
+    drop(staging_file);
+    verify_restore_candidate(staging, "restore_staging", expectations).await?;
+
+    let pre_replacement_bytes =
+        fs::read(backup).map_err(|error| format!("restore_pre_replacement_read_failed:{error}"))?;
+    let pre_replacement_expected =
+        if injection == RestoreFailureInjection::PreReplacementDigestMismatch {
+            "0".repeat(64)
+        } else {
+            expectations.database_sha256.clone()
+        };
+    if sha256_hex(&pre_replacement_bytes) != pre_replacement_expected {
+        return Err("restore_pre_replacement_digest_mismatch".into());
+    }
+    verify_restore_candidate(backup, "restore_pre_replacement_backup", expectations).await?;
+
+    match injection {
+        RestoreFailureInjection::PermissionDenied => {
+            return Err("restore_permission_denied:injected".into());
+        }
+        RestoreFailureInjection::ReplacementFailure => {
+            return Err("restore_replacement_failed:injected".into());
+        }
+        _ => {}
+    }
+
+    // This is a fixture-only logical replacement simulation. It deliberately
+    // does not claim production filesystem atomicity or crash durability.
+    let staged_bytes =
+        fs::read(staging).map_err(|error| format!("restore_staging_read_failed:{error}"))?;
+    fs::write(live, staged_bytes)
+        .map_err(|error| format!("restore_replacement_write_failed:{error}"))?;
+
+    if injection == RestoreFailureInjection::InterruptedAfterReplacement {
+        return Err("restore_interrupted_after_replacement:injected".into());
+    }
+
+    verify_restore_candidate(live, "restored_live", expectations).await?;
+    fs::remove_file(staging).map_err(|error| format!("restore_staging_cleanup_failed:{error}"))?;
+    Ok(())
+}
+
+async fn restore_verified_backup(
+    backup: &Path,
+    live: &Path,
+    staging: &Path,
+    expectations: &RestoreExpectations,
+    injection: RestoreFailureInjection,
+) -> Result<(), String> {
+    if backup == live || backup == staging || live == staging {
+        return Err("restore_paths_must_be_distinct".into());
+    }
+    if !backup.is_file() {
+        return Err("restore_backup_missing".into());
+    }
+    if !live.is_file() {
+        return Err("restore_live_fixture_missing".into());
+    }
+    if staging.exists() {
+        return Err("restore_staging_destination_exists".into());
+    }
+
+    let live_before =
+        fs::read(live).map_err(|error| format!("restore_live_read_failed:{error}"))?;
+    let backup_before =
+        fs::read(backup).map_err(|error| format!("restore_backup_read_failed:{error}"))?;
+    let result =
+        restore_verified_backup_inner(backup, live, staging, expectations, injection).await;
+
+    if result.is_ok() {
+        if fs::read(backup).map_err(|error| format!("restore_backup_read_failed:{error}"))?
+            != backup_before
+        {
+            fs::write(live, &live_before)
+                .map_err(|error| format!("restore_live_rollback_failed:{error}"))?;
+            return Err("restore_backup_changed".into());
+        }
+        return Ok(());
+    }
+
+    let original_error = result.unwrap_err();
+    if fs::read(live).map_err(|error| format!("restore_live_read_failed:{error}"))? != live_before {
+        fs::write(live, &live_before)
+            .map_err(|error| format!("restore_live_rollback_failed:{error}"))?;
+    }
+    if staging.exists() {
+        fs::remove_file(staging)
+            .map_err(|error| format!("restore_staging_cleanup_failed:{error}"))?;
+    }
+    if fs::read(live).map_err(|error| format!("restore_live_read_failed:{error}"))? != live_before {
+        return Err(format!(
+            "restore_live_not_unchanged_after_failure:{original_error}"
+        ));
+    }
+    if fs::read(backup).map_err(|error| format!("restore_backup_read_failed:{error}"))?
+        != backup_before
+    {
+        return Err(format!("restore_backup_changed:{original_error}"));
+    }
+    Err(original_error)
+}
+
 async fn new_fixture() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let directory = tempfile::tempdir().expect("temporary directory must exist");
     let source = directory.path().join("life-os-v4.db");
     let destination = directory.path().join("life-os-before-v5.db");
     create_v4_fixture(&source).await;
     (directory, source, destination)
+}
+
+async fn new_restore_fixture() -> (
+    tempfile::TempDir,
+    PathBuf,
+    PathBuf,
+    PathBuf,
+    BackupManifest,
+    RestoreExpectations,
+) {
+    let (directory, source, backup) = new_fixture().await;
+    let manifest = create_verified_backup(&source, &backup, FailureInjection::None)
+        .await
+        .expect("restore fixture backup must verify");
+    let expectations = restore_expectations(&backup, &manifest).await;
+    let live = directory.path().join("life-os-live.db");
+    let staging = directory.path().join("life-os-restore-staging.db");
+    create_v4_fixture(&live).await;
+    let mut live_connection = connect(&live, false, false)
+        .await
+        .expect("disposable live fixture must open");
+    sqlx::query("UPDATE experience_entries SET content = ? WHERE id = ?")
+        .bind("live content before restore")
+        .bind("fixture-v4-current")
+        .execute(&mut live_connection)
+        .await
+        .expect("disposable live fixture must differ from backup");
+    live_connection
+        .close()
+        .await
+        .expect("disposable live fixture must close");
+    (directory, backup, live, staging, manifest, expectations)
 }
 
 #[tokio::test]
@@ -542,4 +801,207 @@ async fn source_manifest_changes_when_any_governed_v4_row_changes() {
     let after = v4_source_manifest(&mut connection).await.unwrap();
 
     assert_ne!(before, after);
+}
+
+#[tokio::test]
+async fn verified_restore_simulation_replaces_only_the_disposable_live_fixture() {
+    let (_directory, backup, live, staging, manifest, expectations) = new_restore_fixture().await;
+    let backup_before = fs::read(&backup).unwrap();
+    let live_before = fs::read(&live).unwrap();
+    assert_ne!(live_before, backup_before);
+
+    restore_verified_backup(
+        &backup,
+        &live,
+        &staging,
+        &expectations,
+        RestoreFailureInjection::None,
+    )
+    .await
+    .expect("verified fixture restore must succeed");
+
+    assert_eq!(fs::read(&backup).unwrap(), backup_before);
+    assert_eq!(fs::read(&live).unwrap(), backup_before);
+    assert!(!staging.exists());
+    assert_eq!(
+        sha256_hex(&fs::read(&live).unwrap()),
+        manifest.database_sha256
+    );
+    let mut restored = connect(&live, false, true).await.unwrap();
+    assert_eq!(
+        v4_source_manifest(&mut restored).await.unwrap(),
+        manifest.source_manifest_digest
+    );
+    assert_eq!(
+        v4_record_snapshot(&mut restored).await.unwrap(),
+        expectations.records
+    );
+    require_foreign_keys(&mut restored).await.unwrap();
+    require_integrity(&mut restored).await.unwrap();
+    restored.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn restore_expectation_mismatches_leave_live_and_backup_byte_identical() {
+    let (_directory, backup, live, staging, _manifest, expectations) = new_restore_fixture().await;
+    let backup_before = fs::read(&backup).unwrap();
+    let live_before = fs::read(&live).unwrap();
+
+    let mut digest_mismatch = expectations.clone();
+    digest_mismatch.database_sha256 = "0".repeat(64);
+    assert_eq!(
+        restore_verified_backup(
+            &backup,
+            &live,
+            &staging,
+            &digest_mismatch,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err(),
+        "restore_backup_digest_mismatch"
+    );
+
+    let mut manifest_mismatch = expectations.clone();
+    manifest_mismatch.source_manifest_digest = "0".repeat(64);
+    assert_eq!(
+        restore_verified_backup(
+            &backup,
+            &live,
+            &staging,
+            &manifest_mismatch,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err(),
+        "restore_backup_source_manifest_mismatch"
+    );
+
+    let mut record_mismatch = expectations.clone();
+    record_mismatch.records[0].values[0] = Some("unexpected-record".into());
+    assert_eq!(
+        restore_verified_backup(
+            &backup,
+            &live,
+            &staging,
+            &record_mismatch,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err(),
+        "restore_backup_record_snapshot_mismatch"
+    );
+
+    assert_eq!(fs::read(&backup).unwrap(), backup_before);
+    assert_eq!(fs::read(&live).unwrap(), live_before);
+    assert!(!staging.exists());
+}
+
+#[tokio::test]
+async fn malformed_corrupt_and_wrong_version_backups_fail_before_replacement() {
+    for version in [None, Some(3), Some(5)] {
+        let directory = tempfile::tempdir().unwrap();
+        let backup = directory.path().join("candidate-backup.db");
+        let live = directory.path().join("live.db");
+        let staging = directory.path().join("staging.db");
+        create_v4_fixture(&live).await;
+        if let Some(version) = version {
+            create_version_fixture(&backup, version).await;
+        } else {
+            fs::write(&backup, b"corrupt-not-sqlite").unwrap();
+        }
+        let live_before = fs::read(&live).unwrap();
+        let backup_before = fs::read(&backup).unwrap();
+        let expectations = RestoreExpectations {
+            database_sha256: sha256_hex(&backup_before),
+            source_manifest_digest: "0".repeat(64),
+            records: Vec::new(),
+        };
+
+        let error = restore_verified_backup(
+            &backup,
+            &live,
+            &staging,
+            &expectations,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err();
+
+        if let Some(version) = version {
+            assert_eq!(
+                error,
+                format!("restore_backup_schema_version_mismatch:{version}")
+            );
+        } else {
+            assert!(
+                error.contains("restore_backup_schema_version_read_failed")
+                    || error.contains("restore_backup_open_failed"),
+                "unexpected corrupt-backup error: {error}"
+            );
+        }
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert_eq!(fs::read(&backup).unwrap(), backup_before);
+        assert!(!staging.exists());
+    }
+}
+
+#[tokio::test]
+async fn conflicts_and_injected_replacement_failures_clean_only_owned_staging() {
+    let (directory, backup, live, staging, _manifest, expectations) = new_restore_fixture().await;
+    let live_before = fs::read(&live).unwrap();
+    let backup_before = fs::read(&backup).unwrap();
+    let unrelated = directory.path().join("unrelated.db");
+    fs::write(&unrelated, b"preserve-unrelated").unwrap();
+
+    fs::write(&staging, b"preserve-existing-staging").unwrap();
+    assert_eq!(
+        restore_verified_backup(
+            &backup,
+            &live,
+            &staging,
+            &expectations,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err(),
+        "restore_staging_destination_exists"
+    );
+    assert_eq!(fs::read(&staging).unwrap(), b"preserve-existing-staging");
+    fs::remove_file(&staging).unwrap();
+
+    assert_eq!(
+        restore_verified_backup(
+            &backup,
+            &live,
+            &live,
+            &expectations,
+            RestoreFailureInjection::None,
+        )
+        .await
+        .unwrap_err(),
+        "restore_paths_must_be_distinct"
+    );
+
+    for injection in [
+        RestoreFailureInjection::PreReplacementDigestMismatch,
+        RestoreFailureInjection::PermissionDenied,
+        RestoreFailureInjection::ReplacementFailure,
+        RestoreFailureInjection::InterruptedAfterReplacement,
+    ] {
+        let error = restore_verified_backup(&backup, &live, &staging, &expectations, injection)
+            .await
+            .unwrap_err();
+        assert!(
+            error.starts_with("restore_pre_replacement_digest_mismatch")
+                || error.starts_with("restore_permission_denied")
+                || error.starts_with("restore_replacement_failed")
+                || error.starts_with("restore_interrupted_after_replacement"),
+            "unexpected injected restore error: {error}"
+        );
+        assert_eq!(fs::read(&backup).unwrap(), backup_before);
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert!(!staging.exists());
+        assert_eq!(fs::read(&unrelated).unwrap(), b"preserve-unrelated");
+    }
 }

@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 1.1
+version: 1.3
 owner: product-and-engineering
-last_updated: 2026/07/19
+last_updated: 2026/07/24
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -29,7 +29,7 @@ referenced_by: []
 
 This document records the Founder-approved exact schema v5 migration, cutover, recovery, and implementation sequence for the Founder-approved Phase 3C lifecycle foundation.
 
-It is a **Founder-approved authorization gate whose Slice 0, Slice 1A, Slice 1B-1, and Slice 1B-2 authorities have been exercised and promoted**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorized fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation after this document was promoted to clean `develop`. Slice 0 was subsequently promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized the bounded Slice 1A startup-safety foundation. Slice 1A was promoted through feature commit `d4f86d72350c7068db76a6706ad7e5ff10ee67b5` and non-fast-forward merge commit `6e9dd6615cb7f99556d258080f6a45140fd55b68`. On 2026/07/19, the founder resolved `PHASE3C-SLICE1B-001` with Option B and authorized only Slice 1B-1 typed Experience create, update, delete, and atomic import parity. Slice 1B-1 was promoted through feature commit `cc82658ee6c551e46548a764ea83c4895ea59ebb` and non-fast-forward merge commit `1ef3aa0acd57756f7593e3fa792c321f0e164dcc`. The founder then resolved `PHASE3C-SLICE1B2-001` as Option A and authorized the bounded completion of schema-v4 typed artifact and historical mutation parity. Slice 1B-2 was promoted through feature commit `93fcc2bae358da21b857153757dbd143024598bd` and non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`. The founder has now resolved `PHASE3C-SLICE2A-001` as Option A and authorized only a path-injected, integration-test-local schema-v4 backup creation and verification harness against synthetic/disposable fixtures. Production schema-v5 DDL, `user_version = 5`, live user-database migration or testing, production or real-user-data backup, restore, file replacement, retention cleanup, Slice 2B, Slices 3-6, Phase 4, provider or ContextPacket changes, PR, and deployment remain unauthorized.
+It is a **Founder-approved authorization gate whose Slice 0, Slice 1A, Slice 1B-1, Slice 1B-2, and Slice 2A authorities have been exercised and promoted; Slice 2B-1 is Founder-authorized in the current working tree pending verification, review, and promotion**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorized fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation after this document was promoted to clean `develop`. Slice 0 was subsequently promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized the bounded Slice 1A startup-safety foundation. Slice 1A was promoted through feature commit `d4f86d72350c7068db76a6706ad7e5ff10ee67b5` and non-fast-forward merge commit `6e9dd6615cb7f99556d258080f6a45140fd55b68`. On 2026/07/19, the founder resolved `PHASE3C-SLICE1B-001` with Option B and authorized only Slice 1B-1 typed Experience create, update, delete, and atomic import parity. Slice 1B-1 was promoted through feature commit `cc82658ee6c551e46548a764ea83c4895ea59ebb` and non-fast-forward merge commit `1ef3aa0acd57756f7593e3fa792c321f0e164dcc`. The founder then resolved `PHASE3C-SLICE1B2-001` as Option A and authorized the bounded completion of schema-v4 typed artifact and historical mutation parity. Slice 1B-2 was promoted through feature commit `93fcc2bae358da21b857153757dbd143024598bd` and non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`. The founder then resolved `PHASE3C-SLICE2A-001` as Option A and authorized only a path-injected, integration-test-local schema-v4 backup creation and verification harness against synthetic/disposable fixtures. Slice 2A was promoted through feature commit `a5ba00650f396470b3a7ac265701d8ce3d90d35e` and non-fast-forward merge commit `9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6`. The founder has now resolved `PHASE3C-SLICE2B1-001` as Option A and authorized only the fixture-local verified restore and test-injected replacement simulation described below. Production schema-v5 DDL, `user_version = 5`, live user-database migration or testing, production or real-user-data backup/restore, production file replacement, retention cleanup, broader Slice 2B, Slices 3-6, Phase 4, provider or ContextPacket changes, PR, and deployment remain unauthorized.
 
 ADR-0011 is Accepted and `architecture/12` is Founder-approved, but both explicitly withhold migration implementation authority. All five Phase 3 exit gaps remain blocking. This plan addresses the storage foundation for four gaps; explicit emotion, relationship, value-conflict, and time-range retrieval remains a separate blocker.
 
@@ -61,7 +61,7 @@ The proposal is based on the current repository, not an assumed storage layer.
   mutation statements with named typed Rust commands. Renderer mutation
   adapters no longer supply SQL or arbitrary statement arrays; read-only SQL
   plugin queries remain outside this slice.
-- Founder-authorized Slice 2A is confined to an integration-test-local,
+- Promoted Slice 2A is confined to an integration-test-local,
   path-injected backup harness over disposable schema-v4 fixtures. It is not a
   production module or Tauri command and is not connected to startup, renderer,
   UI, app-data paths, restore, retention cleanup, or a real user database.
@@ -1199,15 +1199,16 @@ Reads and provenance inspection remain available. Unsupported mutations fail clo
 
 ## Validation Evidence And Reproducibility Boundary
 
-Five evidence levels must not be conflated:
+Eight evidence levels must not be conflated:
 
 1. **Corrective-pass syntax probe (completed once, non-authoritative):** the embedded candidate DDL was extracted from this document and executed against a synthetic in-memory SQLite v4 fixture. This catches immediate SQL syntax, constraint, trigger, and ordering defects, but it is not stored as a repository test and is not production migration evidence.
 2. **Slice 0 contract tests (promoted):** Pilot 4 preserved repository-owned v2/v3/v4 fixtures, the fixed DDL and schema-object digests, and eight test-only Rust integration cases. Feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` was promoted to `develop` by non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. Local canonical verification and the focused integration suite passed before and after promotion, and local/remote Rust test selection is aligned. This reproducible evidence does not authorize production DDL execution or any Slice 1 behavior.
 3. **Slice 1A startup-safety evidence (promoted):** disposable-file Rust tests cover missing, v4, newer-version, malformed, and guarded-transaction cases; a renderer runtime regression proves that newer schemas do not construct a SQLite store or expose cleanup, read, or write operations. Canonical verification, Theory Alignment Review, Founder diff review, and non-fast-forward promotion completed through merge commit `6e9dd6615cb7f99556d258080f6a45140fd55b68`.
 4. **Slice 1B-1 typed Experience mutation evidence (promoted):** temporary-file Rust tests cover exact create/import records, duplicate counts, full-batch rollback, expected-revision stale refusal before invalidation, update/delete ADR-0009 cascades, newer-schema refusal, `foreign_key_check`, and `integrity_check`. Renderer adapter tests prove the four Experience mutation paths invoke typed commands without renderer SQL. Canonical verification and Theory Alignment Review passed, the Founder accepted the diff, and feature commit `cc82658ee6c551e46548a764ea83c4895ea59ebb` was promoted through non-fast-forward merge commit `1ef3aa0acd57756f7593e3fa792c321f0e164dcc`.
 5. **Slice 1B-2 typed artifact and historical mutation evidence (promoted):** focused Rust tests cover artifact replacement and rollback, consent monotonicity and scope conflicts, atomic transmission/consent consumption, persistence-time Historical Question eligibility and provenance checks, exact dependency derivation, deletion cascades, audit cleanup, newer-schema refusal, `foreign_key_check`, and `integrity_check`. Renderer adapter tests prove the remaining mutation paths use named typed commands without SQL-shaped payloads. Canonical verification and Theory Alignment Review passed, the Founder accepted the diff, and feature commit `93fcc2bae358da21b857153757dbd143024598bd` was promoted through non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`.
-6. **Slice 2A test-local backup evidence (current working tree):** eight focused Rust integration cases exercise destination nonexistence, `VACUUM INTO`, a content-free in-memory manifest, closed-file SHA-256, governed source-manifest equality, schema-version, foreign-key, and integrity verification, malformed/corrupt/version-mismatch/destination-conflict/injected failures, best-effort incomplete-destination deletion, and byte-for-byte source-fixture preservation. This evidence remains subject to canonical verification, Theory Alignment Review, Founder diff review, and promotion; it is not a production backup path or restore authority.
-7. **Production migration evidence (not authorized):** only separately authorized production-path work can prove real-user backup, restore, v5 failure injection, backfill reconciliation, restart recovery, and user-database safety. Neither this document nor Slices 0, 1A, 1B-1, 1B-2, or the test-local Slice 2A harness supplies that evidence.
+6. **Slice 2A test-local backup evidence (promoted):** eight focused Rust integration cases exercise destination nonexistence, `VACUUM INTO`, a content-free in-memory manifest, closed-file SHA-256, governed source-manifest equality, schema-version, foreign-key, and integrity verification, malformed/corrupt/version-mismatch/destination-conflict/injected failures, best-effort incomplete-destination deletion, and byte-for-byte source-fixture preservation. Canonical local verification and Theory Alignment Review passed, the Founder accepted the diff, and feature commit `a5ba00650f396470b3a7ac265701d8ce3d90d35e` was promoted through non-fast-forward merge commit `9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6`. Remote CI was not separately observed. This is not a production backup path or restore authority.
+7. **Slice 2B-1 test-local restore evidence (current working tree):** four additional focused cases exercise exact backup digest, governed source-manifest, schema, foreign-key, integrity, and in-memory exact-record revalidation; owned staging; a test-injected logical replacement seam; digest/manifest/record mismatch; malformed/corrupt and v3/v5 refusal; staging/path conflict; injected interruption, permission, and replacement failure; byte-identical live-fixture rollback; backup immutability; and exact-owned-temp cleanup. The seam explicitly does not prove production filesystem atomicity, crash durability, SQLite sidecar recovery, production restore, or real-user-data safety. This evidence remains subject to canonical verification, Theory Alignment Review, Founder diff review, and promotion.
+8. **Production migration evidence (not authorized):** only separately authorized production-path work can prove real-user backup, restore, v5 failure injection, backfill reconciliation, restart recovery, and user-database safety. Neither this document nor Slices 0, 1A, 1B-1, 1B-2, 2A, or the fixture-local Slice 2B-1 simulation supplies that evidence.
 
 The one-time corrective-pass probe on 2026/07/16 produced:
 
@@ -1263,16 +1264,26 @@ No slice is authorized by this plan alone.
 
 ### Slice 2 — Backup and restoration harness
 
-- **Slice 2A Founder-authorized on 2026/07/19 and in the current working
-  tree:** a private integration-test harness uses path-injected disposable
+- **Slice 2A Founder-authorized on 2026/07/19 and promoted:** a private
+  integration-test harness uses path-injected disposable
   schema-v4 fixtures to exercise `VACUUM INTO`, destination-nonexistence,
   content-free manifest construction, closed-file digest and source-manifest
   verification, schema/FK/integrity checks, failure injection, incomplete-test
   destination cleanup, and source immutability. It is not registered as a
   Tauri command or production module.
-- **Slice 2B remains unauthorized:** production backup paths and disclosure,
-  explicit restore or file replacement, restart behavior, delete-now,
-  retention cleanup or scheduling, and real-user-database backup/testing.
+- **Slice 2B-1 Founder-authorized on 2026/07/24 and in the current working
+  tree:** the same private integration-test module restores a previously
+  verified schema-v4 fixture backup through owned staging and a test-injected
+  logical replacement simulation. It revalidates the exact backup digest,
+  governed source manifest, schema, foreign keys, integrity, and in-memory
+  exact records; every injected failure leaves the disposable live fixture
+  byte-identical and cleans only its owned staging file.
+- **Broader Slice 2B remains unauthorized:** production backup paths and
+  disclosure, production restore or operating-system file replacement,
+  app-data/startup integration, SQLite sidecar recovery, restart behavior,
+  delete-now, retention cleanup or scheduling, and real-user-database
+  backup/testing. Slice 2B-1 is simulation evidence, not production atomicity
+  evidence.
 - Do not migrate the user's production database or activate schema v5.
 
 ### Slice 3 — v5 migration and guarded cutover
@@ -1317,7 +1328,7 @@ No slice is authorized by this plan alone.
 | Older binary guard | Unguarded insert/update/delete on all six v4 tables fails; guarded v5 transaction succeeds and leaves guard empty. |
 | Stale writes | Expected revision mismatch writes no revision, event, tombstone, dependency, projection, or Historical Question deletion. |
 | Phase 3B | Existing rows remain byte-identical; governed generation revalidates v5 revisions and actual-use provenance; source mutation preserves Decision 11A cascade. |
-| Restore | Digest mismatch refuses; verified restore returns exact v4 manifest; post-cutover data-loss window is disclosed. |
+| Restore | Fixture-only Slice 2B-1 refuses digest/manifest/record/version/corruption/conflict and injected replacement failures, restores an exact v4 fixture on success, and leaves the live fixture byte-identical on failure; production replacement and post-cutover disclosure remain unproved. |
 | Backup expiry | Delete-now, 30-day expiry, deletion failure disclosure/retry, and no backup in export. |
 | Feature disable | No schema decrement or data deletion; reads remain; unsupported writes fail closed. |
 | Export timing | Experience-only export remains accurately labelled; export v2 cannot run while contract flag is disabled. |
@@ -1510,3 +1521,7 @@ On 2026/07/19, the founder separately resolved `PHASE3C-SLICE1B-001` with Option
 The founder then resolved `PHASE3C-SLICE1B2-001` as Option A and authorized only the remaining typed schema-v4 artifact and historical mutation parity, synthetic/disposable tests, factual documentation, verification, theory review, archive/reset, and a stop at Founder diff review. That bounded implementation was promoted through feature commit `93fcc2bae358da21b857153757dbd143024598bd` and non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`.
 
 The founder then resolved `PHASE3C-SLICE2A-001` as Option A and authorized only path-injected Rust backup creation and verification against synthetic/disposable schema-v4 fixtures, `VACUUM INTO` destination-nonexistence enforcement, content-free manifest construction, closed-backup digest/source-manifest/schema/FK/integrity verification, bounded failure injection and incomplete-test-destination cleanup, source-fixture immutability evidence, factual documentation, verification, theory review, archive/reset, and a stop at Founder diff review. The primitive must remain integration-test-local and disconnected from production and real user data. Production schema-v5 DDL, `user_version = 5`, live user-database migration or test mutation, production backup, restore, file replacement, retention-policy changes, Slice 2B, Slices 3-6, Phase 4, provider or ContextPacket changes, PR, and deployment remain unauthorized.
+
+Slice 2A passed canonical local verification and Theory Alignment Review, completed Founder diff review, and was promoted through feature commit `a5ba00650f396470b3a7ac265701d8ce3d90d35e` and non-fast-forward merge commit `9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6`. Remote CI was not separately observed. This promotion does not authorize production backup, restoration, file replacement, retention cleanup, schema-v5 activation, or any later slice.
+
+On 2026/07/24, the founder resolved `PHASE3C-SLICE2B1-001` as Option A and authorized only integration-test-local restore from a previously verified schema-v4 fixture backup, exact digest/source-manifest/schema/FK/integrity/record revalidation, owned staging, a test-injected logical replacement simulation, bounded failure injection, byte-identical live-fixture rollback, exact-owned-temp cleanup, factual documentation, verification, theory review, archive/reset, and a stop at Founder diff review. The replacement seam is simulation evidence only. Production backup/restore, production file replacement, real user data, Tauri/renderer/UI/startup/app-data integration, SQLite sidecar recovery, retention, schema v5, migration, Slices 3-6, Phase 4, provider/ContextPacket changes, Harness expansion, Git promotion, PR, and deployment remain unauthorized.

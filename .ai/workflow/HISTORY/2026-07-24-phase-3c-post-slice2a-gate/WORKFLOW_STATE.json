@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 20,
+  "last_event_id": "2026-07-24-phase-3c-post-slice2a-gate:0020",
+  "last_event_hash": "c54f457fb1387fe01ddf6c9f2c9deeec3a58ce1580cfa7069701b4f4c42789fc",
+  "sprint_id": "2026-07-24-phase-3c-post-slice2a-gate",
+  "mission_title": "Close promoted Slice 2A facts and founder-gate fixture-only Slice 2B-1 restore simulation",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE2B1-001 by selecting Option A. I authorize Phase 3C Slice 2B-1 only: integration-test-local verified restore and test-injected atomic replacement simulation against synthetic/disposable schema-v4 fixtures; restoration only from a previously verified backup with exact expected database digest and governed source-manifest digest; owned temporary staging; immediate pre-replacement digest, source-manifest, schema-version, foreign-key, integrity, and exact-record revalidation; fail-closed digest mismatch, malformed/corrupt backup, schema mismatch, manifest mismatch, expected-record mismatch, destination conflict, interruption, permission, and injected replacement failures; proof that every failed restore leaves the disposable live fixture byte-identical; cleanup of exact owned temporary fixture files only; factual documentation synchronization; canonical verification; Theory Alignment Review; archive/reset; and stop at Founder diff review. The replacement seam is simulation evidence only and must not claim production operating-system atomicity. I do not authorize production backup paths, backup or restore of real user data, production restore or file replacement, Tauri command registration, renderer/UI/startup/app-data integration, SQLite sidecar recovery, retention cleanup, delete-now, scheduling, schema v5, user_version 5, migration, Slices 3-6, Phase 4, provider or ContextPacket changes, Harness expansion, Stage 2, Stage 3, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "Option A",
+    "authorized_scope": "Slice 2B-1 only: integration-test-local verified restore and test-injected atomic replacement simulation over synthetic/disposable schema-v4 fixtures, with exact digest/source-manifest/schema/FK/integrity/record revalidation, owned staging and cleanup, bounded fail-closed tests, factual docs, verification, theory review, archive/reset, and stop at Founder diff review; all production, real-data, schema-v5, later-slice, Phase 4, Harness-expansion, Git promotion, PR, and deployment scopes remain excluded.",
+    "decided_at": "2026-07-23T16:22:48.893Z",
+    "evidence_reference": ".ai/workflow/DECISION_REQUIRED.md#PHASE3C-SLICE2B1-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-post-slice2a-gate",
+  "repository_head": "9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6",
+  "working_tree_digest": "67156a270e09bb7dbc05a9f574e67ca8162ef3282e905509f37e7a9a4399206d",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-23T16:34:59.565Z",
+      "repository_head": "9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6",
+      "working_tree_digest": "67156a270e09bb7dbc05a9f574e67ca8162ef3282e905509f37e7a9a4399206d"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-23T15:36:47.201Z",
+  "updated_at": "2026-07-23T16:37:25.105Z"
+}
