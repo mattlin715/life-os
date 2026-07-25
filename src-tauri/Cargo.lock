@@ -2019,6 +2019,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tempfile",
  "tokio",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
