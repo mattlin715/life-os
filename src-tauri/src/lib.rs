@@ -1,3 +1,5 @@
+#[allow(dead_code)]
+mod filesystem_safety;
 mod sqlite;
 use serde::Serialize;
 use serde_json::json;
