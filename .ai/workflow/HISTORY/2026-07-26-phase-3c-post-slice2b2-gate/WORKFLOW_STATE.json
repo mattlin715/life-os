@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 18,
+  "last_event_id": "2026-07-26-phase-3c-post-slice2b2-gate:0018",
+  "last_event_hash": "5a325464229d62889b934ba31d6fc7457e248dd8adcfbc22226175d0f73024ad",
+  "sprint_id": "2026-07-26-phase-3c-post-slice2b2-gate",
+  "mission_title": "Close promoted Slice 2B-2 facts and Founder-gate backup ownership handoff and Windows replacement integration",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE2B3-001 by selecting Option A. I authorize Phase 3C Slice 2B-3 only: a private, unregistered backup ownership handoff and Windows replacement integration exercised exclusively against synthetic/disposable app-like directories and schema-v4 fixtures; a collision-resistant create-new operation directory and content-free state that claim an exact high-entropy backup child pathname while leaving that pathname absent for VACUUM INTO; preservation of create-new staging/state ownership; immediate pre-VACUUM revalidation of canonical root, operation-directory, state, source and destination identities, quiescence contract, sidecar absence, path absence, distinctness, same-volume, alias, hard-link, symlink/junction/reparse, and collision boundaries; one invocation of the integrated existing Slice 2A VACUUM INTO creation path; immediate post-close proof of a direct, single-link, exact-operation-owned regular backup followed by SHA-256, governed source-manifest, schema-v4, foreign-key, integrity, and exact-record verification; preservation as recovery_required whenever output ownership or validity is ambiguous; deletion only of positively proved exact-owned incomplete disposable output; integration of existing Slice 2A behavior rather than a parallel backup system; a private cfg(windows) ReplaceFileW adapter with conservative committed, failed-unchanged, and outcome-unknown classification; Windows execution remaining fail-closed before replacement whenever required parent-directory durability cannot be established; explicit restart-state evidence; deterministic cross-platform and Windows-only disposable tests; factual documentation synchronization; canonical verification; Theory Alignment Review; archive/reset; and stop at Founder diff review. I accept that this does not prove protection against a malicious same-user process, process-wide production quiescence, Windows parent-directory or power-loss durability, production replacement safety, or real-user recovery. I do not authorize real user databases, real app-data paths, production backup/restore/replacement activation, Tauri, renderer, UI or startup integration, migration disclosure, retention, delete-now, scheduling, autonomous retry/replay/rollback/repair/candidate selection, SQLite sidecar cleanup, schema-v5 DDL, user_version 5, v4-to-v5 migration, Slices 3-6, Phase 4, provider or ContextPacket changes, Harness expansion, Stage 2, Stage 3, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "Option A",
+    "authorized_scope": "Phase 3C Slice 2B-3 only: private unregistered absent-path backup ownership handoff, integrated Slice 2A VACUUM INTO verification, private cfg(windows) ReplaceFileW outcome adapter, synthetic/disposable schema-v4 tests, factual docs, canonical verification, Theory Review, archive/reset, and stop at Founder diff review; all production activation, real data, schema v5, later slices, Phase 4, Harness expansion, Git promotion, PR, and deployment remain excluded.",
+    "decided_at": "2026-07-25T17:56:19.729Z",
+    "evidence_reference": ".ai/workflow/DECISION_REQUIRED.md#PHASE3C-SLICE2B3-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice2b3-backup-windows-integration",
+  "repository_head": "277c4b5b2031d5bf88dc2a33b03765c103c62629",
+  "working_tree_digest": "d9406fcad00d5e5f5dc2f3fba9c1af162a32480d7044c9f96f26d4376bf6c81a",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-25T18:27:38.950Z",
+      "repository_head": "277c4b5b2031d5bf88dc2a33b03765c103c62629",
+      "working_tree_digest": "d9406fcad00d5e5f5dc2f3fba9c1af162a32480d7044c9f96f26d4376bf6c81a"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-25T17:30:07.049Z",
+  "updated_at": "2026-07-25T18:30:08.992Z"
+}

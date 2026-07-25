@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sqlx::Connection;
 use std::{
     fmt,
     fs::{self, File, OpenOptions},
@@ -11,7 +12,7 @@ use std::{
 };
 
 const SUPPORTED_SCHEMA_VERSION: i64 = 4;
-const OPERATION_STATE_SCHEMA: u8 = 1;
+const OPERATION_STATE_SCHEMA: u8 = 2;
 const MAX_OPERATION_ID_ATTEMPTS: usize = 16;
 static OPERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -149,6 +150,7 @@ fn windows_volume_id(path: &Path) -> Result<u64, SafetyError> {
 #[derive(Debug)]
 pub(crate) struct OwnedOperation {
     pub(crate) operation_id: String,
+    pub(crate) owned_root: PathBuf,
     pub(crate) root: PathBuf,
     pub(crate) live: PathBuf,
     pub(crate) backup: PathBuf,
@@ -207,6 +209,39 @@ pub(crate) struct CandidateEvidence {
 
 pub(crate) trait CandidateVerifier {
     async fn inspect(&self, path: &Path) -> Result<CandidateEvidence, SafetyError>;
+}
+
+pub(crate) trait BackupCreator {
+    async fn create(&self, source: &Path, destination: &Path) -> Result<(), SafetyError>;
+}
+
+pub(crate) struct SystemVacuumInto;
+
+impl BackupCreator for SystemVacuumInto {
+    async fn create(&self, source: &Path, destination: &Path) -> Result<(), SafetyError> {
+        let destination = destination
+            .to_str()
+            .ok_or_else(|| SafetyError::fail_closed("backup_destination_not_unicode"))?;
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(source)
+            .create_if_missing(false)
+            .foreign_keys(true);
+        let mut connection = sqlx::SqliteConnection::connect_with(&options)
+            .await
+            .map_err(|error| {
+                SafetyError::fail_closed(format!("backup_source_open_failed:{error}"))
+            })?;
+        let result = sqlx::query("VACUUM INTO ?")
+            .bind(destination)
+            .execute(&mut connection)
+            .await
+            .map_err(|error| SafetyError::fail_closed(format!("backup_vacuum_failed:{error}")));
+        let close_result = connection.close().await.map_err(|error| {
+            SafetyError::recovery_required(format!("backup_source_close_failed:{error}"))
+        });
+        result?;
+        close_result
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -279,6 +314,72 @@ pub(crate) trait ReplacementAdapter {
     fn replace(&self, staging: &Path, live: &Path) -> ReplacementOutcome;
 }
 
+#[cfg(windows)]
+pub(crate) struct WindowsReplacement;
+
+#[cfg(windows)]
+impl ReplacementAdapter for WindowsReplacement {
+    fn requires_parent_directory_sync(&self) -> bool {
+        true
+    }
+
+    fn replace(&self, staging: &Path, live: &Path) -> ReplacementOutcome {
+        use std::{os::windows::ffi::OsStrExt, ptr};
+        use windows_sys::Win32::{Foundation::GetLastError, Storage::FileSystem::ReplaceFileW};
+
+        fn wide_path(path: &Path) -> Option<Vec<u16>> {
+            let mut value: Vec<u16> = path.as_os_str().encode_wide().collect();
+            if value.contains(&0) {
+                return None;
+            }
+            value.push(0);
+            Some(value)
+        }
+
+        let Some(staging) = wide_path(staging) else {
+            return ReplacementOutcome::OutcomeUnknown {
+                error_class: "windows_replacement_path_invalid".into(),
+            };
+        };
+        let Some(live) = wide_path(live) else {
+            return ReplacementOutcome::OutcomeUnknown {
+                error_class: "windows_live_path_invalid".into(),
+            };
+        };
+
+        let succeeded = unsafe {
+            ReplaceFileW(
+                live.as_ptr(),
+                staging.as_ptr(),
+                ptr::null(),
+                0,
+                ptr::null(),
+                ptr::null(),
+            )
+        };
+        if succeeded != 0 {
+            ReplacementOutcome::Committed
+        } else {
+            classify_windows_replace_error(unsafe { GetLastError() })
+        }
+    }
+}
+
+#[cfg(windows)]
+fn classify_windows_replace_error(error: u32) -> ReplacementOutcome {
+    use windows_sys::Win32::Foundation::ERROR_UNABLE_TO_REMOVE_REPLACED;
+
+    if error == ERROR_UNABLE_TO_REMOVE_REPLACED {
+        ReplacementOutcome::FailedUnchanged {
+            error_class: format!("windows_replace_error:{error}"),
+        }
+    } else {
+        ReplacementOutcome::OutcomeUnknown {
+            error_class: format!("windows_replace_error:{error}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExecutionResult {
     Completed,
@@ -288,6 +389,7 @@ pub(crate) enum ExecutionResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum RestartInspection {
     Prepared,
+    BackupVerified,
     Staged,
     ReplacementCommitted,
     Completed,
@@ -299,6 +401,7 @@ pub(crate) enum RestartInspection {
 #[serde(rename_all = "snake_case")]
 enum OperationPhase {
     Prepared,
+    BackupVerified,
     Staged,
     ReplacementCommitted,
     Completed,
@@ -310,6 +413,7 @@ enum OperationPhase {
 struct OperationState {
     schema_version: u8,
     operation_id: String,
+    operation_relative_directory: String,
     live_relative_filename: String,
     backup_relative_filename: String,
     staging_relative_filename: String,
@@ -364,13 +468,52 @@ fn prepare_operation_with_id<Q: QuiescenceProbe, V: VolumeProbe>(
         return Err(SafetyError::fail_closed("cross_volume_replacement_refused"));
     }
 
-    let backup = canonical_root.join(format!("life-os-{operation_id}.backup.db"));
-    let staging = canonical_root.join(format!("life-os-{operation_id}.staging.db"));
-    let state = canonical_root.join(format!("life-os-{operation_id}.state.json"));
-    ensure_distinct_paths(&[&canonical_live, &backup, &staging, &state])?;
+    let operation_root = canonical_root.join(format!("life-os-{operation_id}.operation"));
+    match fs::create_dir(&operation_root) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            return Err(SafetyError::fail_closed("operation_destination_conflict"));
+        }
+        Err(error) => {
+            return Err(SafetyError::fail_closed(format!(
+                "operation_directory_create_failed:{}",
+                error.kind()
+            )));
+        }
+    }
+    let prepared_root = (|| {
+        reject_reparse_chain(&operation_root)?;
+        let prepared_root = fs::canonicalize(&operation_root).map_err(|error| {
+            SafetyError::fail_closed(format!("operation_directory_invalid:{error}"))
+        })?;
+        if prepared_root.parent() != Some(canonical_root.as_path()) {
+            return Err(SafetyError::fail_closed(
+                "operation_directory_outside_owned_root",
+            ));
+        }
+        if volume_probe.volume_id(&prepared_root)? != volume_probe.volume_id(&canonical_live)? {
+            return Err(SafetyError::fail_closed("cross_volume_replacement_refused"));
+        }
+        Ok(prepared_root)
+    })();
+    let prepared_root = match prepared_root {
+        Ok(root) => root,
+        Err(error) => {
+            let _ = fs::remove_dir(&operation_root);
+            return Err(error);
+        }
+    };
+
+    let backup = prepared_root.join("backup.db");
+    let staging = prepared_root.join("staging.db");
+    let state = prepared_root.join("state.json");
+    if let Err(error) = ensure_distinct_paths(&[&canonical_live, &backup, &staging, &state]) {
+        let _ = fs::remove_dir(&prepared_root);
+        return Err(error);
+    }
 
     let mut created = Vec::new();
-    for path in [&backup, &staging, &state] {
+    for path in [&staging, &state] {
         match OpenOptions::new()
             .read(true)
             .write(true)
@@ -380,10 +523,12 @@ fn prepare_operation_with_id<Q: QuiescenceProbe, V: VolumeProbe>(
             Ok(_) => created.push(path.clone()),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 remove_created_paths(&created);
+                let _ = fs::remove_dir(&prepared_root);
                 return Err(SafetyError::fail_closed("operation_destination_conflict"));
             }
             Err(error) => {
                 remove_created_paths(&created);
+                let _ = fs::remove_dir(&prepared_root);
                 return Err(SafetyError::fail_closed(format!(
                     "operation_destination_create_failed:{}",
                     error.kind()
@@ -394,7 +539,8 @@ fn prepare_operation_with_id<Q: QuiescenceProbe, V: VolumeProbe>(
 
     let operation = OwnedOperation {
         operation_id: operation_id.to_string(),
-        root: canonical_root,
+        owned_root: canonical_root,
+        root: prepared_root,
         live: canonical_live,
         backup,
         staging,
@@ -402,11 +548,8 @@ fn prepare_operation_with_id<Q: QuiescenceProbe, V: VolumeProbe>(
     };
     let state_record = operation.initial_state()?;
     if let Err(error) = write_state(&operation, &state_record) {
-        remove_created_paths(&[
-            operation.backup.clone(),
-            operation.staging.clone(),
-            operation.state.clone(),
-        ]);
+        remove_created_paths(&[operation.staging.clone(), operation.state.clone()]);
+        let _ = fs::remove_dir(&operation.root);
         return Err(error);
     }
     Ok(operation)
@@ -417,6 +560,7 @@ impl OwnedOperation {
         Ok(OperationState {
             schema_version: OPERATION_STATE_SCHEMA,
             operation_id: self.operation_id.clone(),
+            operation_relative_directory: relative_filename(&self.root)?,
             live_relative_filename: relative_filename(&self.live)?,
             backup_relative_filename: relative_filename(&self.backup)?,
             staging_relative_filename: relative_filename(&self.staging)?,
@@ -429,6 +573,224 @@ impl OwnedOperation {
 
     fn verify_owned_path(&self, path: &Path) -> bool {
         path == self.backup || path == self.staging || path == self.state
+    }
+}
+
+pub(crate) async fn create_owned_verified_backup<
+    Q: QuiescenceProbe,
+    P: VolumeProbe,
+    V: CandidateVerifier,
+    B: BackupCreator,
+    D: DurabilityAdapter,
+>(
+    operation: &OwnedOperation,
+    guard: &ExclusiveOperationGuard<'_, Q>,
+    volume_probe: &P,
+    verifier: &V,
+    creator: &B,
+    durability: &D,
+) -> Result<ExpectedCandidate, SafetyError> {
+    guard.require_quiescent()?;
+    validate_backup_creation_preflight(operation)?;
+    ensure_no_sidecars(&operation.live)?;
+    let state = read_owned_state(operation)?;
+    if state.phase != OperationPhase::Prepared {
+        return Err(SafetyError::fail_closed(
+            "backup_creation_requires_prepared_state",
+        ));
+    }
+    validate_operation_volumes(operation, volume_probe)?;
+
+    let source_before_sha256 = sha256_file(&operation.live)?;
+    let source_before_identity = file_identity(&operation.live)?;
+    let source_evidence = verifier.inspect(&operation.live).await?;
+    validate_source_evidence(&source_evidence)?;
+
+    // This is the final application-owned preflight immediately before the
+    // single SQLite VACUUM INTO call. The pathname remains absent; ownership is
+    // carried by the create-new operation directory and state record.
+    guard.require_quiescent()?;
+    validate_backup_creation_preflight(operation)?;
+    ensure_no_sidecars(&operation.live)?;
+    validate_operation_volumes(operation, volume_probe)?;
+    let final_state = read_owned_state(operation)?;
+    if final_state.phase != OperationPhase::Prepared {
+        return Err(SafetyError::fail_closed("backup_creation_state_changed"));
+    }
+    if file_identity(&operation.live)? != source_before_identity {
+        return Err(SafetyError::fail_closed("backup_source_identity_changed"));
+    }
+    if let Err(error) = creator.create(&operation.live, &operation.backup).await {
+        return Err(handle_backup_creation_failure(operation, error));
+    }
+
+    if let Err(error) = guard.require_quiescent() {
+        return Err(record_ambiguous_backup(operation, error.code));
+    }
+    if let Err(error) = ensure_no_sidecars(&operation.live) {
+        return Err(record_ambiguous_backup(operation, error.code));
+    }
+    if let Err(error) = validate_operation_paths(operation, BackupPathRequirement::Existing) {
+        return Err(record_ambiguous_backup(operation, error.code));
+    }
+    let source_after_sha256 = sha256_file(&operation.live)
+        .map_err(|error| record_ambiguous_backup(operation, error.code))?;
+    let source_after_identity = file_identity(&operation.live)
+        .map_err(|error| record_ambiguous_backup(operation, error.code))?;
+    if source_after_sha256 != source_before_sha256
+        || source_after_identity != source_before_identity
+    {
+        return Err(record_ambiguous_backup(operation, "backup_source_changed"));
+    }
+    if let Err(error) = durability.sync_file(&operation.backup) {
+        return Err(record_ambiguous_backup(operation, error.code));
+    }
+
+    let backup_evidence = verifier
+        .inspect(&operation.backup)
+        .await
+        .map_err(|error| record_ambiguous_backup(operation, error.code))?;
+    if backup_evidence != source_evidence {
+        return Err(record_ambiguous_backup(
+            operation,
+            "backup_evidence_mismatch",
+        ));
+    }
+    let expected = ExpectedCandidate {
+        database_sha256: sha256_file(&operation.backup)
+            .map_err(|error| record_ambiguous_backup(operation, error.code))?,
+        source_manifest_digest: source_evidence.source_manifest_digest,
+        schema_version: source_evidence.schema_version,
+        foreign_keys_valid: source_evidence.foreign_keys_valid,
+        integrity_valid: source_evidence.integrity_valid,
+        exact_record_digest: source_evidence.exact_record_digest,
+    };
+    expected.validate_contract()?;
+    verify_candidate(&operation.backup, &expected, verifier)
+        .await
+        .map_err(|error| record_ambiguous_backup(operation, error.code))?;
+    update_state(
+        operation,
+        OperationPhase::BackupVerified,
+        Some(source_before_sha256),
+        Some(expected.database_sha256.clone()),
+        Some("backup_verified".into()),
+    )?;
+    Ok(expected)
+}
+
+fn validate_operation_volumes<P: VolumeProbe>(
+    operation: &OwnedOperation,
+    volume_probe: &P,
+) -> Result<(), SafetyError> {
+    let root_volume = volume_probe.volume_id(&operation.owned_root)?;
+    if volume_probe.volume_id(&operation.root)? != root_volume
+        || volume_probe.volume_id(&operation.live)? != root_volume
+    {
+        return Err(SafetyError::fail_closed("cross_volume_backup_refused"));
+    }
+    Ok(())
+}
+
+fn validate_backup_creation_preflight(operation: &OwnedOperation) -> Result<(), SafetyError> {
+    match validate_operation_paths(operation, BackupPathRequirement::Absent) {
+        Ok(()) => Ok(()),
+        Err(error) if fs::symlink_metadata(&operation.backup).is_ok() => {
+            Err(record_ambiguous_backup(
+                operation,
+                format!("backup_preflight_refused:{}", error.code),
+            ))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn validate_source_evidence(evidence: &CandidateEvidence) -> Result<(), SafetyError> {
+    if evidence.schema_version != SUPPORTED_SCHEMA_VERSION {
+        return Err(SafetyError::fail_closed(
+            "source_schema_version_not_supported",
+        ));
+    }
+    if !evidence.foreign_keys_valid {
+        return Err(SafetyError::fail_closed("source_foreign_key_check_failed"));
+    }
+    if !evidence.integrity_valid {
+        return Err(SafetyError::fail_closed("source_integrity_check_failed"));
+    }
+    for (label, digest) in [
+        ("source_manifest", &evidence.source_manifest_digest),
+        ("exact_record", &evidence.exact_record_digest),
+    ] {
+        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(SafetyError::fail_closed(format!("{label}_digest_invalid")));
+        }
+    }
+    Ok(())
+}
+
+fn handle_backup_creation_failure(
+    operation: &OwnedOperation,
+    original_error: SafetyError,
+) -> SafetyError {
+    match fs::symlink_metadata(&operation.backup) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if update_state(
+                operation,
+                OperationPhase::Prepared,
+                None,
+                None,
+                Some(format!("backup_creation_refused:{}", original_error.code)),
+            )
+            .is_err()
+            {
+                SafetyError::recovery_required("backup_failure_state_record_failed")
+            } else {
+                original_error
+            }
+        }
+        Err(_) => record_ambiguous_backup(operation, "backup_output_identity_unreadable"),
+        Ok(_) => {
+            let exact_owned =
+                validate_direct_owned_existing_file(&operation.root, &operation.backup, "backup")
+                    .and_then(|_| reject_multiple_links(&operation.backup));
+            if exact_owned.is_err() {
+                return record_ambiguous_backup(operation, "backup_output_ownership_ambiguous");
+            }
+            if fs::remove_file(&operation.backup).is_err() {
+                return record_ambiguous_backup(
+                    operation,
+                    "owned_incomplete_backup_cleanup_failed",
+                );
+            }
+            if update_state(
+                operation,
+                OperationPhase::Prepared,
+                None,
+                None,
+                Some(format!(
+                    "owned_incomplete_backup_removed:{}",
+                    original_error.code
+                )),
+            )
+            .is_err()
+            {
+                SafetyError::recovery_required("backup_cleanup_state_record_failed")
+            } else {
+                original_error
+            }
+        }
+    }
+}
+
+fn record_ambiguous_backup(
+    operation: &OwnedOperation,
+    error_class: impl Into<String>,
+) -> SafetyError {
+    let error_class = error_class.into();
+    if mark_recovery_required(operation, &error_class).is_err() {
+        SafetyError::recovery_required("backup_recovery_state_record_failed")
+    } else {
+        SafetyError::recovery_required(error_class)
     }
 }
 
@@ -450,6 +812,7 @@ pub(crate) async fn execute_replacement<
         Ok(digest) => digest,
         Err(error) => return Err(record_known_precommit_failure(operation, error)),
     };
+    let live_before_identity = file_identity(&operation.live)?;
 
     if let Err(error) = guard.require_quiescent() {
         return Err(record_known_precommit_failure(operation, error));
@@ -473,7 +836,8 @@ pub(crate) async fn execute_replacement<
     match replacement.replace(&operation.staging, &operation.live) {
         ReplacementOutcome::FailedUnchanged { error_class } => {
             let current_live = sha256_file(&operation.live)?;
-            if current_live != live_before_sha256 {
+            let current_identity = file_identity(&operation.live)?;
+            if current_live != live_before_sha256 || current_identity != live_before_identity {
                 mark_recovery_required(operation, "replacement_failed_but_live_changed")?;
                 return Err(SafetyError::recovery_required(
                     "replacement_failed_but_live_changed",
@@ -554,7 +918,7 @@ fn record_known_precommit_failure(
     }
     if update_state(
         operation,
-        OperationPhase::Prepared,
+        OperationPhase::BackupVerified,
         None,
         None,
         Some(format!("precommit_refused:{}", original_error.code)),
@@ -579,7 +943,15 @@ async fn prepare_staged_candidate<
 ) -> Result<String, SafetyError> {
     guard.require_quiescent()?;
     expected.validate_contract()?;
-    validate_operation_paths(operation)?;
+    validate_operation_paths(operation, BackupPathRequirement::Existing)?;
+    let state = read_owned_state(operation)?;
+    if state.phase != OperationPhase::BackupVerified
+        || state.expected_database_sha256.as_deref() != Some(expected.database_sha256.as_str())
+    {
+        return Err(SafetyError::fail_closed(
+            "replacement_requires_verified_backup_state",
+        ));
+    }
     ensure_no_sidecars(&operation.live)?;
     let live_before_sha256 = sha256_file(&operation.live)?;
     verify_candidate(&operation.backup, expected, verifier).await?;
@@ -682,11 +1054,19 @@ pub(crate) fn inspect_restart_state(
     }
 
     let live_digest = sha256_file(&operation.live).ok();
+    let backup_digest = sha256_file(&operation.backup).ok();
+    let backup_exists = fs::symlink_metadata(&operation.backup).is_ok();
     let staging_exists = operation.staging.exists();
     let expected_matches = state
         .expected_database_sha256
         .as_ref()
         .zip(live_digest.as_ref())
+        .map(|(expected, actual)| expected == actual)
+        .unwrap_or(false);
+    let backup_matches = state
+        .expected_database_sha256
+        .as_ref()
+        .zip(backup_digest.as_ref())
         .map(|(expected, actual)| expected == actual)
         .unwrap_or(false);
     let original_matches = state
@@ -697,11 +1077,19 @@ pub(crate) fn inspect_restart_state(
         .unwrap_or(false);
 
     Ok(match state.phase {
-        OperationPhase::Prepared if state.live_before_sha256.is_none() || original_matches => {
+        OperationPhase::Prepared
+            if !backup_exists && (state.live_before_sha256.is_none() || original_matches) =>
+        {
             RestartInspection::Prepared
         }
         OperationPhase::Prepared => RestartInspection::RecoveryRequired {
-            error_class: "prepared_state_live_changed".into(),
+            error_class: "prepared_state_contradictory".into(),
+        },
+        OperationPhase::BackupVerified if backup_matches && original_matches => {
+            RestartInspection::BackupVerified
+        }
+        OperationPhase::BackupVerified => RestartInspection::RecoveryRequired {
+            error_class: "backup_verified_state_contradictory".into(),
         },
         OperationPhase::Staged if staging_exists && original_matches => RestartInspection::Staged,
         OperationPhase::Staged => RestartInspection::RecoveryRequired {
@@ -752,20 +1140,48 @@ pub(crate) fn cleanup_owned_temporary(
     }
 }
 
-fn validate_operation_paths(operation: &OwnedOperation) -> Result<(), SafetyError> {
-    reject_reparse_chain(&operation.root)?;
-    let root = fs::canonicalize(&operation.root)
+#[derive(Clone, Copy)]
+enum BackupPathRequirement {
+    Absent,
+    Existing,
+}
+
+fn validate_operation_paths(
+    operation: &OwnedOperation,
+    backup_requirement: BackupPathRequirement,
+) -> Result<(), SafetyError> {
+    reject_reparse_chain(&operation.owned_root)?;
+    let owned_root = fs::canonicalize(&operation.owned_root)
         .map_err(|error| SafetyError::fail_closed(format!("owned_root_invalid:{error}")))?;
-    if root != operation.root {
+    if owned_root != operation.owned_root {
         return Err(SafetyError::fail_closed("owned_root_identity_changed"));
     }
-    for (label, path) in [
-        ("live", &operation.live),
-        ("backup", &operation.backup),
-        ("staging", &operation.staging),
-        ("state", &operation.state),
-    ] {
-        validate_direct_owned_existing_file(&root, path, label)?;
+    reject_reparse_chain(&operation.root)?;
+    let operation_root = fs::canonicalize(&operation.root).map_err(|error| {
+        SafetyError::fail_closed(format!("operation_directory_invalid:{error}"))
+    })?;
+    if operation_root != operation.root
+        || operation_root.parent() != Some(operation.owned_root.as_path())
+        || !operation_root.is_dir()
+    {
+        return Err(SafetyError::fail_closed(
+            "operation_directory_identity_changed",
+        ));
+    }
+    validate_direct_owned_existing_file(&owned_root, &operation.live, "live")?;
+    reject_multiple_links(&operation.live)?;
+    for (label, path) in [("staging", &operation.staging), ("state", &operation.state)] {
+        validate_direct_owned_existing_file(&operation_root, path, label)?;
+        reject_multiple_links(path)?;
+    }
+    match backup_requirement {
+        BackupPathRequirement::Absent => {
+            validate_direct_owned_absent_path(&operation_root, &operation.backup, "backup")?;
+        }
+        BackupPathRequirement::Existing => {
+            validate_direct_owned_existing_file(&operation_root, &operation.backup, "backup")?;
+            reject_multiple_links(&operation.backup)?;
+        }
     }
     ensure_distinct_paths(&[
         &operation.live,
@@ -773,6 +1189,26 @@ fn validate_operation_paths(operation: &OwnedOperation) -> Result<(), SafetyErro
         &operation.staging,
         &operation.state,
     ])
+}
+
+fn validate_direct_owned_absent_path(
+    canonical_root: &Path,
+    path: &Path,
+    label: &str,
+) -> Result<(), SafetyError> {
+    reject_lexical_alias(path)?;
+    reject_reparse_chain(path)?;
+    if path.parent() != Some(canonical_root) {
+        return Err(SafetyError::fail_closed(format!(
+            "{label}_path_outside_owned_root"
+        )));
+    }
+    if path.exists() {
+        return Err(SafetyError::fail_closed(format!(
+            "{label}_destination_exists"
+        )));
+    }
+    Ok(())
 }
 
 fn validate_direct_owned_existing_file(
@@ -900,6 +1336,40 @@ fn reject_multiple_links(path: &Path) -> Result<(), SafetyError> {
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileIdentity {
+    volume: u64,
+    file: u128,
+}
+
+fn file_identity(path: &Path) -> Result<FileIdentity, SafetyError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = fs::metadata(path)
+            .map_err(|error| SafetyError::fail_closed(format!("file_identity_failed:{error}")))?;
+        Ok(FileIdentity {
+            volume: metadata.dev(),
+            file: metadata.ino() as u128,
+        })
+    }
+
+    #[cfg(windows)]
+    {
+        let information = windows_file_information(path)?;
+        Ok(FileIdentity {
+            volume: information.dwVolumeSerialNumber as u64,
+            file: ((information.nFileIndexHigh as u128) << 32) | information.nFileIndexLow as u128,
+        })
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        Err(SafetyError::fail_closed("file_identity_unsupported"))
+    }
 }
 
 fn ensure_distinct_paths(paths: &[&Path]) -> Result<(), SafetyError> {
@@ -1059,6 +1529,8 @@ fn read_owned_state(operation: &OwnedOperation) -> Result<OperationState, Safety
 fn state_matches_operation(state: &OperationState, operation: &OwnedOperation) -> bool {
     state.schema_version == OPERATION_STATE_SCHEMA
         && state.operation_id == operation.operation_id
+        && Some(state.operation_relative_directory.as_str())
+            == operation.root.file_name().and_then(|name| name.to_str())
         && Some(state.live_relative_filename.as_str())
             == operation.live.file_name().and_then(|name| name.to_str())
         && Some(state.backup_relative_filename.as_str())
@@ -1131,6 +1603,21 @@ mod tests {
         }
     }
 
+    struct ChangingVolumeProbe {
+        calls: AtomicUsize,
+    }
+
+    impl VolumeProbe for ChangingVolumeProbe {
+        fn volume_id(&self, path: &Path) -> Result<u64, SafetyError> {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call >= 3 && path.is_file() {
+                Ok(8)
+            } else {
+                Ok(7)
+            }
+        }
+    }
+
     struct SqliteV4Verifier {
         calls: AtomicUsize,
         fail_on_call: Option<usize>,
@@ -1173,6 +1660,61 @@ mod tests {
                 return Ok(evidence.clone());
             }
             inspect_v4(path).await
+        }
+    }
+
+    struct CountingSystemVacuum {
+        calls: AtomicUsize,
+    }
+
+    impl CountingSystemVacuum {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl BackupCreator for CountingSystemVacuum {
+        async fn create(&self, source: &Path, destination: &Path) -> Result<(), SafetyError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            SystemVacuumInto.create(source, destination).await
+        }
+    }
+
+    enum FailingBackupCreator {
+        ExactOwnedOutput,
+        AmbiguousHardLink,
+    }
+
+    impl BackupCreator for FailingBackupCreator {
+        async fn create(&self, source: &Path, destination: &Path) -> Result<(), SafetyError> {
+            match self {
+                Self::ExactOwnedOutput => {
+                    fs::write(destination, b"incomplete").map_err(SafetyError::from)?
+                }
+                Self::AmbiguousHardLink => {
+                    fs::hard_link(source, destination).map_err(SafetyError::from)?
+                }
+            }
+            Err(SafetyError::fail_closed("injected_backup_creation_failure"))
+        }
+    }
+
+    struct SourceReplacingVerifier {
+        calls: AtomicUsize,
+    }
+
+    impl CandidateVerifier for SourceReplacingVerifier {
+        async fn inspect(&self, path: &Path) -> Result<CandidateEvidence, SafetyError> {
+            let evidence = inspect_v4(path).await?;
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                let replacement = path.with_extension("replacement");
+                fs::copy(path, &replacement).map_err(SafetyError::from)?;
+                fs::remove_file(path).map_err(SafetyError::from)?;
+                fs::rename(replacement, path).map_err(SafetyError::from)?;
+            }
+            Ok(evidence)
         }
     }
 
@@ -1292,6 +1834,61 @@ mod tests {
         connection.close().await.unwrap();
     }
 
+    #[derive(Clone, Copy)]
+    struct TableManifestSpec {
+        name: &'static str,
+        query: &'static str,
+        field_count: usize,
+    }
+
+    const TABLE_MANIFESTS: [TableManifestSpec; 6] = [
+        TableManifestSpec {
+            name: "experience_entries",
+            query: "SELECT id, content, created_at, updated_at FROM experience_entries ORDER BY id",
+            field_count: 4,
+        },
+        TableManifestSpec {
+            name: "persisted_artifacts",
+            query: "SELECT id, source_entry_id, artifact_kind, payload, created_at, updated_at FROM persisted_artifacts ORDER BY id",
+            field_count: 6,
+        },
+        TableManifestSpec {
+            name: "historical_consent_events",
+            query: "SELECT id, packet_digest, payload, state, created_at, expires_at FROM historical_consent_events ORDER BY id",
+            field_count: 6,
+        },
+        TableManifestSpec {
+            name: "historical_transmission_events",
+            query: "SELECT id, consent_id, packet_digest, provider, model, outcome, created_at, expires_at FROM historical_transmission_events ORDER BY id",
+            field_count: 8,
+        },
+        TableManifestSpec {
+            name: "historical_question_artifacts",
+            query: "SELECT id, current_experience_id, packet_digest, payload, packet_snapshot, consent_id, transmission_id, created_at FROM historical_question_artifacts ORDER BY id",
+            field_count: 8,
+        },
+        TableManifestSpec {
+            name: "historical_artifact_dependencies",
+            query: "SELECT historical_artifact_id, source_entry_id, source_artifact_id, source_revision FROM historical_artifact_dependencies ORDER BY historical_artifact_id, source_entry_id, source_artifact_id",
+            field_count: 4,
+        },
+    ];
+
+    fn frame_test_bytes(digest: &mut Sha256, bytes: &[u8]) {
+        digest.update((bytes.len() as u64).to_be_bytes());
+        digest.update(bytes);
+    }
+
+    fn frame_test_optional_text(digest: &mut Sha256, value: Option<&str>) {
+        match value {
+            Some(value) => {
+                digest.update([1]);
+                frame_test_bytes(digest, value.as_bytes());
+            }
+            None => digest.update([0]),
+        }
+    }
+
     async fn inspect_v4(path: &Path) -> Result<CandidateEvidence, SafetyError> {
         let options = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(path)
@@ -1312,28 +1909,48 @@ mod tests {
             .fetch_one(&mut connection)
             .await
             .map_err(|_| SafetyError::fail_closed("candidate_integrity_read_failed"))?;
-        let rows = sqlx::query(
-            "SELECT id, content, created_at, updated_at FROM experience_entries ORDER BY id",
-        )
-        .fetch_all(&mut connection)
-        .await
-        .map_err(|_| SafetyError::fail_closed("candidate_record_read_failed"))?;
+        let mut manifest_digest = Sha256::new();
+        manifest_digest.update(b"life-os/v4-source-manifest-v1\0");
         let mut record_digest = Sha256::new();
-        record_digest.update(b"life-os/test-exact-record-v1\0");
-        for row in &rows {
-            for index in 0..4 {
-                let value: String = row
-                    .try_get(index)
-                    .map_err(|_| SafetyError::fail_closed("candidate_record_decode_failed"))?;
-                record_digest.update((value.len() as u64).to_be_bytes());
-                record_digest.update(value.as_bytes());
+        record_digest.update(b"life-os/v4-exact-record-v1\0");
+        for spec in TABLE_MANIFESTS {
+            frame_test_bytes(&mut manifest_digest, spec.name.as_bytes());
+            frame_test_bytes(&mut record_digest, spec.name.as_bytes());
+            let rows = sqlx::query(spec.query)
+                .fetch_all(&mut connection)
+                .await
+                .map_err(|_| SafetyError::fail_closed("candidate_record_read_failed"))?;
+            manifest_digest.update((rows.len() as u64).to_be_bytes());
+            record_digest.update((rows.len() as u64).to_be_bytes());
+            for row in rows {
+                for index in 0..spec.field_count {
+                    let value: Option<String> = row
+                        .try_get(index)
+                        .map_err(|_| SafetyError::fail_closed("candidate_record_decode_failed"))?;
+                    frame_test_optional_text(&mut manifest_digest, value.as_deref());
+                    frame_test_optional_text(&mut record_digest, value.as_deref());
+                }
             }
         }
         let exact_record_digest = format!("{:x}", record_digest.finalize());
-        let mut manifest_digest = Sha256::new();
-        manifest_digest.update(b"life-os/test-source-manifest-v1\0");
-        manifest_digest.update((rows.len() as u64).to_be_bytes());
-        manifest_digest.update(exact_record_digest.as_bytes());
+        frame_test_bytes(&mut manifest_digest, b"persisted_artifacts.count_by_kind");
+        let kind_counts = sqlx::query(
+            "SELECT artifact_kind, COUNT(*) FROM persisted_artifacts GROUP BY artifact_kind ORDER BY artifact_kind",
+        )
+        .fetch_all(&mut connection)
+        .await
+        .map_err(|_| SafetyError::fail_closed("candidate_kind_count_read_failed"))?;
+        manifest_digest.update((kind_counts.len() as u64).to_be_bytes());
+        for row in kind_counts {
+            let kind: String = row
+                .try_get(0)
+                .map_err(|_| SafetyError::fail_closed("candidate_kind_decode_failed"))?;
+            let count: i64 = row
+                .try_get(1)
+                .map_err(|_| SafetyError::fail_closed("candidate_count_decode_failed"))?;
+            frame_test_bytes(&mut manifest_digest, kind.as_bytes());
+            manifest_digest.update(count.to_be_bytes());
+        }
         connection
             .close()
             .await
@@ -1379,11 +1996,19 @@ mod tests {
         let bytes = fs::read(source).unwrap();
         let mut backup = OpenOptions::new()
             .write(true)
-            .truncate(true)
+            .create_new(true)
             .open(&operation.backup)
             .unwrap();
         backup.write_all(&bytes).unwrap();
         backup.sync_all().unwrap();
+        update_state(
+            operation,
+            OperationPhase::BackupVerified,
+            Some(sha256_file(&operation.live).unwrap()),
+            Some(sha256_file(&operation.backup).unwrap()),
+            Some("backup_verified".into()),
+        )
+        .unwrap();
     }
 
     #[tokio::test]
@@ -1480,16 +2105,18 @@ mod tests {
 
         let collision = directory
             .path()
-            .join(format!("life-os-{FIXED_ID}.backup.db"));
-        fs::write(&collision, b"owned-by-someone-else").unwrap();
-        let before = fs::read(&collision).unwrap();
+            .join(format!("life-os-{FIXED_ID}.operation"));
+        fs::create_dir(&collision).unwrap();
+        let sentinel = collision.join("owned-by-someone-else");
+        fs::write(&sentinel, b"preserve").unwrap();
+        let before = fs::read(&sentinel).unwrap();
         assert_eq!(
             prepare_operation_with_id(directory.path(), &live, &guard, &same_volume(), FIXED_ID)
                 .unwrap_err()
                 .code,
             "operation_destination_conflict"
         );
-        assert_eq!(fs::read(collision).unwrap(), before);
+        assert_eq!(fs::read(sentinel).unwrap(), before);
     }
 
     #[tokio::test]
@@ -1507,8 +2134,14 @@ mod tests {
             .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()));
         for path in [&operation.backup, &operation.staging, &operation.state] {
             assert_eq!(path.parent(), Some(operation.root.as_path()));
-            assert!(path.exists());
         }
+        assert!(!operation.backup.exists());
+        assert!(operation.staging.exists());
+        assert!(operation.state.exists());
+        assert_eq!(
+            operation.root.parent(),
+            Some(operation.owned_root.as_path())
+        );
         assert_ne!(operation.backup, operation.staging);
         assert_ne!(operation.staging, operation.state);
 
@@ -1540,6 +2173,300 @@ mod tests {
             );
             assert!(SystemDurability.sync_parent(&operation.root).is_ok());
         }
+    }
+
+    #[tokio::test]
+    async fn owned_backup_handoff_keeps_the_claimed_path_absent_until_one_verified_vacuum() {
+        let (directory, live) = fixture("governed-source").await;
+        let outside = directory.path().join("outside-sentinel");
+        fs::write(&outside, b"outside").unwrap();
+        let live_before = fs::read(&live).unwrap();
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation =
+            prepare_operation(directory.path(), &live, &guard, &SystemVolumeProbe).unwrap();
+        assert!(!operation.backup.exists());
+        assert_eq!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::Prepared
+        );
+
+        let creator = CountingSystemVacuum::new();
+        let expected = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &SystemVolumeProbe,
+            &SqliteV4Verifier::exact(),
+            &creator,
+            &SystemDurability,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 1);
+        assert!(operation.backup.is_file());
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert_eq!(
+            expected.database_sha256,
+            sha256_file(&operation.backup).unwrap()
+        );
+        assert_eq!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::BackupVerified
+        );
+    }
+
+    #[tokio::test]
+    async fn backup_collision_after_claim_is_preserved_without_invoking_sqlite() {
+        let (directory, live) = fixture("source").await;
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        fs::write(&operation.backup, b"not-owned-by-operation").unwrap();
+        let before = fs::read(&operation.backup).unwrap();
+        let creator = CountingSystemVacuum::new();
+
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::exact(),
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.recovery_required);
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(fs::read(&operation.backup).unwrap(), before);
+        assert!(matches!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::RecoveryRequired { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn source_identity_change_before_vacuum_fails_without_invoking_sqlite() {
+        let (directory, live) = fixture("source").await;
+        let bytes = fs::read(&live).unwrap();
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        let creator = CountingSystemVacuum::new();
+
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SourceReplacingVerifier {
+                calls: AtomicUsize::new(0),
+            },
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.code, "backup_source_identity_changed");
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 0);
+        assert!(!operation.backup.exists());
+        assert_eq!(fs::read(&live).unwrap(), bytes);
+    }
+
+    #[tokio::test]
+    async fn activity_and_sidecar_changes_after_claim_refuse_before_vacuum() {
+        let (directory, live) = fixture("source").await;
+        let live_before = fs::read(&live).unwrap();
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        let creator = CountingSystemVacuum::new();
+
+        probe.set(DatabaseActivity::Active);
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::exact(),
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "database_activity_active");
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 0);
+
+        probe.set(DatabaseActivity::Quiescent);
+        let wal = append_suffix(&live, "-wal");
+        fs::write(&wal, b"preserve-wal").unwrap();
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::exact(),
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "sqlite_wal_sidecar_present");
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(fs::read(&wal).unwrap(), b"preserve-wal");
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert!(!operation.backup.exists());
+    }
+
+    #[tokio::test]
+    async fn volume_change_at_final_preflight_refuses_before_vacuum() {
+        let (directory, live) = fixture("source").await;
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        let creator = CountingSystemVacuum::new();
+
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &ChangingVolumeProbe {
+                calls: AtomicUsize::new(0),
+            },
+            &SqliteV4Verifier::exact(),
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(error.code, "cross_volume_backup_refused");
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 0);
+        assert!(!operation.backup.exists());
+    }
+
+    #[tokio::test]
+    async fn failed_backup_creation_cleans_only_exact_owned_output_and_preserves_ambiguity() {
+        let (directory, live) = fixture("source").await;
+        let live_before = fs::read(&live).unwrap();
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::exact(),
+            &FailingBackupCreator::ExactOwnedOutput,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "injected_backup_creation_failure");
+        assert!(!error.recovery_required);
+        assert!(!operation.backup.exists());
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert_eq!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::Prepared
+        );
+
+        let second_id = "1123456789abcdef0123456789abcdef";
+        let operation = prepare_fixed(directory.path(), &live, &guard, second_id);
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::exact(),
+            &FailingBackupCreator::AmbiguousHardLink,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.recovery_required);
+        assert!(operation.backup.exists());
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert!(matches!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::RecoveryRequired { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn post_close_backup_verification_failure_preserves_output_for_recovery() {
+        let (directory, live) = fixture("source").await;
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        let creator = CountingSystemVacuum::new();
+
+        let error = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &same_volume(),
+            &SqliteV4Verifier::failing_on(2),
+            &creator,
+            &TestDurability::supported(),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.recovery_required);
+        assert_eq!(creator.calls.load(Ordering::SeqCst), 1);
+        assert!(operation.backup.exists());
+        assert!(matches!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::RecoveryRequired { .. }
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_replace_classifier_is_conservative_for_documented_partial_failures() {
+        use windows_sys::Win32::Foundation::{
+            ERROR_ACCESS_DENIED, ERROR_UNABLE_TO_MOVE_REPLACEMENT,
+            ERROR_UNABLE_TO_MOVE_REPLACEMENT_2, ERROR_UNABLE_TO_REMOVE_REPLACED,
+        };
+
+        assert!(matches!(
+            classify_windows_replace_error(ERROR_UNABLE_TO_REMOVE_REPLACED),
+            ReplacementOutcome::FailedUnchanged { .. }
+        ));
+        for error in [
+            ERROR_UNABLE_TO_MOVE_REPLACEMENT,
+            ERROR_UNABLE_TO_MOVE_REPLACEMENT_2,
+            ERROR_ACCESS_DENIED,
+        ] {
+            assert!(matches!(
+                classify_windows_replace_error(error),
+                ReplacementOutcome::OutcomeUnknown { .. }
+            ));
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_replace_file_adapter_changes_only_disposable_exact_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        let live = directory.path().join("live.db");
+        let staging = directory.path().join("staging.db");
+        let sentinel = directory.path().join("sentinel");
+        fs::write(&live, b"old-live").unwrap();
+        fs::write(&staging, b"verified-staging").unwrap();
+        fs::write(&sentinel, b"outside-replacement").unwrap();
+
+        assert_eq!(
+            WindowsReplacement.replace(&staging, &live),
+            ReplacementOutcome::Committed
+        );
+        assert_eq!(fs::read(&live).unwrap(), b"verified-staging");
+        assert!(!staging.exists());
+        assert_eq!(fs::read(&sentinel).unwrap(), b"outside-replacement");
+        assert!(WindowsReplacement.requires_parent_directory_sync());
+        assert_eq!(
+            SystemDurability.parent_directory_support(),
+            ParentDirectorySupport::Unsupported
+        );
     }
 
     #[tokio::test]
@@ -1826,7 +2753,7 @@ mod tests {
         assert!(!operation.staging.exists());
         assert_eq!(
             inspect_restart_state(&operation).unwrap(),
-            RestartInspection::Prepared
+            RestartInspection::BackupVerified
         );
 
         let (directory, live) = fixture("live-before").await;
@@ -1860,13 +2787,13 @@ mod tests {
         let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
         let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
         let live_before = fs::read(&live).unwrap();
-        let backup_before = fs::read(&operation.backup).unwrap();
+        assert!(!operation.backup.exists());
         assert_eq!(
             inspect_restart_state(&operation).unwrap(),
             RestartInspection::Prepared
         );
         assert_eq!(fs::read(&live).unwrap(), live_before);
-        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+        assert!(!operation.backup.exists());
 
         update_state(
             &operation,
@@ -1880,7 +2807,7 @@ mod tests {
         assert_eq!(
             inspect_restart_state(&operation).unwrap(),
             RestartInspection::RecoveryRequired {
-                error_class: "prepared_state_live_changed".into()
+                error_class: "prepared_state_contradictory".into()
             }
         );
         fs::write(&live, &live_before).unwrap();
@@ -1973,6 +2900,7 @@ mod tests {
         let unrelated = directory.path().join("unrelated.db");
         let manifest = directory.path().join("manifest.json");
         let sidecar = append_suffix(&live, "-wal");
+        fs::write(&operation.backup, b"backup").unwrap();
         fs::write(&unrelated, b"unrelated").unwrap();
         fs::write(&manifest, b"manifest").unwrap();
         fs::write(&sidecar, b"wal").unwrap();

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-26-phase-3c-post-slice2b2-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-25T18:30:10.700Z",
+  "repository_head": "277c4b5b2031d5bf88dc2a33b03765c103c62629",
+  "working_branch": "codex/phase-3c-slice2b3-backup-windows-integration",
+  "working_tree_digest": "d9406fcad00d5e5f5dc2f3fba9c1af162a32480d7044c9f96f26d4376bf6c81a",
+  "last_event_id": "2026-07-26-phase-3c-post-slice2b2-gate:0018",
+  "last_event_hash": "5a325464229d62889b934ba31d6fc7457e248dd8adcfbc22226175d0f73024ad",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
