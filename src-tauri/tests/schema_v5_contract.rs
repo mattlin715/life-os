@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const V2_FIXTURE: &str = include_str!("fixtures/schema_v5/v2.sql");
 const V3_FIXTURE: &str = include_str!("fixtures/schema_v5/v3.sql");
 const V4_FIXTURE: &str = include_str!("fixtures/schema_v5/v4.sql");
-const SCHEMA_V5_DDL: &str = include_str!("fixtures/schema_v5/schema_v5.sql");
+const SCHEMA_V5_DDL: &str = include_str!("../schema/schema_v5.sql");
 const CONTRACT: &str = include_str!("fixtures/schema_v5/contract.json");
 const ARCHITECTURE_13: &str =
     include_str!("../../docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md");
@@ -153,6 +153,10 @@ async fn fixed_contract_freezes_ddl_objects_canonicalization_and_ids() {
     let contract = contract();
     let digest_contract = &contract["digest_contract"];
     assert_eq!(contract["contract_version"], "phase-3c-schema-v5-slice0-v1");
+    assert_eq!(
+        contract["scope"],
+        "fixed contract consumed by a private unregistered Slice 3A migration core; execution and user_version 5 are limited to synthetic disposable fixtures; no production activation or real user database mutation"
+    );
     let architecture = ARCHITECTURE_13.replace("\r\n", "\n");
     let approved_ddl = architecture
         .split_once("```sql\n")

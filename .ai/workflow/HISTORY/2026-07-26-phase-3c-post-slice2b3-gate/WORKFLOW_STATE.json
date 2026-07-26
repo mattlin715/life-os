@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 26,
+  "last_event_id": "2026-07-26-phase-3c-post-slice2b3-gate:0026",
+  "last_event_hash": "a2ffa8d8b36f53ba1afba2cc642c644bdef95b5456eaa472093e5ecd7d123187",
+  "sprint_id": "2026-07-26-phase-3c-post-slice2b3-gate",
+  "mission_title": "Close promoted Slice 2B-3 facts and Founder-gate disposable schema-v5 migration core",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE3A-001 by selecting Option A. I authorize Phase 3C Slice 3A only: create branch codex/phase-3c-slice3a-disposable-migration-core; implement one private, unregistered, path/connection-injected Rust migration module exercised exclusively against synthetic/disposable exact schema-v4 fixtures; relocate the unchanged executable schema-v5 DDL to one shared compile-time file consumed by both the migration module and contract tests while preserving byte alignment with architecture/13 and the fixed object/digest contract; execute contract-verified ordered DDL with compatibility projection guards installed last; preserve exact legacy-v4-raw Experience and artifact bytes, deterministic IDs, honest authorship, legacy review state and uncertain timestamp quality, absent rejection history, ADR-0009 packet/provenance/dependency bytes, and no invented facts; perform one BEGIN IMMEDIATE DDL, backfill, reconciliation, database-contract, immutable-receipt, guard, foreign-key, integrity, current-content, manifest, and user-version transaction; set user_version 5 only as the last SQL mutation inside disposable test databases; inject failure after every meaningful DDL, backfill, reconciliation, receipt, guard, and version boundary; prove every pre-commit failure reopens with schema objects, user_version 4, governed row bytes/counts/digests, source manifest, and ADR-0009 records unchanged; close and reopen read-only for exact post-commit verification and return blocked recovery_required without autonomous action on inconsistency; refuse malformed, v2, v3, existing-v5, and greater-than-v5 inputs without mutation; keep lifecycle writes and export v2 disabled; add focused tests, factual documentation, canonical verification, Theory Alignment Review, archive/reset, and stop at Founder diff review. I accept that logical exact-v4 rollback does not claim a physically byte-identical SQLite file. I do not authorize production SCHEMA_VERSION 5, real user databases or app-data paths, startup/Tauri/renderer/UI activation, migration disclosure, fresh-install v5, combined v2/v3-to-v5 migration, production backup/restore/replacement, retention, lifecycle writes, export v2, Slices 4-6, Phase 4, provider or ContextPacket changes, Harness expansion, Stage 2, Stage 3, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "Option A",
+    "authorized_scope": "Phase 3C Slice 3A Option A only, exactly as stated in the Founder response; all listed exclusions remain binding.",
+    "decided_at": "2026-07-25T19:53:27.318Z",
+    "evidence_reference": "Founder response in current Codex task"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice3a-disposable-migration-core",
+  "repository_head": "e932ead6da3346d3783da22dc1d1295c31cdc979",
+  "working_tree_digest": "087590e9f394a6917dbbf5ed4c7d63ca8396cc5a69754f881ca021877eac5e45",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-25T20:28:20.640Z",
+      "repository_head": "e932ead6da3346d3783da22dc1d1295c31cdc979",
+      "working_tree_digest": "087590e9f394a6917dbbf5ed4c7d63ca8396cc5a69754f881ca021877eac5e45"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-25T19:16:59.619Z",
+  "updated_at": "2026-07-25T20:30:03.469Z"
+}
