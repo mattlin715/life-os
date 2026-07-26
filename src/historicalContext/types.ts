@@ -1,5 +1,6 @@
 import type { AppLanguage } from "../app/i18n";
 import type { EvidenceCandidate, ExperienceEntry, ReflectionPrompt } from "../types/domain";
+import type { HistoricalSavedDateRange } from "./savedDateRange";
 
 export const HISTORICAL_CONTEXT_ALGORITHM_VERSION = "local-lexical-v1";
 
@@ -36,4 +37,6 @@ export interface HistoricalContextRetrievalInput {
   artifactsByEntryId: Record<string, HistoricalSourceArtifacts | undefined>;
   locale: AppLanguage;
   maxCandidates?: number;
+  /** Optional explicit source-Experience createdAt constraint; never persisted or transmitted. */
+  savedDateRange?: HistoricalSavedDateRange;
 }

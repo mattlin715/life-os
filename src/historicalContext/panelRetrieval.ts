@@ -1,6 +1,7 @@
 import type { AppLanguage } from "../app/i18n";
 import type { ExperienceEntry } from "../types/domain";
 import { findHistoricalContextCandidates } from "./retrieve";
+import type { HistoricalSavedDateRangeConstraint } from "./savedDateRange";
 import type {
   HistoricalContextCandidate,
   HistoricalContextRetrievalInput,
@@ -19,6 +20,11 @@ export interface OpenHistoricalPanelRetrievalInput {
   artifactsByEntryId: Record<string, HistoricalSourceArtifacts | undefined>;
   locale: AppLanguage;
   maxCandidates?: number;
+  /** Missing entries are inactive, preserving the Phase 3A retrieval path. */
+  savedDateRangeConstraintsByCurrentExperienceId?: ReadonlyMap<
+    string,
+    HistoricalSavedDateRangeConstraint
+  >;
   /** Injectable only for deterministic lifecycle tests; production uses local retrieval. */
   retrieveCandidates?: HistoricalContextCandidateRetriever;
 }
@@ -33,6 +39,7 @@ export function retrieveCandidatesForOpenHistoricalPanels({
   artifactsByEntryId,
   locale,
   maxCandidates,
+  savedDateRangeConstraintsByCurrentExperienceId,
   retrieveCandidates = findHistoricalContextCandidates,
 }: OpenHistoricalPanelRetrievalInput): ReadonlyMap<string, HistoricalContextCandidate[]> {
   const candidatesByCurrentExperienceId = new Map<string, HistoricalContextCandidate[]>();
@@ -42,12 +49,23 @@ export function retrieveCandidatesForOpenHistoricalPanels({
       continue;
     }
 
+    const constraint = savedDateRangeConstraintsByCurrentExperienceId?.get(
+      currentExperience.id,
+    );
+    if (constraint?.status === "blocked") {
+      candidatesByCurrentExperienceId.set(currentExperience.id, []);
+      continue;
+    }
+
     candidatesByCurrentExperienceId.set(currentExperience.id, retrieveCandidates({
       currentExperience,
       experiences,
       artifactsByEntryId,
       locale,
       maxCandidates,
+      ...(constraint?.status === "applied"
+        ? { savedDateRange: constraint.range }
+        : {}),
     }));
   }
 

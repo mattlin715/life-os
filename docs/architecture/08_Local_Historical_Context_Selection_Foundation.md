@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.7
+version: 0.8
 owner: product-and-engineering
-last_updated: 2026/07/14
+last_updated: 2026/07/26
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -42,13 +42,54 @@ Raw Experience text, confirmed Evidence, user Reflection, and AI hypotheses rema
 
 This is a modest retrieval aid, not a claim that similarity creates meaning. The user can inspect each source, include or exclude it, clear the selection, or continue with no history.
 
+## Explicit Saved-Date Range R1
+
+The Founder-authorized Phase 3 exit R1 adds one optional, per-panel,
+session-only **saved-date** constraint to the existing local retrieval. The
+user must explicitly enable it, choose both calendar dates, and apply it.
+Inactive controls preserve the prior Phase 3A result, order, reasons, and caps.
+
+The range applies only to the source Experience `createdAt` instant. It is
+described as the record's saved date, never as the date of the event described
+in the Experience. `updatedAt` is not used, so an edit cannot silently move a
+source between historical periods. Life OS does not infer an event date.
+
+Both selected calendar dates are inclusive in the device IANA timezone
+captured when Apply is pressed. The local implementation stores exact
+start-inclusive and next-local-day-start-exclusive instants in ephemeral
+control state. This avoids assuming that every local day is exactly 24 hours.
+The exact dates, inclusive semantics, and captured timezone remain visible
+beside the existing lexical reason.
+
+Filtering occurs before lexical matching, deterministic ranking, and candidate
+limiting. Missing, invalid, inverted, or unresolvable ranges fail closed with a
+localized message and no retrieval; they never fall back to unfiltered or
+whole-history loading. A source with malformed `createdAt` is ineligible while
+the range is active because its temporal inclusion cannot be proved.
+
+Any enable, date, or Apply action clears selections for that exact current
+Experience and closes its governed preflight. Closing a panel still stops
+retrieval while retaining only the last valid applied range for the current app
+session; reopening retrieves fresh under that range. Range controls, applied
+instants, and timezone are not serialized, persisted, exported, or transmitted.
+The working-tree implementation is automated-verified but still awaits Founder
+diff/manual UI review and promotion.
+
 ## Ephemeral Selection Reconciliation
 
 A pure reconciliation helper retains selections only for an explicitly open panel's current eligible candidate set. If a candidate disappears because its artifact is rejected, its source Experience changes, or bounded ranking removes it, that selection is removed. If it reappears later, it remains unselected until the user chooses it again. Unrelated current/source selections remain unchanged. Closing a panel preserves its valid ephemeral selection for the current app session but stops retrieval; reopening retrieves fresh local candidates and reconciles before the browser paints the panel. Experience deletion removes the Experience both as a current key and as a source from other current keys. Reconciliation creates no durable state.
 
 ## Provider Boundary
 
-Historical candidates and selection state do not enter `ContextPacket`, the shared OpenAI/Gemini/mock transport payload, provider adapters, mock input, or persistence. Existing evidence, reflection, and pattern requests retain their single-Experience packet. Opening, retrieving, selecting, excluding, or clearing local sources makes no provider call. The separately governed Phase 3B flow in [`architecture/09`](09_Governed_Historical_Context_Assembly_and_Consent.md) requires a new exact preflight and explicit consent before any selected historical material can be sent.
+Historical candidates, saved-date controls, and selection state do not enter
+`ContextPacket`, the governed historical packet's schema, the shared
+OpenAI/Gemini/mock transport payload, provider adapters, mock input, or
+persistence. Existing evidence, reflection, and pattern requests retain their
+single-Experience packet. Opening, filtering, retrieving, selecting, excluding,
+or clearing local sources makes no provider call. The separately governed
+Phase 3B flow in [`architecture/09`](09_Governed_Historical_Context_Assembly_and_Consent.md)
+requires a new exact preflight and explicit consent before any selected
+historical material can be sent.
 
 ## Deferred
 

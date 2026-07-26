@@ -63,6 +63,17 @@ import {
   toggleHistoricalContextSelection,
   type HistoricalContextSelections,
 } from "../historicalContext/selection";
+import {
+  applyHistoricalSavedDateRange,
+  getHistoricalSavedDateRangeControl,
+  historicalSavedDateRangeConstraint,
+  removeHistoricalSavedDateRangeControl,
+  setHistoricalSavedDateRangeEnabled,
+  setHistoricalSavedDateRangeEnd,
+  setHistoricalSavedDateRangeStart,
+  shouldCloseHistoricalPreflightForSavedDateRangeChange,
+  type HistoricalSavedDateRangeControls,
+} from "../historicalContext/savedDateRange";
 import type { HistoricalContextCandidate } from "../historicalContext/types";
 import {
   assembleHistoricalContextPacket,
@@ -96,6 +107,7 @@ import type {
   PatternNote,
   ReflectionPrompt,
 } from "../types/domain";
+import { HistoricalSavedDateRangeFilter } from "./HistoricalSavedDateRangeFilter";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -566,6 +578,8 @@ export function App() {
     useState<ReadonlyMap<string, HistoricalContextCandidate[]>>(() => new Map());
   const [historicalContextSelections, setHistoricalContextSelections] =
     useState<HistoricalContextSelections>(() => new Map());
+  const [historicalSavedDateRangeControls, setHistoricalSavedDateRangeControls] =
+    useState<HistoricalSavedDateRangeControls>(() => new Map());
   const [historicalPreflight, setHistoricalPreflight] = useState<HistoricalPreflightState | null>(null);
   const [historicalQuestionsByEntryId, setHistoricalQuestionsByEntryId] = useState<Record<string, HistoricalQuestionArtifact[]>>({});
   const [editingEvidenceCandidate, setEditingEvidenceCandidate] =
@@ -753,6 +767,9 @@ export function App() {
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         setHistoricalContextOpenPanels((current) => removeHistoricalContextPanelForExperience(current, id));
         setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
+        setHistoricalSavedDateRangeControls((current) =>
+          removeHistoricalSavedDateRangeControl(current, id),
+        );
         setHistoricalPreflight((current) => current?.entryId === id || current?.packet.includedItems.some((item) => item.sourceExperienceId === id) ? null : current);
         setHistoricalQuestionsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         await refreshEntries();
@@ -1009,6 +1026,61 @@ export function App() {
     setHistoricalPreflight((current) => current?.entryId === entryId ? null : current);
   }, []);
 
+  const invalidateHistoricalRangeDependents = useCallback((entryId: string) => {
+    setHistoricalContextSelections((current) =>
+      clearHistoricalContextSelection(current, entryId),
+    );
+    setHistoricalPreflight((current) =>
+      current &&
+      shouldCloseHistoricalPreflightForSavedDateRangeChange(
+        current.entryId,
+        entryId,
+      )
+        ? null
+        : current,
+    );
+  }, []);
+
+  const changeHistoricalSavedDateRangeEnabled = useCallback(
+    (entryId: string, enabled: boolean) => {
+      invalidateHistoricalRangeDependents(entryId);
+      setHistoricalSavedDateRangeControls((current) =>
+        setHistoricalSavedDateRangeEnabled(current, entryId, enabled),
+      );
+    },
+    [invalidateHistoricalRangeDependents],
+  );
+
+  const changeHistoricalSavedDateRangeStart = useCallback(
+    (entryId: string, startDate: string) => {
+      invalidateHistoricalRangeDependents(entryId);
+      setHistoricalSavedDateRangeControls((current) =>
+        setHistoricalSavedDateRangeStart(current, entryId, startDate),
+      );
+    },
+    [invalidateHistoricalRangeDependents],
+  );
+
+  const changeHistoricalSavedDateRangeEnd = useCallback(
+    (entryId: string, endDate: string) => {
+      invalidateHistoricalRangeDependents(entryId);
+      setHistoricalSavedDateRangeControls((current) =>
+        setHistoricalSavedDateRangeEnd(current, entryId, endDate),
+      );
+    },
+    [invalidateHistoricalRangeDependents],
+  );
+
+  const applyHistoricalSavedDateRangeForEntry = useCallback(
+    (entryId: string) => {
+      invalidateHistoricalRangeDependents(entryId);
+      setHistoricalSavedDateRangeControls((current) =>
+        applyHistoricalSavedDateRange(current, entryId),
+      );
+    },
+    [invalidateHistoricalRangeDependents],
+  );
+
   const historicalPacketInput = useCallback((entry: ExperienceEntry, includedArtifactIds: ReadonlySet<string>) => {
     if (aiRuntime?.provider !== "openai" && aiRuntime?.provider !== "gemini") throw new Error(copy.historicalProviderUnavailable);
     if (!aiRuntime.model) throw new Error(copy.historicalProviderUnavailable);
@@ -1142,6 +1214,14 @@ export function App() {
       experiences: entries,
       artifactsByEntryId: historicalArtifactsByEntryId,
       locale: language,
+      savedDateRangeConstraintsByCurrentExperienceId: new Map(
+        entries.map((entry) => [
+          entry.id,
+          historicalSavedDateRangeConstraint(
+            historicalSavedDateRangeControls.get(entry.id),
+          ),
+        ]),
+      ),
     });
 
     setHistoricalCandidatesByCurrentExperienceId(candidatesByCurrentExperienceId);
@@ -1156,7 +1236,7 @@ export function App() {
       }
       return reconciled;
     });
-  }, [entries, historicalArtifactsByEntryId, historicalContextOpenPanels, language]);
+  }, [entries, historicalArtifactsByEntryId, historicalContextOpenPanels, historicalSavedDateRangeControls, language]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1426,6 +1506,28 @@ export function App() {
               );
               const isHistoricalPending = pendingAction === `historical:${entry.id}`;
               const entryHistoricalPreflight = historicalPreflight?.entryId === entry.id ? historicalPreflight : null;
+              const historicalSavedDateRangeControl =
+                getHistoricalSavedDateRangeControl(
+                  historicalSavedDateRangeControls,
+                  entry.id,
+                );
+              const historicalSavedDateRangeState =
+                historicalSavedDateRangeConstraint(
+                  historicalSavedDateRangeControl,
+                );
+              const historicalSavedDateRangeMessage =
+                historicalSavedDateRangeState.status === "blocked"
+                  ? historicalSavedDateRangeState.reason === "missing_dates"
+                    ? copy.historicalSavedDateMissing
+                    : historicalSavedDateRangeState.reason === "invalid_date"
+                      ? copy.historicalSavedDateInvalid
+                      : historicalSavedDateRangeState.reason === "inverted_range"
+                        ? copy.historicalSavedDateInverted
+                        : historicalSavedDateRangeState.reason ===
+                            "timezone_unavailable"
+                          ? copy.historicalSavedDateTimezoneUnavailable
+                          : copy.historicalSavedDateNotApplied
+                  : null;
               const eligibleHistoricalArtifactRecords = selectedHistoricalCandidates.flatMap((candidate) => {
                 const eligible = eligibleHistoricalArtifacts(candidate.sourceExperienceId, historicalArtifactsByEntryId[candidate.sourceExperienceId]);
                 const relevanceReason = candidate.reasons.flatMap((reason) => reason.terms).join(", ");
@@ -1533,7 +1635,33 @@ export function App() {
                       <>
                         <p className="historical-context-note">{copy.historicalContextLocalOnly}</p>
                         <p className="historical-context-note">{copy.historicalContextNoConclusion}</p>
-                        {historicalCandidates.length === 0 ? (
+                        <HistoricalSavedDateRangeFilter
+                          control={historicalSavedDateRangeControl}
+                          message={historicalSavedDateRangeMessage}
+                          copy={copy}
+                          onEnabledChange={(enabled) =>
+                            changeHistoricalSavedDateRangeEnabled(
+                              entry.id,
+                              enabled,
+                            )
+                          }
+                          onStartChange={(startDate) =>
+                            changeHistoricalSavedDateRangeStart(
+                              entry.id,
+                              startDate,
+                            )
+                          }
+                          onEndChange={(endDate) =>
+                            changeHistoricalSavedDateRangeEnd(
+                              entry.id,
+                              endDate,
+                            )
+                          }
+                          onApply={() =>
+                            applyHistoricalSavedDateRangeForEntry(entry.id)
+                          }
+                        />
+                        {historicalSavedDateRangeState.status === "blocked" ? null : historicalCandidates.length === 0 ? (
                           <p className="historical-context-empty">{copy.historicalContextEmpty}</p>
                         ) : (
                           <div className="historical-context-list">
@@ -1562,6 +1690,19 @@ export function App() {
                                   <p className="historical-context-reason">
                                     {copy.historicalContextReason(candidate.reasons.flatMap((reason) => reason.terms).join(", "))}
                                   </p>
+                                  {historicalSavedDateRangeState.status ===
+                                  "applied" ? (
+                                    <p className="historical-context-reason">
+                                      {copy.historicalSavedDateReason(
+                                        historicalSavedDateRangeState.range
+                                          .startDate,
+                                        historicalSavedDateRangeState.range
+                                          .endDate,
+                                        historicalSavedDateRangeState.range
+                                          .timeZone,
+                                      )}
+                                    </p>
+                                  ) : null}
                                   <button
                                     type="button"
                                     className={selected ? "secondary-button compact" : "ghost-button compact"}

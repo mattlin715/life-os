@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.5
+version: 0.6
 owner: LIN MENGLUNG
-last_updated: 2026/07/14
+last_updated: 2026/07/26
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -108,9 +108,18 @@ Preserve reviewed understanding so future Reflection can continue rather than re
 - Preserve confirmation, rejection, revision history, and provenance.
 - Retrieve relevant past experiences by theme, emotion, relationship, value conflict, and user-selected time range.
 
-### Phase 3A Foundation
+### Phase 3A Foundation And Saved-Date Retrieval R1
 
-The Phase 3A foundation proposes a bounded set of prior Experience sources with visible lexical reasons and user-controlled ephemeral selection. Phase 3A itself does not transmit historical content, infer a cross-experience pattern, or establish consent; Phase 3B supplies the separate governed send gate.
+The Phase 3A foundation implements a bounded set of prior Experience sources
+with visible lexical reasons and user-controlled ephemeral selection. The
+Founder-authorized R1 working-tree implementation adds an explicit,
+session-only source-Experience saved-date range that filters before the
+unchanged lexical ranking and caps. It does not infer event dates, persist the
+range, transmit historical content, infer a cross-experience pattern, or
+establish consent; Phase 3B supplies the separate governed send gate. R1 still
+requires Founder diff/manual UI review and promotion before it is a promoted
+product capability. Emotion, relationship, and value-conflict retrieval remain
+unimplemented and require separate governance rather than inferred taxonomies.
 
 ### Phase 3B Governed Historical Reflection Questions (Implemented and founder-verified)
 

@@ -11,6 +11,7 @@ import {
   type HistoricalContextCandidateRetriever,
 } from "./panelRetrieval";
 import type { HistoricalContextCandidate } from "./types";
+import type { HistoricalSavedDateRange } from "./savedDateRange";
 
 const timestamp = "2026-07-13T00:00:00.000Z";
 const entry = (id: string): ExperienceEntry => ({
@@ -44,6 +45,79 @@ describe("explicit historical panel retrieval", () => {
   it("does not retrieve during hydration when zero panels are open", () => {
     const entries = [entry("first"), entry("second")];
     const { result, retrieveCandidates } = retrieve(new Set(), entries);
+
+    expect(retrieveCandidates).not.toHaveBeenCalled();
+    expect(result).toEqual(new Map());
+  });
+
+  it("fails closed without calling retrieval when an active range is not applied", () => {
+    const current = entry("current");
+    const source = entry("source");
+    const retrieveCandidates = retrievalSpy();
+    const result = retrieveCandidatesForOpenHistoricalPanels({
+      openPanelExperienceIds: new Set([current.id]),
+      experiences: [current, source],
+      artifactsByEntryId: {},
+      locale: "en",
+      savedDateRangeConstraintsByCurrentExperienceId: new Map([
+        [current.id, { status: "blocked", reason: "not_applied" }],
+      ]),
+      retrieveCandidates,
+    });
+
+    expect(retrieveCandidates).not.toHaveBeenCalled();
+    expect(result.get(current.id)).toEqual([]);
+  });
+
+  it("passes an exact applied range only to its open panel", () => {
+    const first = entry("first");
+    const second = entry("second");
+    const range: HistoricalSavedDateRange = {
+      startDate: "2026-07-01",
+      endDate: "2026-07-13",
+      timeZone: "UTC",
+      startInclusiveMs: 0,
+      endExclusiveMs: 1,
+    };
+    const retrieveCandidates = retrievalSpy();
+    retrieveCandidatesForOpenHistoricalPanels({
+      openPanelExperienceIds: new Set([first.id]),
+      experiences: [first, second],
+      artifactsByEntryId: {},
+      locale: "en",
+      savedDateRangeConstraintsByCurrentExperienceId: new Map([
+        [first.id, { status: "applied", range }],
+        [second.id, { status: "blocked", reason: "not_applied" }],
+      ]),
+      retrieveCandidates,
+    });
+
+    expect(retrieveCandidates).toHaveBeenCalledTimes(1);
+    expect(retrieveCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ currentExperience: first, savedDateRange: range }),
+    );
+  });
+
+  it("keeps a retained range inert while its panel is closed", () => {
+    const current = entry("current");
+    const range: HistoricalSavedDateRange = {
+      startDate: "2026-07-01",
+      endDate: "2026-07-13",
+      timeZone: "UTC",
+      startInclusiveMs: 0,
+      endExclusiveMs: 1,
+    };
+    const retrieveCandidates = retrievalSpy();
+    const result = retrieveCandidatesForOpenHistoricalPanels({
+      openPanelExperienceIds: new Set(),
+      experiences: [current],
+      artifactsByEntryId: {},
+      locale: "en",
+      savedDateRangeConstraintsByCurrentExperienceId: new Map([
+        [current.id, { status: "applied", range }],
+      ]),
+      retrieveCandidates,
+    });
 
     expect(retrieveCandidates).not.toHaveBeenCalled();
     expect(result).toEqual(new Map());

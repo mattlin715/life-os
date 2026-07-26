@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 19,
+  "last_event_id": "2026-07-26-phase-3-exit-time-range-retrieval-r1:0019",
+  "last_event_hash": "54e3aafafeccdf81e05ec88e7832836b29fb8a7c91424606d55f9abb3d8d82a1",
+  "sprint_id": "2026-07-26-phase-3-exit-time-range-retrieval-r1",
+  "mission_title": "Phase 3 Exit Structured Retrieval R1",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3-RETRIEVAL-R1-001 by selecting Option A. I authorize Phase 3 Exit Structured Retrieval R1 only: implement one explicit per-panel, session-only saved-date range control for the existing local historical-context panel; preserve current Phase 3A behavior when the filter is inactive; require explicit activation and both start and end dates; apply the range only to source Experience createdAt, disclosed as saved date and never as updatedAt or inferred event date; interpret both dates inclusively in the device IANA timezone captured at Apply using start-inclusive and next-day-start-exclusive instants; fail closed with visible English, Traditional Chinese, and Japanese messages for missing, invalid, inverted, or unresolvable ranges and exclude malformed source timestamps without falling back to unfiltered or whole-history retrieval; filter before the unchanged local-lexical-v1 matching, ranking, and candidate caps; show the exact range, inclusive semantics, and timezone beside lexical relevance as local UI metadata only; close the affected governed preflight and clear that current Experience's ephemeral selections whenever the range controls change; preserve closed-panel no-retrieval behavior while retaining only the last valid applied range for the current app session; add focused retrieval, boundary, timezone, lifecycle, selection, preflight, i18n, UI, stable-ranking, cap, zero-result, and regression tests; synchronize only factual Book One documentation; run canonical verification, Theory Alignment Review, archive/reset, and stop at Founder diff and manual UI review. I do not authorize an event-date field or inference, updatedAt filtering, persistence, schema changes, migration, provider or ContextPacket changes, consent-policy changes, whole-history loading, inferred emotion/relationship/value taxonomies, embeddings, vector search, memory graphs, summaries, Phase 4, Harness expansion, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "A",
+    "authorized_scope": "Phase 3 Exit Structured Retrieval R1 Option A only: explicit per-panel session-only createdAt saved-date range, inclusive captured-device-timezone semantics, fail-closed validation, pre-ranking lexical narrowing, visible local range reason, affected selection/preflight invalidation, three-locale parity, focused tests, factual Book One synchronization, verification/review/archive, and stop at Founder review. All stated non-scope remains excluded.",
+    "decided_at": "2026-07-26T14:27:56.761Z",
+    "evidence_reference": "PHASE3-RETRIEVAL-R1-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3-exit-time-range-retrieval-r1",
+  "repository_head": "5714b3eeeeb4c9612e445dbd78e4f606df41fa27",
+  "working_tree_digest": "dbd0bd7d4df934aa52824d25caf2af0de017c965f45e41ba31607edf5b399f9d",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-26T14:49:12.383Z",
+      "repository_head": "5714b3eeeeb4c9612e445dbd78e4f606df41fa27",
+      "working_tree_digest": "dbd0bd7d4df934aa52824d25caf2af0de017c965f45e41ba31607edf5b399f9d"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-26T14:06:04.116Z",
+  "updated_at": "2026-07-26T14:53:14.898Z"
+}

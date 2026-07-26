@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.6
+version: 0.7
 owner: LIN MENGLUNG
-last_updated: 2026/07/14
+last_updated: 2026/07/26
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -75,10 +75,10 @@ Verified against the repository on 2026/07/13:
 - Provider and model runtime status in the desktop UI.
 - Explicit Reflection UI drafts: only a saved response with user provenance is durable or eligible for a Pattern Context Packet; dirty drafts block Pattern generation.
 - Stale generated results are discarded by snapshot checks both before and inside the serialized artifact mutation boundary, with the SQLite Experience revision check as final write-time protection.
-- Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, and ephemeral include/exclude controls. Retrieval begins only when the user opens that Experience's panel; selection alone never sends data or produces a Cross-Experience conclusion.
+- Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, ephemeral include/exclude controls, and an explicit session-only saved-date range that narrows candidates before lexical ranking. Retrieval begins only when the user opens that Experience's panel; filtering and selection alone never send data or produce a Cross-Experience conclusion.
 - Governed Historical Reflection Question generation for exact selected sources: exact-content preflight, per-generation/per-purpose consent, provider-independent bounded packet, OpenAI/Gemini destination disclosure, stale-work rejection, and actual-use provenance. The output is limited to neutral source-citing questions and may return no question.
 
-Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Phase 3A candidate retrieval and selection stay bounded, local, and ephemeral. Phase 3B permits historical provider transmission only through the separately governed one-generation Historical Reflection Question gate. Cross-Experience Reflection remains deferred.
+Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Historical candidate retrieval, saved-date controls, and selection stay bounded and local; the range and selection remain ephemeral. Phase 3B permits historical provider transmission only through the separately governed one-generation Historical Reflection Question gate. Cross-Experience Reflection remains deferred.
 
 ## Current Product Gaps
 
