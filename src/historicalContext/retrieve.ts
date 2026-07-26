@@ -1,4 +1,5 @@
 import type { EvidenceCandidate, ReflectionPrompt } from "../types/domain";
+import { isTimestampInHistoricalSavedDateRange } from "./savedDateRange";
 import {
   HISTORICAL_CONTEXT_ALGORITHM_VERSION,
   type HistoricalContextCandidate,
@@ -101,6 +102,11 @@ export function findHistoricalContextCandidates(
 
   const candidates = input.experiences
     .filter((entry) => entry.id !== input.currentExperience.id)
+    .filter(
+      (entry) =>
+        !input.savedDateRange ||
+        isTimestampInHistoricalSavedDateRange(entry.createdAt, input.savedDateRange),
+    )
     .map((entry) => {
       const { confirmedEvidence, answeredReflections } = sourceArtifacts(
         entry.id,

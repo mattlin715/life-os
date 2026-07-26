@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-26-phase-3-exit-time-range-retrieval-r1",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-26T14:55:12.120Z",
+  "repository_head": "5714b3eeeeb4c9612e445dbd78e4f606df41fa27",
+  "working_branch": "codex/phase-3-exit-time-range-retrieval-r1",
+  "working_tree_digest": "dbd0bd7d4df934aa52824d25caf2af0de017c965f45e41ba31607edf5b399f9d",
+  "last_event_id": "2026-07-26-phase-3-exit-time-range-retrieval-r1:0019",
+  "last_event_hash": "54e3aafafeccdf81e05ec88e7832836b29fb8a7c91424606d55f9abb3d8d82a1",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

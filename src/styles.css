@@ -503,11 +503,59 @@ button:disabled {
 .historical-context-note,
 .historical-context-empty,
 .historical-context-reason,
+.historical-saved-date-message,
 .historical-context-actions p {
   margin: 8px 0 0;
   color: #5f6870;
   font-size: 0.92rem;
   line-height: 1.55;
+}
+
+.historical-saved-date-filter {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(88, 105, 127, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.historical-saved-date-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #44525c;
+  font-weight: 650;
+}
+
+.historical-saved-date-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.historical-saved-date-fields label {
+  display: grid;
+  gap: 5px;
+  color: #5f6870;
+  font-size: 0.84rem;
+}
+
+.historical-saved-date-fields input[type="date"] {
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid rgba(83, 68, 51, 0.16);
+  border-radius: 10px;
+  color: #3d3832;
+  background: rgba(255, 252, 246, 0.88);
+  font: inherit;
+}
+
+.historical-saved-date-message {
+  margin: 0;
+  color: #80512f;
 }
 
 .historical-context-list {

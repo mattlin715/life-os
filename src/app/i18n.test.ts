@@ -38,4 +38,15 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].databaseBlockedAction).toContain("不會自動修復、降版或寫入");
     expect(uiText.ja.databaseBlockedAction).toContain("自動修復、ダウングレード、書き込みは行いません");
   });
+  it("keeps saved-date retrieval explicit, inclusive, and fail-closed in every language", () => {
+    expect(uiText.en.historicalSavedDateFilterLabel).toContain("saved date");
+    expect(uiText["zh-TW"].historicalSavedDateFilterLabel).toContain("儲存日期");
+    expect(uiText.ja.historicalSavedDateFilterLabel).toContain("保存日");
+    expect(uiText.en.historicalSavedDateReason("2026-01-01", "2026-01-02", "Asia/Tokyo")).toContain("inclusive");
+    expect(uiText["zh-TW"].historicalSavedDateReason("2026-01-01", "2026-01-02", "Asia/Tokyo")).toContain("包含起訖日");
+    expect(uiText.ja.historicalSavedDateReason("2026-01-01", "2026-01-02", "Asia/Tokyo")).toContain("両端を含む");
+    expect(uiText.en.historicalSavedDateInverted).toContain("No history was retrieved");
+    expect(uiText["zh-TW"].historicalSavedDateInverted).toContain("未檢索任何歷史紀錄");
+    expect(uiText.ja.historicalSavedDateInverted).toContain("履歴は取得されていません");
+  });
 });
