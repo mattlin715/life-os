@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "state_schema_version": "1.1",
+  "event_schema_version": "1.0",
+  "roles": [
+    "orchestrator",
+    "chief_product_theorist",
+    "senior_product_engineer"
+  ],
+  "statuses": [
+    "idle",
+    "intake",
+    "product_review",
+    "awaiting_product_clarification",
+    "engineering_planning",
+    "implementation",
+    "validation",
+    "theory_alignment_review",
+    "revision_required",
+    "human_decision_required",
+    "completed",
+    "failed",
+    "cancelled"
+  ],
+  "terminal_statuses": [
+    "completed",
+    "failed",
+    "cancelled"
+  ],
+  "phase_roles": {
+    "idle": "orchestrator",
+    "intake": "orchestrator",
+    "product_review": "chief_product_theorist",
+    "awaiting_product_clarification": "chief_product_theorist",
+    "engineering_planning": "senior_product_engineer",
+    "implementation": "senior_product_engineer",
+    "validation": "orchestrator",
+    "theory_alignment_review": "chief_product_theorist",
+    "revision_required": "orchestrator",
+    "human_decision_required": "orchestrator",
+    "completed": "orchestrator",
+    "failed": "orchestrator",
+    "cancelled": "orchestrator"
+  },
+  "transitions": {
+    "idle": ["intake"],
+    "intake": ["product_review", "human_decision_required", "cancelled", "failed"],
+    "product_review": ["engineering_planning", "awaiting_product_clarification", "revision_required", "human_decision_required", "cancelled", "failed"],
+    "awaiting_product_clarification": ["product_review", "human_decision_required", "cancelled", "failed"],
+    "engineering_planning": ["implementation", "product_review", "revision_required", "human_decision_required", "cancelled", "failed"],
+    "implementation": ["validation", "revision_required", "human_decision_required", "cancelled", "failed"],
+    "validation": ["theory_alignment_review", "revision_required", "human_decision_required", "cancelled", "failed"],
+    "theory_alignment_review": ["completed", "revision_required", "human_decision_required", "cancelled", "failed"],
+    "revision_required": ["product_review", "engineering_planning", "implementation", "human_decision_required", "cancelled", "failed"],
+    "human_decision_required": ["product_review", "engineering_planning", "implementation", "validation", "theory_alignment_review", "cancelled", "failed"],
+    "completed": [],
+    "failed": [],
+    "cancelled": []
+  },
+  "artifact_files": {
+    "current_mission": "CURRENT_MISSION.md",
+    "product_review": "PRODUCT_REVIEW.md",
+    "engineering_plan": "ENGINEERING_PLAN.md",
+    "engineering_report": "ENGINEERING_REPORT.md",
+    "theory_alignment_review": "THEORY_ALIGNMENT_REVIEW.md",
+    "decision_required": "DECISION_REQUIRED.md",
+    "sprint_report": "SPRINT_REPORT.md"
+  },
+  "artifact_roles": {
+    "current_mission": "orchestrator",
+    "product_review": "chief_product_theorist",
+    "engineering_plan": "senior_product_engineer",
+    "engineering_report": "senior_product_engineer",
+    "theory_alignment_review": "chief_product_theorist",
+    "decision_required": "orchestrator",
+    "sprint_report": "orchestrator"
+  },
+  "artifact_statuses": {
+    "current_mission": ["idle", "draft", "ready", "cancelled"],
+    "product_review": ["pending", "approved", "approved_with_conditions", "revision_required", "human_decision_required", "rejected"],
+    "engineering_plan": ["pending", "approved", "revision_required", "human_decision_required", "rejected"],
+    "engineering_report": ["pending", "in_progress", "completed", "completed_with_follow_up", "human_decision_required", "failed"],
+    "theory_alignment_review": ["pending", "approved", "approved_with_follow_up", "revision_required", "human_decision_required", "rejected"],
+    "decision_required": ["not_required", "open", "resolved", "cancelled"],
+    "sprint_report": ["pending", "completed", "completed_with_follow_up", "human_decision_required", "failed", "cancelled"]
+  },
+  "required_headings": {
+    "CURRENT_MISSION.md": ["# Current Mission"],
+    "PRODUCT_REVIEW.md": ["# Product Review", "## Mission Interpretation", "## Acceptance Criteria", "## Human Decision Required", "## Review Status"],
+    "ENGINEERING_PLAN.md": ["# Engineering Plan", "## Approved Product Boundary", "## Test Strategy", "## Repository Verification Strategy", "## Escalation Decision"],
+    "ENGINEERING_REPORT.md": ["# Engineering Report", "## Implementation Summary", "## Tests Executed", "## Verification Results", "## Git State", "## Engineer Completion Status"],
+    "THEORY_ALIGNMENT_REVIEW.md": ["# Theory Alignment Review", "## Actual Diff Reviewed", "## Required Corrections", "## Revision Log", "## Final Review Status"],
+    "DECISION_REQUIRED.md": ["# Decision Required"],
+    "SPRINT_REPORT.md": ["# Sprint Report", "## Sprint ID", "## Final Status", "## Tests", "## Git Status"]
+  },
+  "sprint_id_pattern": "^[a-z0-9][a-z0-9-]{2,79}$",
+  "max_review_cycles": 3
+}

@@ -1,3 +1,8 @@
+use crate::filesystem_safety::{
+    read_migration_state_evidence, record_migration_state, verify_owned_backup_for_migration,
+    CandidateVerifier, ExpectedCandidate, MigrationOperationPhase, MigrationReceiptEvidence,
+    OwnedOperation, SafetyError,
+};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::SqliteConnectOptions;
@@ -50,8 +55,118 @@ impl std::error::Error for MigrationError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct MigrationReceipt {
     pub(crate) migration_id: String,
+    pub(crate) backup_id: Option<String>,
     pub(crate) source_manifest_digest: String,
     pub(crate) target_manifest_digest: String,
+}
+
+type MigrationReceiptRow = (
+    String,
+    i64,
+    i64,
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum CommitAttemptOutcome {
+    Committed,
+    DefinitelyNotCommitted { error_class: String },
+    OutcomeUnknown { error_class: String },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum RollbackAttemptOutcome {
+    RolledBack,
+    Failed { error_class: String },
+}
+
+pub(crate) trait CommitOutcomeAdapter {
+    async fn commit(&self, connection: &mut SqliteConnection) -> CommitAttemptOutcome;
+    async fn rollback(&self, connection: &mut SqliteConnection) -> RollbackAttemptOutcome;
+}
+
+pub(crate) struct SqlCommitOutcomeAdapter;
+
+impl CommitOutcomeAdapter for SqlCommitOutcomeAdapter {
+    async fn commit(&self, connection: &mut SqliteConnection) -> CommitAttemptOutcome {
+        match raw_sql("COMMIT").execute(connection).await {
+            Ok(_) => CommitAttemptOutcome::Committed,
+            Err(error) => CommitAttemptOutcome::OutcomeUnknown {
+                error_class: format!("migration_commit_failed:{error}"),
+            },
+        }
+    }
+
+    async fn rollback(&self, connection: &mut SqliteConnection) -> RollbackAttemptOutcome {
+        match raw_sql("ROLLBACK").execute(connection).await {
+            Ok(_) => RollbackAttemptOutcome::RolledBack,
+            Err(error) => RollbackAttemptOutcome::Failed {
+                error_class: format!("migration_rollback_failed:{error}"),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct MigrationRestartClassification {
+    pub(crate) phase: MigrationOperationPhase,
+    pub(crate) error_class: Option<String>,
+    pub(crate) receipt: Option<MigrationReceipt>,
+}
+
+impl MigrationRestartClassification {
+    fn state(phase: MigrationOperationPhase) -> Self {
+        Self {
+            phase,
+            error_class: None,
+            receipt: None,
+        }
+    }
+
+    fn v5_ready(receipt: MigrationReceipt) -> Self {
+        Self {
+            phase: MigrationOperationPhase::V5Ready,
+            error_class: None,
+            receipt: Some(receipt),
+        }
+    }
+
+    fn v5_blocked(error_class: impl Into<String>) -> Self {
+        Self {
+            phase: MigrationOperationPhase::V5BlockedRestoreAvailable,
+            error_class: Some(error_class.into()),
+            receipt: None,
+        }
+    }
+
+    fn blocked(error_class: impl Into<String>) -> Self {
+        Self {
+            phase: MigrationOperationPhase::RecoveryRequired,
+            error_class: Some(error_class.into()),
+            receipt: None,
+        }
+    }
+}
+
+enum MigrationAttemptOutcome {
+    Committed(MigrationReceipt),
+    PreCommitFailed {
+        error: MigrationError,
+        rollback: RollbackAttemptOutcome,
+    },
+    DefinitelyNotCommitted {
+        receipt: MigrationReceipt,
+        error_class: String,
+        rollback: RollbackAttemptOutcome,
+    },
+    CommitOutcomeUnknown {
+        receipt: MigrationReceipt,
+        error_class: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1513,17 +1628,10 @@ fn injected(point: FailurePoint, expected: FailurePoint) -> Result<(), Migration
     }
 }
 
-async fn rollback(
-    connection: &mut SqliteConnection,
-    error: MigrationError,
-) -> Result<MigrationReceipt, MigrationError> {
-    let _ = raw_sql("ROLLBACK").execute(&mut *connection).await;
-    Err(error)
-}
-
-pub(crate) async fn migrate_disposable_v4(
+async fn attempt_disposable_v4_with_adapter<A: CommitOutcomeAdapter>(
     request: MigrationRequest<'_>,
-) -> Result<MigrationReceipt, MigrationError> {
+    adapter: &A,
+) -> Result<MigrationAttemptOutcome, MigrationError> {
     if !request.path.exists() {
         return Err(MigrationError::fail_closed("database_path_missing"));
     }
@@ -1691,6 +1799,7 @@ pub(crate) async fn migrate_disposable_v4(
         injected(request.failure_point, FailurePoint::AfterVersionMutation)?;
         Ok(MigrationReceipt {
             migration_id,
+            backup_id: request.backup_id.map(str::to_string),
             source_manifest_digest: source_manifest,
             target_manifest_digest: target_manifest,
         })
@@ -1699,23 +1808,212 @@ pub(crate) async fn migrate_disposable_v4(
 
     let receipt = match transaction_result {
         Ok(receipt) => receipt,
-        Err(error) => return rollback(&mut connection, error).await,
+        Err(error) => {
+            let rollback = adapter.rollback(&mut connection).await;
+            drop(connection);
+            return Ok(MigrationAttemptOutcome::PreCommitFailed { error, rollback });
+        }
     };
-    if let Err(error) = raw_sql("COMMIT").execute(&mut connection).await {
-        return rollback(
-            &mut connection,
-            migration_error("migration_commit_failed", error),
-        )
-        .await;
-    }
+    let commit = adapter.commit(&mut connection).await;
+    let outcome = match commit {
+        CommitAttemptOutcome::Committed => MigrationAttemptOutcome::Committed(receipt),
+        CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
+            let rollback = adapter.rollback(&mut connection).await;
+            MigrationAttemptOutcome::DefinitelyNotCommitted {
+                receipt,
+                error_class,
+                rollback,
+            }
+        }
+        CommitAttemptOutcome::OutcomeUnknown { error_class } => {
+            MigrationAttemptOutcome::CommitOutcomeUnknown {
+                receipt,
+                error_class,
+            }
+        }
+    };
     drop(connection);
+    Ok(outcome)
+}
 
-    if request.failure_point == FailurePoint::PostCommitVerification {
+pub(crate) async fn migrate_disposable_v4(
+    request: MigrationRequest<'_>,
+) -> Result<MigrationReceipt, MigrationError> {
+    let path = request.path.to_path_buf();
+    let expected_source_manifest = request.expected_source_manifest_digest.clone();
+    let post_commit_failure = request.failure_point == FailurePoint::PostCommitVerification;
+    match attempt_disposable_v4_with_adapter(request, &SqlCommitOutcomeAdapter).await? {
+        MigrationAttemptOutcome::Committed(receipt) => {
+            if post_commit_failure {
+                return Err(MigrationError::recovery_required(
+                    "injected_post_commit_verification_failure",
+                ));
+            }
+            verify_committed_v5(&path, &receipt).await?;
+            Ok(receipt)
+        }
+        MigrationAttemptOutcome::PreCommitFailed { error, rollback } => {
+            verify_durable_v4(&path, None)
+                .await
+                .map_err(|verification| {
+                    MigrationError::recovery_required(format!(
+                        "precommit_state_unverified:{}:{rollback:?}",
+                        verification.code
+                    ))
+                })?;
+            Err(error)
+        }
+        MigrationAttemptOutcome::DefinitelyNotCommitted {
+            receipt: _,
+            error_class,
+            rollback,
+        } => {
+            verify_durable_v4(&path, Some(&expected_source_manifest))
+                .await
+                .map_err(|verification| {
+                    MigrationError::recovery_required(format!(
+                        "definite_noncommit_state_unverified:{error_class}:{}:{rollback:?}",
+                        verification.code
+                    ))
+                })?;
+            Err(MigrationError::fail_closed(format!(
+                "migration_commit_definitely_not_committed:{error_class}:{rollback:?}"
+            )))
+        }
+        MigrationAttemptOutcome::CommitOutcomeUnknown {
+            receipt,
+            error_class,
+        } => {
+            if verify_committed_v5(&path, &receipt).await.is_ok() {
+                return Ok(receipt);
+            }
+            if verify_durable_v4(&path, Some(&expected_source_manifest))
+                .await
+                .is_ok()
+            {
+                return Err(MigrationError::fail_closed(format!(
+                    "migration_commit_outcome_unknown_durable_v4:{error_class}"
+                )));
+            }
+            Err(MigrationError::recovery_required(format!(
+                "migration_commit_outcome_unknown:{error_class}"
+            )))
+        }
+    }
+}
+
+async fn verify_durable_v4(
+    path: &Path,
+    expected_source_manifest: Option<&str>,
+) -> Result<(), MigrationError> {
+    let mut connection = connect(path, true).await.map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v4_open_failed:{}", error.code))
+    })?;
+    let result = async {
+        if user_version(&mut connection).await? != SOURCE_SCHEMA_VERSION {
+            return Err(MigrationError::recovery_required(
+                "durable_v4_version_mismatch",
+            ));
+        }
+        if let Some(expected_source_manifest) = expected_source_manifest {
+            if manifest(&mut connection, &SOURCE_TABLE_MANIFESTS).await? != expected_source_manifest
+            {
+                return Err(MigrationError::recovery_required(
+                    "durable_v4_source_manifest_mismatch",
+                ));
+            }
+        }
+        for name in TARGET_TABLE_MANIFESTS.iter().map(|spec| spec.name).chain([
+            "database_contract",
+            "schema_migration_receipts",
+            "v5_compatibility_write_guard",
+        ]) {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = ? AND type IN ('table', 'view')",
+            )
+            .bind(name)
+            .fetch_one(&mut connection)
+            .await
+            .map_err(|error| migration_error("durable_v4_schema_check_failed", error))?;
+            if count != 0 {
+                return Err(MigrationError::recovery_required(format!(
+                    "durable_v4_contains_v5_object:{name}"
+                )));
+            }
+        }
+        integrity_checks(&mut connection).await?;
+        Ok(())
+    }
+    .await;
+    result.map_err(|error| {
+        if error.recovery_required {
+            error
+        } else {
+            MigrationError::recovery_required(format!(
+                "durable_v4_verification_failed:{}",
+                error.code
+            ))
+        }
+    })
+}
+
+async fn read_verified_durable_v5(
+    path: &Path,
+    expected_source_manifest: &str,
+    expected_backup_id: &str,
+) -> Result<MigrationReceipt, MigrationError> {
+    let mut connection = connect(path, true).await.map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v5_open_failed:{}", error.code))
+    })?;
+    if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
         return Err(MigrationError::recovery_required(
-            "injected_post_commit_verification_failure",
+            "durable_v5_version_mismatch",
         ));
     }
-    verify_committed_v5(request.path, &receipt).await?;
+    let rows: Vec<MigrationReceiptRow> = sqlx::query_as(
+        "SELECT migration_id, from_version, to_version, state, application_version,\
+         backup_id, source_manifest_digest, target_manifest_digest \
+         FROM schema_migration_receipts",
+    )
+    .fetch_all(&mut connection)
+    .await
+    .map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v5_receipt_unreadable:{error}"))
+    })?;
+    if rows.len() != 1 {
+        return Err(MigrationError::recovery_required(
+            "durable_v5_receipt_count_mismatch",
+        ));
+    }
+    let (
+        migration_id,
+        from_version,
+        to_version,
+        state,
+        application_version,
+        backup_id,
+        source_manifest_digest,
+        target_manifest_digest,
+    ) = rows.into_iter().next().unwrap();
+    if from_version != SOURCE_SCHEMA_VERSION
+        || to_version != TARGET_SCHEMA_VERSION
+        || state != "committed"
+        || application_version != APPLICATION_VERSION
+        || backup_id.as_deref() != Some(expected_backup_id)
+        || source_manifest_digest != expected_source_manifest
+    {
+        return Err(MigrationError::recovery_required(
+            "durable_v5_receipt_mismatch",
+        ));
+    }
+    drop(connection);
+    let receipt = MigrationReceipt {
+        migration_id,
+        backup_id,
+        source_manifest_digest,
+        target_manifest_digest,
+    };
+    verify_committed_v5(path, &receipt).await?;
     Ok(receipt)
 }
 
@@ -1732,19 +2030,25 @@ async fn verify_committed_v5(
                 "post_commit_version_mismatch",
             ));
         }
-        let receipt: (String, String, String) = sqlx::query_as(
-            "SELECT migration_id, source_manifest_digest, target_manifest_digest \
-             FROM schema_migration_receipts WHERE migration_id = ?",
+        let receipts: Vec<(String, Option<String>, String, String)> = sqlx::query_as(
+            "SELECT migration_id, backup_id, source_manifest_digest, target_manifest_digest \
+             FROM schema_migration_receipts WHERE state = 'committed'",
         )
-        .bind(&expected.migration_id)
-        .fetch_one(&mut connection)
+        .fetch_all(&mut connection)
         .await
         .map_err(|error| {
             MigrationError::recovery_required(format!("post_commit_receipt_missing:{error}"))
         })?;
+        if receipts.len() != 1 {
+            return Err(MigrationError::recovery_required(
+                "post_commit_receipt_count_mismatch",
+            ));
+        }
+        let receipt = receipts.into_iter().next().unwrap();
         if receipt
             != (
                 expected.migration_id.clone(),
+                expected.backup_id.clone(),
                 expected.source_manifest_digest.clone(),
                 expected.target_manifest_digest.clone(),
             )
@@ -1827,10 +2131,332 @@ async fn verify_committed_v5(
     })
 }
 
+fn recovery_from_safety(error: SafetyError) -> MigrationRestartClassification {
+    MigrationRestartClassification::blocked(format!("filesystem_evidence_failed:{}", error.code))
+}
+
+pub(crate) async fn inspect_disposable_migration_restart<V: CandidateVerifier>(
+    candidates: &[&OwnedOperation],
+    verifier: &V,
+) -> MigrationRestartClassification {
+    if candidates.is_empty() {
+        return MigrationRestartClassification::blocked("migration_operation_missing");
+    }
+    if candidates.len() != 1 {
+        return MigrationRestartClassification::blocked("multiple_migration_operations");
+    }
+    let operation = candidates[0];
+    let state = match read_migration_state_evidence(operation) {
+        Ok(state) => state,
+        Err(error) => return recovery_from_safety(error),
+    };
+
+    if state.phase == MigrationOperationPhase::Prepared {
+        if operation.backup.exists() {
+            return MigrationRestartClassification::blocked(
+                "prepared_operation_has_unverified_backup",
+            );
+        }
+        return match verify_durable_v4(&operation.live, None).await {
+            Ok(()) => MigrationRestartClassification::state(MigrationOperationPhase::Prepared),
+            Err(error) => MigrationRestartClassification::blocked(error.code),
+        };
+    }
+
+    let expected_backup = match state.verified_backup.as_ref() {
+        Some(expected) => expected,
+        None => {
+            return MigrationRestartClassification::blocked("migration_backup_evidence_missing")
+        }
+    };
+    if let Err(error) =
+        verify_owned_backup_for_migration(operation, expected_backup, verifier).await
+    {
+        return recovery_from_safety(error);
+    }
+
+    let version = match connect(&operation.live, true).await {
+        Ok(mut connection) => match user_version(&mut connection).await {
+            Ok(version) => version,
+            Err(error) => return MigrationRestartClassification::blocked(error.code),
+        },
+        Err(error) => return MigrationRestartClassification::blocked(error.code),
+    };
+    match version {
+        SOURCE_SCHEMA_VERSION => {
+            if let Err(error) = verify_durable_v4(
+                &operation.live,
+                Some(&expected_backup.source_manifest_digest),
+            )
+            .await
+            {
+                return MigrationRestartClassification::blocked(error.code);
+            }
+            match state.phase {
+                MigrationOperationPhase::BackupVerified => {
+                    MigrationRestartClassification::state(MigrationOperationPhase::BackupVerified)
+                }
+                MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V4ReadyWithBackup => {
+                    MigrationRestartClassification::state(
+                        MigrationOperationPhase::V4ReadyWithBackup,
+                    )
+                }
+                MigrationOperationPhase::RecoveryRequired => {
+                    MigrationRestartClassification::blocked(
+                        state
+                            .outcome_class
+                            .unwrap_or_else(|| "migration_recovery_required".into()),
+                    )
+                }
+                MigrationOperationPhase::Prepared
+                | MigrationOperationPhase::V5Verifying
+                | MigrationOperationPhase::V5Ready
+                | MigrationOperationPhase::V5BlockedRestoreAvailable => {
+                    MigrationRestartClassification::blocked(
+                        "migration_state_contradicts_durable_v4",
+                    )
+                }
+            }
+        }
+        TARGET_SCHEMA_VERSION => {
+            match state.phase {
+                MigrationOperationPhase::Prepared
+                | MigrationOperationPhase::BackupVerified
+                | MigrationOperationPhase::V4ReadyWithBackup => {
+                    return MigrationRestartClassification::blocked(
+                        "migration_state_contradicts_durable_v5",
+                    );
+                }
+                MigrationOperationPhase::RecoveryRequired => {
+                    return MigrationRestartClassification::blocked(
+                        state
+                            .outcome_class
+                            .unwrap_or_else(|| "migration_recovery_required".into()),
+                    );
+                }
+                MigrationOperationPhase::CommitOutcomeUnknown if state.migration_id.is_none() => {
+                    return MigrationRestartClassification::blocked(
+                        "commit_unknown_state_without_receipt_contradicts_durable_v5",
+                    );
+                }
+                MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V5Verifying
+                | MigrationOperationPhase::V5Ready
+                | MigrationOperationPhase::V5BlockedRestoreAvailable => {}
+            }
+            match read_verified_durable_v5(
+                &operation.live,
+                &expected_backup.source_manifest_digest,
+                &operation.operation_id,
+            )
+            .await
+            {
+                Ok(receipt) => {
+                    if state.phase == MigrationOperationPhase::V5BlockedRestoreAvailable {
+                        return MigrationRestartClassification::v5_blocked(
+                            state
+                                .outcome_class
+                                .unwrap_or_else(|| "v5_remains_blocked".into()),
+                        );
+                    }
+                    if state
+                        .migration_id
+                        .as_deref()
+                        .is_some_and(|value| value != receipt.migration_id.as_str())
+                        || state
+                            .migration_source_manifest_digest
+                            .as_deref()
+                            .is_some_and(|value| value != receipt.source_manifest_digest.as_str())
+                        || state
+                            .migration_target_manifest_digest
+                            .as_deref()
+                            .is_some_and(|value| value != receipt.target_manifest_digest.as_str())
+                    {
+                        MigrationRestartClassification::blocked("migration_state_receipt_mismatch")
+                    } else {
+                        MigrationRestartClassification::v5_ready(receipt)
+                    }
+                }
+                Err(error) => MigrationRestartClassification::v5_blocked(error.code),
+            }
+        }
+        other => MigrationRestartClassification::blocked(format!(
+            "migration_live_schema_unsupported:{other}"
+        )),
+    }
+}
+
+pub(crate) async fn orchestrate_disposable_v4_migration<
+    V: CandidateVerifier,
+    A: CommitOutcomeAdapter,
+>(
+    operation: &OwnedOperation,
+    expected_backup: &ExpectedCandidate,
+    request: MigrationRequest<'_>,
+    verifier: &V,
+    adapter: &A,
+) -> MigrationRestartClassification {
+    if request.path != operation.live {
+        return MigrationRestartClassification::blocked("migration_request_live_path_mismatch");
+    }
+    if request.backup_id != Some(operation.operation_id.as_str()) {
+        return MigrationRestartClassification::blocked("migration_request_backup_id_mismatch");
+    }
+    if request.expected_source_manifest_digest != expected_backup.source_manifest_digest {
+        return MigrationRestartClassification::blocked(
+            "migration_request_source_manifest_mismatch",
+        );
+    }
+    let state = match read_migration_state_evidence(operation) {
+        Ok(state) => state,
+        Err(error) => return recovery_from_safety(error),
+    };
+    if state.phase != MigrationOperationPhase::BackupVerified
+        || state.verified_backup.as_ref() != Some(expected_backup)
+    {
+        return MigrationRestartClassification::blocked(
+            "migration_requires_exact_verified_backup_state",
+        );
+    }
+    if let Err(error) =
+        verify_owned_backup_for_migration(operation, expected_backup, verifier).await
+    {
+        return recovery_from_safety(error);
+    }
+    if let Err(error) = verify_durable_v4(
+        &operation.live,
+        Some(&expected_backup.source_manifest_digest),
+    )
+    .await
+    {
+        return MigrationRestartClassification::blocked(format!(
+            "migration_live_preflight_failed:{}",
+            error.code
+        ));
+    }
+    if let Err(error) = record_migration_state(
+        operation,
+        MigrationOperationPhase::Migrating,
+        Some("migration_started".into()),
+        None,
+    ) {
+        return recovery_from_safety(error);
+    }
+
+    let post_commit_failure = request.failure_point == FailurePoint::PostCommitVerification;
+    let attempt = match attempt_disposable_v4_with_adapter(request, adapter).await {
+        Ok(attempt) => attempt,
+        Err(error) => {
+            return MigrationRestartClassification::blocked(format!(
+                "migration_attempt_failed_before_classification:{}",
+                error.code
+            ))
+        }
+    };
+
+    let mut receipt_to_record = None;
+    match &attempt {
+        MigrationAttemptOutcome::Committed(receipt) => {
+            receipt_to_record = Some(receipt);
+            let _ = record_migration_state(
+                operation,
+                MigrationOperationPhase::V5Verifying,
+                Some("commit_reported_success".into()),
+                Some(MigrationReceiptEvidence {
+                    migration_id: &receipt.migration_id,
+                    source_manifest_digest: &receipt.source_manifest_digest,
+                    target_manifest_digest: &receipt.target_manifest_digest,
+                }),
+            );
+        }
+        MigrationAttemptOutcome::CommitOutcomeUnknown {
+            receipt,
+            error_class,
+        } => {
+            receipt_to_record = Some(receipt);
+            let _ = record_migration_state(
+                operation,
+                MigrationOperationPhase::CommitOutcomeUnknown,
+                Some(error_class.clone()),
+                Some(MigrationReceiptEvidence {
+                    migration_id: &receipt.migration_id,
+                    source_manifest_digest: &receipt.source_manifest_digest,
+                    target_manifest_digest: &receipt.target_manifest_digest,
+                }),
+            );
+        }
+        MigrationAttemptOutcome::DefinitelyNotCommitted {
+            error_class,
+            rollback,
+            ..
+        } => {
+            let _ = record_migration_state(
+                operation,
+                MigrationOperationPhase::CommitOutcomeUnknown,
+                Some(format!(
+                    "definitely_not_committed:{error_class}:{rollback:?}"
+                )),
+                None,
+            );
+        }
+        MigrationAttemptOutcome::PreCommitFailed { error, rollback } => {
+            let _ = record_migration_state(
+                operation,
+                MigrationOperationPhase::CommitOutcomeUnknown,
+                Some(format!("precommit_failed:{}:{rollback:?}", error.code)),
+                None,
+            );
+        }
+    }
+
+    if post_commit_failure && receipt_to_record.is_some() {
+        let _ = record_migration_state(
+            operation,
+            MigrationOperationPhase::V5BlockedRestoreAvailable,
+            Some("injected_post_commit_verification_failure".into()),
+            receipt_to_record.map(|receipt| MigrationReceiptEvidence {
+                migration_id: &receipt.migration_id,
+                source_manifest_digest: &receipt.source_manifest_digest,
+                target_manifest_digest: &receipt.target_manifest_digest,
+            }),
+        );
+        return MigrationRestartClassification::v5_blocked(
+            "injected_post_commit_verification_failure",
+        );
+    }
+
+    let classification = inspect_disposable_migration_restart(&[operation], verifier).await;
+    let receipt_evidence =
+        classification
+            .receipt
+            .as_ref()
+            .map(|receipt| MigrationReceiptEvidence {
+                migration_id: &receipt.migration_id,
+                source_manifest_digest: &receipt.source_manifest_digest,
+                target_manifest_digest: &receipt.target_manifest_digest,
+            });
+    let _ = record_migration_state(
+        operation,
+        classification.phase,
+        classification.error_class.clone(),
+        receipt_evidence,
+    );
+    classification
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filesystem_safety::{
+        create_owned_verified_backup, prepare_operation, CandidateEvidence, DatabaseActivity,
+        ExclusiveOperationGuard, QuiescenceProbe, SystemDurability, SystemVacuumInto,
+        SystemVolumeProbe,
+    };
     use sqlx::raw_sql;
+    use std::cell::Cell;
     use std::fs;
     use tempfile::TempDir;
 
@@ -1941,6 +2567,157 @@ mod tests {
             .await
             .unwrap();
         request_with_expected(path, failure_point, expected)
+    }
+
+    struct QuiescentFixture;
+
+    impl QuiescenceProbe for QuiescentFixture {
+        fn database_activity(&self) -> DatabaseActivity {
+            DatabaseActivity::Quiescent
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    struct ExactV4Verifier;
+
+    impl CandidateVerifier for ExactV4Verifier {
+        async fn inspect(&self, path: &Path) -> Result<CandidateEvidence, SafetyError> {
+            let mut connection = connect(path, true)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            let schema_version = user_version(&mut connection)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            let source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            integrity_checks(&mut connection)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            connection
+                .close()
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.to_string()))?;
+            Ok(CandidateEvidence {
+                source_manifest_digest: source_manifest_digest.clone(),
+                schema_version,
+                foreign_keys_valid: true,
+                integrity_valid: true,
+                exact_record_digest: source_manifest_digest,
+            })
+        }
+    }
+
+    async fn create_owned_v4_fixture() -> (TempDir, OwnedOperation, ExpectedCandidate) {
+        let (directory, path) = create_fixture(V4_FIXTURE).await;
+        let probe = QuiescentFixture;
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation =
+            prepare_operation(directory.path(), &path, &guard, &SystemVolumeProbe).unwrap();
+        let expected = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &SystemVolumeProbe,
+            &ExactV4Verifier,
+            &SystemVacuumInto,
+            &SystemDurability,
+        )
+        .await
+        .unwrap();
+        (directory, operation, expected)
+    }
+
+    fn owned_request<'a>(
+        operation: &'a OwnedOperation,
+        expected: &ExpectedCandidate,
+        failure_point: FailurePoint,
+    ) -> MigrationRequest<'a> {
+        MigrationRequest {
+            path: &operation.live,
+            expected_source_manifest_digest: expected.source_manifest_digest.clone(),
+            started_at: STARTED_AT,
+            committed_at: COMMITTED_AT,
+            backup_id: Some(operation.operation_id.as_str()),
+            failure_point,
+        }
+    }
+
+    struct InjectedCommitAdapter {
+        commit_outcome: InjectedCommitOutcome,
+        rollback_fails: bool,
+        commit_calls: Cell<usize>,
+        rollback_calls: Cell<usize>,
+    }
+
+    #[derive(Clone, Copy)]
+    enum InjectedCommitOutcome {
+        DefinitelyNotCommitted,
+        UnknownWithoutCommit,
+        UnknownAfterCommit,
+    }
+
+    impl InjectedCommitAdapter {
+        fn definite_noncommit(rollback_fails: bool) -> Self {
+            Self {
+                commit_outcome: InjectedCommitOutcome::DefinitelyNotCommitted,
+                rollback_fails,
+                commit_calls: Cell::new(0),
+                rollback_calls: Cell::new(0),
+            }
+        }
+
+        fn unknown_without_commit() -> Self {
+            Self {
+                commit_outcome: InjectedCommitOutcome::UnknownWithoutCommit,
+                rollback_fails: false,
+                commit_calls: Cell::new(0),
+                rollback_calls: Cell::new(0),
+            }
+        }
+
+        fn unknown_after_commit() -> Self {
+            Self {
+                commit_outcome: InjectedCommitOutcome::UnknownAfterCommit,
+                rollback_fails: false,
+                commit_calls: Cell::new(0),
+                rollback_calls: Cell::new(0),
+            }
+        }
+    }
+
+    impl CommitOutcomeAdapter for InjectedCommitAdapter {
+        async fn commit(&self, connection: &mut SqliteConnection) -> CommitAttemptOutcome {
+            self.commit_calls.set(self.commit_calls.get() + 1);
+            match self.commit_outcome {
+                InjectedCommitOutcome::DefinitelyNotCommitted => {
+                    CommitAttemptOutcome::DefinitelyNotCommitted {
+                        error_class: "injected_definite_noncommit".into(),
+                    }
+                }
+                InjectedCommitOutcome::UnknownWithoutCommit => {
+                    CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_ambiguous_v4".into(),
+                    }
+                }
+                InjectedCommitOutcome::UnknownAfterCommit => {
+                    raw_sql("COMMIT").execute(connection).await.unwrap();
+                    CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_ambiguous_v5".into(),
+                    }
+                }
+            }
+        }
+
+        async fn rollback(&self, connection: &mut SqliteConnection) -> RollbackAttemptOutcome {
+            self.rollback_calls.set(self.rollback_calls.get() + 1);
+            if self.rollback_fails {
+                return RollbackAttemptOutcome::Failed {
+                    error_class: "injected_rollback_failure".into(),
+                };
+            }
+            raw_sql("ROLLBACK").execute(connection).await.unwrap();
+            RollbackAttemptOutcome::RolledBack
+        }
     }
 
     async fn v4_logical_snapshot(path: &Path) -> (i64, String, Vec<(String, String, String)>) {
@@ -2380,5 +3157,403 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(flags, ("disabled".to_string(), "disabled".to_string()));
+    }
+
+    #[tokio::test]
+    async fn restart_classifies_prepared_and_backup_verified_without_mutation() {
+        let (directory, path) = create_fixture(V4_FIXTURE).await;
+        let probe = QuiescentFixture;
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation =
+            prepare_operation(directory.path(), &path, &guard, &SystemVolumeProbe).unwrap();
+
+        let prepared_live = fs::read(&operation.live).unwrap();
+        let prepared_state = fs::read(&operation.state).unwrap();
+        let prepared = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(prepared.phase, MigrationOperationPhase::Prepared);
+        assert_eq!(fs::read(&operation.live).unwrap(), prepared_live);
+        assert_eq!(fs::read(&operation.state).unwrap(), prepared_state);
+
+        let expected = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &SystemVolumeProbe,
+            &ExactV4Verifier,
+            &SystemVacuumInto,
+            &SystemDurability,
+        )
+        .await
+        .unwrap();
+        let verified_live = fs::read(&operation.live).unwrap();
+        let verified_backup = fs::read(&operation.backup).unwrap();
+        let verified_state = fs::read(&operation.state).unwrap();
+        let verified = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(verified.phase, MigrationOperationPhase::BackupVerified);
+        assert_eq!(fs::read(&operation.live).unwrap(), verified_live);
+        assert_eq!(fs::read(&operation.backup).unwrap(), verified_backup);
+        assert_eq!(fs::read(&operation.state).unwrap(), verified_state);
+        assert_eq!(
+            verified_state,
+            fs::read(&operation.state).unwrap(),
+            "restart inspection must not rewrite durable operation ownership"
+        );
+        assert_eq!(
+            expected.source_manifest_digest,
+            manifest(
+                &mut connect(&operation.backup, true).await.unwrap(),
+                &SOURCE_TABLE_MANIFESTS,
+            )
+            .await
+            .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn definite_noncommit_and_rollback_failure_preserve_durable_v4_backup() {
+        for rollback_fails in [false, true] {
+            let (_directory, operation, expected) = create_owned_v4_fixture().await;
+            let live_before = fs::read(&operation.live).unwrap();
+            let backup_before = fs::read(&operation.backup).unwrap();
+            let adapter = InjectedCommitAdapter::definite_noncommit(rollback_fails);
+
+            let result = orchestrate_disposable_v4_migration(
+                &operation,
+                &expected,
+                owned_request(&operation, &expected, FailurePoint::None),
+                &ExactV4Verifier,
+                &adapter,
+            )
+            .await;
+
+            assert_eq!(result.phase, MigrationOperationPhase::V4ReadyWithBackup);
+            assert_eq!(adapter.commit_calls.get(), 1);
+            assert_eq!(adapter.rollback_calls.get(), 1);
+            assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+            assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+            verify_durable_v4(&operation.live, Some(&expected.source_manifest_digest))
+                .await
+                .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn ambiguous_commit_with_durable_v4_fails_closed_without_retry_or_rollback() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let live_before = fs::read(&operation.live).unwrap();
+        let backup_before = fs::read(&operation.backup).unwrap();
+        let adapter = InjectedCommitAdapter::unknown_without_commit();
+
+        let result = orchestrate_disposable_v4_migration(
+            &operation,
+            &expected,
+            owned_request(&operation, &expected, FailurePoint::None),
+            &ExactV4Verifier,
+            &adapter,
+        )
+        .await;
+
+        assert_eq!(result.phase, MigrationOperationPhase::V4ReadyWithBackup);
+        assert_eq!(adapter.commit_calls.get(), 1);
+        assert_eq!(adapter.rollback_calls.get(), 0);
+        assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_commit_with_valid_durable_v5_is_classified_from_read_only_evidence() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let backup_before = fs::read(&operation.backup).unwrap();
+        let adapter = InjectedCommitAdapter::unknown_after_commit();
+
+        let result = orchestrate_disposable_v4_migration(
+            &operation,
+            &expected,
+            owned_request(&operation, &expected, FailurePoint::None),
+            &ExactV4Verifier,
+            &adapter,
+        )
+        .await;
+
+        assert_eq!(result.phase, MigrationOperationPhase::V5Ready);
+        assert!(result.receipt.is_some());
+        assert_eq!(adapter.commit_calls.get(), 1);
+        assert_eq!(adapter.rollback_calls.get(), 0);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+        let mut connection = connect(&operation.live, true).await.unwrap();
+        assert_eq!(user_version(&mut connection).await.unwrap(), 5);
+    }
+
+    #[tokio::test]
+    async fn restart_after_commit_before_state_update_recovers_valid_v5_without_writes() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        record_migration_state(
+            &operation,
+            MigrationOperationPhase::Migrating,
+            Some("migration_started".into()),
+            None,
+        )
+        .unwrap();
+        let adapter = InjectedCommitAdapter::unknown_after_commit();
+        let attempt = attempt_disposable_v4_with_adapter(
+            owned_request(&operation, &expected, FailurePoint::None),
+            &adapter,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            attempt,
+            MigrationAttemptOutcome::CommitOutcomeUnknown { .. }
+        ));
+
+        let live_before_inspection = fs::read(&operation.live).unwrap();
+        let backup_before_inspection = fs::read(&operation.backup).unwrap();
+        let state_before_inspection = fs::read(&operation.state).unwrap();
+        assert_eq!(
+            read_migration_state_evidence(&operation).unwrap().phase,
+            MigrationOperationPhase::Migrating
+        );
+
+        let result = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(result.phase, MigrationOperationPhase::V5Ready);
+        assert_eq!(fs::read(&operation.live).unwrap(), live_before_inspection);
+        assert_eq!(
+            fs::read(&operation.backup).unwrap(),
+            backup_before_inspection
+        );
+        assert_eq!(fs::read(&operation.state).unwrap(), state_before_inspection);
+    }
+
+    #[tokio::test]
+    async fn postcommit_block_preserves_verified_backup_without_automatic_restore() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let backup_before = fs::read(&operation.backup).unwrap();
+        let result = orchestrate_disposable_v4_migration(
+            &operation,
+            &expected,
+            owned_request(&operation, &expected, FailurePoint::PostCommitVerification),
+            &ExactV4Verifier,
+            &SqlCommitOutcomeAdapter,
+        )
+        .await;
+
+        assert_eq!(
+            result.phase,
+            MigrationOperationPhase::V5BlockedRestoreAvailable
+        );
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+        let restart = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(
+            restart.phase,
+            MigrationOperationPhase::V5BlockedRestoreAvailable,
+            "restart must not automatically promote a durable blocked state"
+        );
+        let mut connection = connect(&operation.live, true).await.unwrap();
+        assert_eq!(user_version(&mut connection).await.unwrap(), 5);
+    }
+
+    #[tokio::test]
+    async fn missing_malformed_contradictory_and_multiple_operation_evidence_fail_closed() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let live_before = fs::read(&operation.live).unwrap();
+        let backup_before = fs::read(&operation.backup).unwrap();
+
+        assert_eq!(
+            inspect_disposable_migration_restart(&[], &ExactV4Verifier)
+                .await
+                .phase,
+            MigrationOperationPhase::RecoveryRequired
+        );
+        assert_eq!(
+            inspect_disposable_migration_restart(&[&operation, &operation], &ExactV4Verifier)
+                .await
+                .phase,
+            MigrationOperationPhase::RecoveryRequired
+        );
+
+        let state_before = fs::read(&operation.state).unwrap();
+        fs::write(&operation.state, b"{not-json").unwrap();
+        let malformed = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(malformed.phase, MigrationOperationPhase::RecoveryRequired);
+        assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+
+        fs::write(&operation.state, &state_before).unwrap();
+        let mut contradictory: serde_json::Value = serde_json::from_slice(&state_before).unwrap();
+        contradictory["phase"] = serde_json::Value::String("v5_ready".into());
+        contradictory["migration_id"] = serde_json::Value::String("contradictory-id".into());
+        contradictory["migration_source_manifest_digest"] =
+            serde_json::Value::String(expected.source_manifest_digest.clone());
+        contradictory["migration_target_manifest_digest"] =
+            serde_json::Value::String("contradictory-target".into());
+        fs::write(
+            &operation.state,
+            serde_json::to_vec_pretty(&contradictory).unwrap(),
+        )
+        .unwrap();
+        let contradiction =
+            inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(
+            contradiction.phase,
+            MigrationOperationPhase::RecoveryRequired
+        );
+        assert_eq!(
+            contradiction.error_class.as_deref(),
+            Some("migration_state_contradicts_durable_v4")
+        );
+        assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+        assert_eq!(expected.schema_version, 4);
+    }
+
+    #[tokio::test]
+    async fn incomplete_or_mismatched_durable_receipt_evidence_is_recovery_required() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let initial_state = fs::read(&operation.state).unwrap();
+        let mut incomplete: serde_json::Value = serde_json::from_slice(&initial_state).unwrap();
+        incomplete["phase"] = serde_json::Value::String("commit_outcome_unknown".into());
+        incomplete["migration_id"] = serde_json::Value::String("partial-only".into());
+        fs::write(
+            &operation.state,
+            serde_json::to_vec_pretty(&incomplete).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier)
+                .await
+                .phase,
+            MigrationOperationPhase::RecoveryRequired
+        );
+
+        fs::write(&operation.state, initial_state).unwrap();
+        let result = orchestrate_disposable_v4_migration(
+            &operation,
+            &expected,
+            owned_request(&operation, &expected, FailurePoint::None),
+            &ExactV4Verifier,
+            &SqlCommitOutcomeAdapter,
+        )
+        .await;
+        assert_eq!(result.phase, MigrationOperationPhase::V5Ready);
+        let live_before = fs::read(&operation.live).unwrap();
+        let backup_before = fs::read(&operation.backup).unwrap();
+        let mut mismatched: serde_json::Value =
+            serde_json::from_slice(&fs::read(&operation.state).unwrap()).unwrap();
+        mismatched["migration_id"] = serde_json::Value::String("altered-migration-id".into());
+        fs::write(
+            &operation.state,
+            serde_json::to_vec_pretty(&mismatched).unwrap(),
+        )
+        .unwrap();
+
+        let mismatch = inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+        assert_eq!(mismatch.phase, MigrationOperationPhase::RecoveryRequired);
+        assert_eq!(
+            mismatch.error_class.as_deref(),
+            Some("migration_state_receipt_mismatch")
+        );
+        assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+    }
+
+    #[tokio::test]
+    async fn altered_or_missing_verified_backup_blocks_restart_without_touching_live() {
+        for delete_backup in [false, true] {
+            let (_directory, operation, _expected) = create_owned_v4_fixture().await;
+            let live_before = fs::read(&operation.live).unwrap();
+            if delete_backup {
+                fs::remove_file(&operation.backup).unwrap();
+            } else {
+                fs::write(&operation.backup, b"altered").unwrap();
+            }
+
+            let result =
+                inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+            assert_eq!(result.phase, MigrationOperationPhase::RecoveryRequired);
+            assert_eq!(fs::read(&operation.live).unwrap(), live_before);
+        }
+    }
+
+    #[tokio::test]
+    async fn valid_v5_with_receipt_contract_or_schema_drift_is_restore_available_only() {
+        for drift in ["receipt", "contract", "schema"] {
+            let (_directory, operation, expected) = create_owned_v4_fixture().await;
+            let result = orchestrate_disposable_v4_migration(
+                &operation,
+                &expected,
+                owned_request(&operation, &expected, FailurePoint::None),
+                &ExactV4Verifier,
+                &SqlCommitOutcomeAdapter,
+            )
+            .await;
+            assert_eq!(result.phase, MigrationOperationPhase::V5Ready);
+            let backup_before = fs::read(&operation.backup).unwrap();
+
+            let mut connection = connect(&operation.live, false).await.unwrap();
+            match drift {
+                "receipt" => {
+                    raw_sql("DROP TRIGGER migration_receipts_immutable_update")
+                        .execute(&mut connection)
+                        .await
+                        .unwrap();
+                    raw_sql("UPDATE schema_migration_receipts SET backup_id = 'altered'")
+                        .execute(&mut connection)
+                        .await
+                        .unwrap();
+                }
+                "contract" => {
+                    raw_sql("DROP TRIGGER database_contract_update_requires_guard")
+                        .execute(&mut connection)
+                        .await
+                        .unwrap();
+                    raw_sql("UPDATE database_contract SET lifecycle_writes = 'enabled'")
+                        .execute(&mut connection)
+                        .await
+                        .unwrap();
+                }
+                "schema" => {
+                    raw_sql("DROP TRIGGER migration_receipts_immutable_update")
+                        .execute(&mut connection)
+                        .await
+                        .unwrap();
+                }
+                _ => unreachable!(),
+            }
+            drop(connection);
+
+            let state_before = fs::read(&operation.state).unwrap();
+            let blocked =
+                inspect_disposable_migration_restart(&[&operation], &ExactV4Verifier).await;
+            assert_eq!(
+                blocked.phase,
+                MigrationOperationPhase::V5BlockedRestoreAvailable
+            );
+            assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
+            assert_eq!(fs::read(&operation.state).unwrap(), state_before);
+            let mut connection = connect(&operation.live, true).await.unwrap();
+            assert_eq!(user_version(&mut connection).await.unwrap(), 5);
+        }
+    }
+
+    #[tokio::test]
+    async fn precommit_interruption_with_rollback_failure_reopens_as_exact_v4() {
+        let (_directory, operation, expected) = create_owned_v4_fixture().await;
+        let live_before = v4_logical_snapshot(&operation.live).await;
+        let backup_before = fs::read(&operation.backup).unwrap();
+        let adapter = InjectedCommitAdapter::definite_noncommit(true);
+
+        let result = orchestrate_disposable_v4_migration(
+            &operation,
+            &expected,
+            owned_request(&operation, &expected, FailurePoint::AfterExperienceBackfill),
+            &ExactV4Verifier,
+            &adapter,
+        )
+        .await;
+
+        assert_eq!(result.phase, MigrationOperationPhase::V4ReadyWithBackup);
+        assert_eq!(adapter.commit_calls.get(), 0);
+        assert_eq!(adapter.rollback_calls.get(), 1);
+        assert_eq!(v4_logical_snapshot(&operation.live).await, live_before);
+        assert_eq!(fs::read(&operation.backup).unwrap(), backup_before);
     }
 }

@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 26,
+  "last_event_id": "2026-07-26-phase-3c-post-slice3a-gate:0026",
+  "last_event_hash": "9e38817f4aa16db97f24ac189747380709022f81646d05f2f5b0410543ef3b0c",
+  "sprint_id": "2026-07-26-phase-3c-post-slice3a-gate",
+  "mission_title": "Close promoted Slice 3A and founder-gate disposable Slice 3B migration restart orchestration",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE3B-001 by selecting Option A. I authorize Phase 3C Slice 3B only: create branch codex/phase-3c-slice3b-migration-restart-orchestration; implement one private, unregistered disposable migration orchestration by extending the existing owned-operation state contract rather than creating a parallel system; integrate the promoted exact schema-v4 verified-backup evidence with Slice 3A; add explicit Prepared, BackupVerified, Migrating, CommitOutcomeUnknown, V5Verifying, V5Ready, V4ReadyWithBackup, V5BlockedRestoreAvailable, and RecoveryRequired states; add an injectable COMMIT outcome adapter whose generic SQL error is OutcomeUnknown unless definite non-commit is proved; close writable connections and classify from read-only durable operation ownership, backup identity, live user_version, immutable receipt, database_contract, schema-object and source/target manifests, guard emptiness, current-content invariants, foreign_key_check, and integrity_check; preserve the exact verified backup; fail closed on missing, malformed, contradictory, altered, or multiple-candidate evidence; add deterministic interruption, definite-failure, ambiguous-v4, ambiguous-valid-v5, post-commit-blocked, rollback-failure, restart, and read-only-no-mutation tests against synthetic/disposable exact-v4 fixtures; synchronize factual documentation; run focused tests, Clippy, canonical verification, Theory Alignment Review, archive/reset, and stop at Founder diff review. I do not authorize real user databases or app-data paths, production SCHEMA_VERSION 5, startup/Tauri/renderer/UI activation, production backup/restore/replacement, automatic retry/replay/rollback/repair/restore/cleanup or candidate selection, migration disclosure UI, retention, lifecycle writes, export v2, Slice 4 or later, Phase 4, provider or ContextPacket changes, Harness expansion, Stage 2, Stage 3, staging, commit, push, merge, PR, or deployment.",
+    "selected_option": "A",
+    "authorized_scope": "Phase 3C Slice 3B only: private unregistered disposable migration orchestration; extend the existing owned-operation state contract; integrate verified schema-v4 backup evidence with Slice 3A; explicit migration/restart states; conservative injectable COMMIT outcome adapter; read-only durable classification; exact backup preservation; deterministic disposable failure/restart tests; factual documentation; focused/Clippy/canonical verification; Theory Alignment Review; archive/reset; stop at Founder diff review. All production activation, real-user data, later slices, Phase 4, Harness expansion, Git promotion, PR, and deployment remain excluded.",
+    "decided_at": "2026-07-26T12:35:03.124Z",
+    "evidence_reference": "founder-message-2026-07-26-PHASE3C-SLICE3B-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice3b-migration-restart-orchestration",
+  "repository_head": "7e0e5c44e03e58769f834243477c901cb01771ab",
+  "working_tree_digest": "5345adf61878f4f7885be1d67edbf0f3d1d1054e489a36846bfbd587d2cbdc2e",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-26T13:26:49.256Z",
+      "repository_head": "7e0e5c44e03e58769f834243477c901cb01771ab",
+      "working_tree_digest": "5345adf61878f4f7885be1d67edbf0f3d1d1054e489a36846bfbd587d2cbdc2e"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-26T12:16:56.322Z",
+  "updated_at": "2026-07-26T13:28:54.845Z"
+}
