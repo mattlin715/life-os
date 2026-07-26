@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-26-phase-3c-post-slice2b3-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-25T20:30:04.427Z",
+  "repository_head": "e932ead6da3346d3783da22dc1d1295c31cdc979",
+  "working_branch": "codex/phase-3c-slice3a-disposable-migration-core",
+  "working_tree_digest": "087590e9f394a6917dbbf5ed4c7d63ca8396cc5a69754f881ca021877eac5e45",
+  "last_event_id": "2026-07-26-phase-3c-post-slice2b3-gate:0026",
+  "last_event_hash": "a2ffa8d8b36f53ba1afba2cc642c644bdef95b5456eaa472093e5ecd7d123187",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

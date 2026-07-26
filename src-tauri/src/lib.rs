@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 mod filesystem_safety;
+#[allow(dead_code)]
+mod schema_v5_migration;
 mod sqlite;
 use serde::Serialize;
 use serde_json::json;

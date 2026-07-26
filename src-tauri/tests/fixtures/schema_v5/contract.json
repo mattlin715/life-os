@@ -1,6 +1,6 @@
 {
   "contract_version": "phase-3c-schema-v5-slice0-v1",
-  "scope": "test-only; no production migration or user_version mutation",
+  "scope": "fixed contract consumed by a private unregistered Slice 3A migration core; execution and user_version 5 are limited to synthetic disposable fixtures; no production activation or real user database mutation",
   "digest_contract": {
     "algorithm": "sha256",
     "text_normalization": "UTF-8; CRLF normalized to LF; exactly one final LF",
