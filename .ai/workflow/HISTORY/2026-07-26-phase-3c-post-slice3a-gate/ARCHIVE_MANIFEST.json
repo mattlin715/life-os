@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-26-phase-3c-post-slice3a-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-26T13:29:12.840Z",
+  "repository_head": "7e0e5c44e03e58769f834243477c901cb01771ab",
+  "working_branch": "codex/phase-3c-slice3b-migration-restart-orchestration",
+  "working_tree_digest": "5345adf61878f4f7885be1d67edbf0f3d1d1054e489a36846bfbd587d2cbdc2e",
+  "last_event_id": "2026-07-26-phase-3c-post-slice3a-gate:0026",
+  "last_event_hash": "9e38817f4aa16db97f24ac189747380709022f81646d05f2f5b0410543ef3b0c",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

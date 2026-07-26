@@ -12,7 +12,7 @@ use std::{
 };
 
 const SUPPORTED_SCHEMA_VERSION: i64 = 4;
-const OPERATION_STATE_SCHEMA: u8 = 2;
+const OPERATION_STATE_SCHEMA: u8 = 3;
 const MAX_OPERATION_ID_ATTEMPTS: usize = 16;
 static OPERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -23,14 +23,14 @@ pub(crate) struct SafetyError {
 }
 
 impl SafetyError {
-    fn fail_closed(code: impl Into<String>) -> Self {
+    pub(crate) fn fail_closed(code: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             recovery_required: false,
         }
     }
 
-    fn recovery_required(code: impl Into<String>) -> Self {
+    pub(crate) fn recovery_required(code: impl Into<String>) -> Self {
         Self {
             code: code.into(),
             recovery_required: true,
@@ -169,7 +169,7 @@ pub(crate) struct ExpectedCandidate {
 }
 
 impl ExpectedCandidate {
-    fn validate_contract(&self) -> Result<(), SafetyError> {
+    pub(crate) fn validate_contract(&self) -> Result<(), SafetyError> {
         if self.schema_version != SUPPORTED_SCHEMA_VERSION {
             return Err(SafetyError::fail_closed(
                 "expected_schema_version_not_supported",
@@ -397,11 +397,48 @@ pub(crate) enum RestartInspection {
     RecoveryRequired { error_class: String },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MigrationOperationPhase {
+    Prepared,
+    BackupVerified,
+    Migrating,
+    CommitOutcomeUnknown,
+    V5Verifying,
+    V5Ready,
+    V4ReadyWithBackup,
+    V5BlockedRestoreAvailable,
+    RecoveryRequired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MigrationStateEvidence {
+    pub(crate) phase: MigrationOperationPhase,
+    pub(crate) verified_backup: Option<ExpectedCandidate>,
+    pub(crate) live_before_sha256: Option<String>,
+    pub(crate) migration_id: Option<String>,
+    pub(crate) migration_source_manifest_digest: Option<String>,
+    pub(crate) migration_target_manifest_digest: Option<String>,
+    pub(crate) outcome_class: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MigrationReceiptEvidence<'a> {
+    pub(crate) migration_id: &'a str,
+    pub(crate) source_manifest_digest: &'a str,
+    pub(crate) target_manifest_digest: &'a str,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum OperationPhase {
     Prepared,
     BackupVerified,
+    Migrating,
+    CommitOutcomeUnknown,
+    V5Verifying,
+    V5Ready,
+    V4ReadyWithBackup,
+    V5BlockedRestoreAvailable,
     Staged,
     ReplacementCommitted,
     Completed,
@@ -420,6 +457,14 @@ struct OperationState {
     phase: OperationPhase,
     live_before_sha256: Option<String>,
     expected_database_sha256: Option<String>,
+    backup_source_manifest_digest: Option<String>,
+    backup_schema_version: Option<i64>,
+    backup_foreign_keys_valid: Option<bool>,
+    backup_integrity_valid: Option<bool>,
+    backup_exact_record_digest: Option<String>,
+    migration_id: Option<String>,
+    migration_source_manifest_digest: Option<String>,
+    migration_target_manifest_digest: Option<String>,
     outcome_class: Option<String>,
 }
 
@@ -567,6 +612,14 @@ impl OwnedOperation {
             phase: OperationPhase::Prepared,
             live_before_sha256: None,
             expected_database_sha256: None,
+            backup_source_manifest_digest: None,
+            backup_schema_version: None,
+            backup_foreign_keys_valid: None,
+            backup_integrity_valid: None,
+            backup_exact_record_digest: None,
+            migration_id: None,
+            migration_source_manifest_digest: None,
+            migration_target_manifest_digest: None,
             outcome_class: None,
         })
     }
@@ -669,13 +722,7 @@ pub(crate) async fn create_owned_verified_backup<
     verify_candidate(&operation.backup, &expected, verifier)
         .await
         .map_err(|error| record_ambiguous_backup(operation, error.code))?;
-    update_state(
-        operation,
-        OperationPhase::BackupVerified,
-        Some(source_before_sha256),
-        Some(expected.database_sha256.clone()),
-        Some("backup_verified".into()),
-    )?;
+    record_verified_backup_state(operation, source_before_sha256, &expected)?;
     Ok(expected)
 }
 
@@ -1112,6 +1159,14 @@ pub(crate) fn inspect_restart_state(
                 error_class: "completed_state_contradictory".into(),
             }
         }
+        OperationPhase::Migrating
+        | OperationPhase::CommitOutcomeUnknown
+        | OperationPhase::V5Verifying
+        | OperationPhase::V5Ready
+        | OperationPhase::V4ReadyWithBackup
+        | OperationPhase::V5BlockedRestoreAvailable => RestartInspection::RecoveryRequired {
+            error_class: "migration_state_requires_migration_classifier".into(),
+        },
         OperationPhase::RecoveryRequired => RestartInspection::RecoveryRequired {
             error_class: state
                 .outcome_class
@@ -1497,6 +1552,224 @@ fn update_state(
     }
     state.outcome_class = outcome_class;
     write_state(operation, &state)
+}
+
+fn record_verified_backup_state(
+    operation: &OwnedOperation,
+    live_before_sha256: String,
+    expected: &ExpectedCandidate,
+) -> Result<(), SafetyError> {
+    expected.validate_contract()?;
+    let mut state = read_owned_state(operation)?;
+    if state.phase != OperationPhase::Prepared {
+        return Err(SafetyError::fail_closed("backup_state_requires_prepared"));
+    }
+    state.phase = OperationPhase::BackupVerified;
+    state.live_before_sha256 = Some(live_before_sha256);
+    state.expected_database_sha256 = Some(expected.database_sha256.clone());
+    state.backup_source_manifest_digest = Some(expected.source_manifest_digest.clone());
+    state.backup_schema_version = Some(expected.schema_version);
+    state.backup_foreign_keys_valid = Some(expected.foreign_keys_valid);
+    state.backup_integrity_valid = Some(expected.integrity_valid);
+    state.backup_exact_record_digest = Some(expected.exact_record_digest.clone());
+    state.outcome_class = Some("backup_verified".into());
+    write_state(operation, &state)
+}
+
+fn migration_phase(phase: OperationPhase) -> Result<MigrationOperationPhase, SafetyError> {
+    match phase {
+        OperationPhase::Prepared => Ok(MigrationOperationPhase::Prepared),
+        OperationPhase::BackupVerified => Ok(MigrationOperationPhase::BackupVerified),
+        OperationPhase::Migrating => Ok(MigrationOperationPhase::Migrating),
+        OperationPhase::CommitOutcomeUnknown => Ok(MigrationOperationPhase::CommitOutcomeUnknown),
+        OperationPhase::V5Verifying => Ok(MigrationOperationPhase::V5Verifying),
+        OperationPhase::V5Ready => Ok(MigrationOperationPhase::V5Ready),
+        OperationPhase::V4ReadyWithBackup => Ok(MigrationOperationPhase::V4ReadyWithBackup),
+        OperationPhase::V5BlockedRestoreAvailable => {
+            Ok(MigrationOperationPhase::V5BlockedRestoreAvailable)
+        }
+        OperationPhase::RecoveryRequired => Ok(MigrationOperationPhase::RecoveryRequired),
+        OperationPhase::Staged
+        | OperationPhase::ReplacementCommitted
+        | OperationPhase::Completed
+        | OperationPhase::CompletedWithCleanupRequired => Err(SafetyError::recovery_required(
+            "operation_state_not_migration",
+        )),
+    }
+}
+
+fn expected_backup_from_state(
+    state: &OperationState,
+) -> Result<Option<ExpectedCandidate>, SafetyError> {
+    let fields_present = [
+        state.expected_database_sha256.is_some(),
+        state.backup_source_manifest_digest.is_some(),
+        state.backup_schema_version.is_some(),
+        state.backup_foreign_keys_valid.is_some(),
+        state.backup_integrity_valid.is_some(),
+        state.backup_exact_record_digest.is_some(),
+    ];
+    if fields_present.iter().all(|present| !present) {
+        return Ok(None);
+    }
+    if !fields_present.iter().all(|present| *present) {
+        return Err(SafetyError::recovery_required(
+            "migration_backup_state_incomplete",
+        ));
+    }
+    let expected = ExpectedCandidate {
+        database_sha256: state.expected_database_sha256.clone().unwrap(),
+        source_manifest_digest: state.backup_source_manifest_digest.clone().unwrap(),
+        schema_version: state.backup_schema_version.unwrap(),
+        foreign_keys_valid: state.backup_foreign_keys_valid.unwrap(),
+        integrity_valid: state.backup_integrity_valid.unwrap(),
+        exact_record_digest: state.backup_exact_record_digest.clone().unwrap(),
+    };
+    expected
+        .validate_contract()
+        .map_err(|error| SafetyError::recovery_required(error.code))?;
+    Ok(Some(expected))
+}
+
+pub(crate) fn read_migration_state_evidence(
+    operation: &OwnedOperation,
+) -> Result<MigrationStateEvidence, SafetyError> {
+    let state = read_owned_state(operation)?;
+    let phase = migration_phase(state.phase)?;
+    let verified_backup = expected_backup_from_state(&state)?;
+    if phase != MigrationOperationPhase::Prepared && verified_backup.is_none() {
+        return Err(SafetyError::recovery_required(
+            "migration_backup_evidence_missing",
+        ));
+    }
+    let migration_fields_present = [
+        state.migration_id.is_some(),
+        state.migration_source_manifest_digest.is_some(),
+        state.migration_target_manifest_digest.is_some(),
+    ];
+    if !migration_fields_present.iter().all(|present| *present)
+        && migration_fields_present.iter().any(|present| *present)
+    {
+        return Err(SafetyError::recovery_required(
+            "migration_receipt_state_incomplete",
+        ));
+    }
+    if matches!(
+        phase,
+        MigrationOperationPhase::V5Verifying
+            | MigrationOperationPhase::V5Ready
+            | MigrationOperationPhase::V5BlockedRestoreAvailable
+    ) && !migration_fields_present.iter().all(|present| *present)
+    {
+        return Err(SafetyError::recovery_required(
+            "migration_receipt_state_missing",
+        ));
+    }
+    Ok(MigrationStateEvidence {
+        phase,
+        verified_backup,
+        live_before_sha256: state.live_before_sha256,
+        migration_id: state.migration_id,
+        migration_source_manifest_digest: state.migration_source_manifest_digest,
+        migration_target_manifest_digest: state.migration_target_manifest_digest,
+        outcome_class: state.outcome_class,
+    })
+}
+
+pub(crate) fn record_migration_state(
+    operation: &OwnedOperation,
+    phase: MigrationOperationPhase,
+    outcome_class: Option<String>,
+    receipt: Option<MigrationReceiptEvidence<'_>>,
+) -> Result<(), SafetyError> {
+    let mut state = read_owned_state(operation)?;
+    let current = migration_phase(state.phase)?;
+    let transition_allowed = match phase {
+        MigrationOperationPhase::Prepared => current == MigrationOperationPhase::Prepared,
+        MigrationOperationPhase::BackupVerified => {
+            current == MigrationOperationPhase::BackupVerified
+        }
+        MigrationOperationPhase::Migrating => current == MigrationOperationPhase::BackupVerified,
+        MigrationOperationPhase::CommitOutcomeUnknown => {
+            current == MigrationOperationPhase::Migrating
+        }
+        MigrationOperationPhase::V5Verifying => matches!(
+            current,
+            MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V5Verifying
+        ),
+        MigrationOperationPhase::V5Ready => matches!(
+            current,
+            MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V5Verifying
+                | MigrationOperationPhase::V5Ready
+        ),
+        MigrationOperationPhase::V4ReadyWithBackup => matches!(
+            current,
+            MigrationOperationPhase::BackupVerified
+                | MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V4ReadyWithBackup
+        ),
+        MigrationOperationPhase::V5BlockedRestoreAvailable => matches!(
+            current,
+            MigrationOperationPhase::Migrating
+                | MigrationOperationPhase::CommitOutcomeUnknown
+                | MigrationOperationPhase::V5Verifying
+                | MigrationOperationPhase::V5BlockedRestoreAvailable
+        ),
+        MigrationOperationPhase::RecoveryRequired => true,
+    };
+    if !transition_allowed {
+        return Err(SafetyError::recovery_required(format!(
+            "migration_state_transition_refused:{current:?}:{phase:?}"
+        )));
+    }
+    if phase != MigrationOperationPhase::Prepared && expected_backup_from_state(&state)?.is_none() {
+        return Err(SafetyError::recovery_required(
+            "migration_backup_evidence_missing",
+        ));
+    }
+    state.phase = match phase {
+        MigrationOperationPhase::Prepared => OperationPhase::Prepared,
+        MigrationOperationPhase::BackupVerified => OperationPhase::BackupVerified,
+        MigrationOperationPhase::Migrating => OperationPhase::Migrating,
+        MigrationOperationPhase::CommitOutcomeUnknown => OperationPhase::CommitOutcomeUnknown,
+        MigrationOperationPhase::V5Verifying => OperationPhase::V5Verifying,
+        MigrationOperationPhase::V5Ready => OperationPhase::V5Ready,
+        MigrationOperationPhase::V4ReadyWithBackup => OperationPhase::V4ReadyWithBackup,
+        MigrationOperationPhase::V5BlockedRestoreAvailable => {
+            OperationPhase::V5BlockedRestoreAvailable
+        }
+        MigrationOperationPhase::RecoveryRequired => OperationPhase::RecoveryRequired,
+    };
+    if let Some(receipt) = receipt {
+        state.migration_id = Some(receipt.migration_id.to_string());
+        state.migration_source_manifest_digest = Some(receipt.source_manifest_digest.to_string());
+        state.migration_target_manifest_digest = Some(receipt.target_manifest_digest.to_string());
+    }
+    state.outcome_class = outcome_class;
+    write_state(operation, &state)
+}
+
+pub(crate) async fn verify_owned_backup_for_migration<V: CandidateVerifier>(
+    operation: &OwnedOperation,
+    expected: &ExpectedCandidate,
+    verifier: &V,
+) -> Result<(), SafetyError> {
+    expected.validate_contract()?;
+    validate_operation_paths(operation, BackupPathRequirement::Existing)?;
+    let state = read_migration_state_evidence(operation)?;
+    if state.verified_backup.as_ref() != Some(expected) {
+        return Err(SafetyError::recovery_required(
+            "migration_backup_state_mismatch",
+        ));
+    }
+    verify_candidate(&operation.backup, expected, verifier)
+        .await
+        .map_err(|error| SafetyError::recovery_required(error.code))
 }
 
 fn mark_recovery_required(
