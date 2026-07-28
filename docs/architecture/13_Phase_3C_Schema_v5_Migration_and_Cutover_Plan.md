@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 2.2
+version: 2.3
 owner: product-and-engineering
-last_updated: 2026/07/26
+last_updated: 2026/07/27
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -35,7 +35,7 @@ On 2026/07/26, the founder resolved `PHASE3C-SLICE3A-001` with Option A and sepa
 
 The founder then resolved `PHASE3C-SLICE3B-001` with Option A and authorized only a private, unregistered, disposable migration restart/orchestration layer extending the existing owned-operation state. It may integrate the verified exact-v4 backup with Slice 3A, classify explicit migration states from read-only durable evidence, conservatively treat generic COMMIT errors as outcome-unknown, preserve the backup, and exercise deterministic synthetic/disposable restart and failure cases. It may not select, retry, replay, roll back, repair, restore, or clean up autonomously, and it does not activate migration for production or real user data.
 
-ADR-0011 is Accepted and `architecture/12` is Founder-approved. Their original migration hold remains the default boundary; the exact `PHASE3C-SLICE3A-001` and `PHASE3C-SLICE3B-001` resolutions grant only the disposable-fixture exceptions above. All five Phase 3 exit gaps remain blocking. This plan addresses the storage foundation for four gaps; explicit emotion, relationship, value-conflict, and time-range retrieval remains a separate blocker.
+ADR-0011 is Accepted and `architecture/12` is Founder-approved. Their original migration hold remains the default boundary; the exact `PHASE3C-SLICE3A-001` and `PHASE3C-SLICE3B-001` resolutions grant only the disposable-fixture exceptions above. The Phase 3 exit remains blocked. Promoted retrieval R1 closes only the explicit saved-date-range portion; emotion, relationship, value-conflict, and the broader structured-retrieval capability remain separate blockers.
 
 **We Build Mirrors, Not Oracles.** A migration may preserve history and user decisions. It may not manufacture missing history, elevate AI content, or make deleted content silently reappear.
 
@@ -94,14 +94,18 @@ The proposal is based on the current repository, not an assumed storage layer.
   Windows path still refuses replacement when required parent-directory
   durability cannot be established. All evidence remains confined to
   synthetic/disposable app-like directories.
-- The current Founder-authorized Slice 3B working tree extends that same
+- Promoted disposable Slice 3B extends that same
   content-free owned-operation state to record explicit migration phases and
   exact verified-backup/receipt-manifest evidence. A private orchestration seam
   invokes Slice 3A once, closes the writable connection, and classifies v4/v5
   outcomes from read-only durable evidence. Missing, malformed, contradictory,
   altered, incomplete, or multiple-candidate evidence fails closed; there is no
   candidate discovery, retry, replay, rollback, repair, restore, or cleanup.
-  This is disposable-fixture evidence only and is not yet promoted.
+  Feature commit `b96bc84eae0b1d019cce761564c2689d92482705` was
+  promoted through non-fast-forward merge commit
+  `5714b3eeeeb4c9612e445dbd78e4f606df41fa27`. This remains
+  disposable-fixture evidence only and does not authorize production migration
+  or real-user recovery.
 - `saveArtifacts` deletes all source-scoped `persisted_artifacts` and reinserts the validated current bundle. It also deletes dependent Historical Questions.
 - `createArtifactMutationRunner` serializes mutations in one renderer queue, re-reads durable state, checks generation snapshots, and delegates the durable transaction to the store.
 - Domain objects combine current content, review status, timestamps, and provenance in JSON payloads. Reflection prompt and user response provenance are distinct fields inside one record.
@@ -1370,7 +1374,9 @@ No slice is authorized by this plan alone.
   verification only in a private unregistered module against
   synthetic/disposable exact-v4 fixtures. Production `SCHEMA_VERSION` remains
   4, and no startup/Tauri/renderer/UI/app-data caller exists.
-- **Slice 3B Founder-authorized working tree:** extend the existing private
+- **Slice 3B Founder-authorized and promoted on 2026/07/26:** feature commit
+  `b96bc84eae0b1d019cce761564c2689d92482705` and non-fast-forward merge
+  `5714b3eeeeb4c9612e445dbd78e4f606df41fa27` extend the existing private
   owned-operation record rather than create a second recovery system. Persist
   the content-free `Prepared`, `BackupVerified`, `Migrating`,
   `CommitOutcomeUnknown`, `V5Verifying`, `V5Ready`,

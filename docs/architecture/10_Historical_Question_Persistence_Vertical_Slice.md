@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 1.1
+version: 1.2
 owner: product-and-engineering
-last_updated: 2026/07/14
+last_updated: 2026/07/28
 depends:
   - docs/architecture/01_Local_Evidence_Store.md
   - docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md
@@ -66,3 +66,38 @@ Automated tests cover additive v3-to-v4 preservation, transaction rollback on in
 The corrective founder retest on 2026/07/14 also passed: an included saved Reflection mutation immediately closed the old preflight without transmission; a locale change required a new disclosure and consent; one unchanged Gemini preflight produced a neutral source-citing question with matching packet, consumed consent, successful transmission, provider/model, digest, revisions, dependencies, and durable artifact provenance; and cancellation created no provider call or new local records.
 
 Residual verification boundaries are explicit rather than implied as complete: the OpenAI live path, an actual source edit during an in-flight provider response, a naturally returned live no-question result, and elapsed 30-day expiry were covered by shared contracts or regression tests rather than this manual run.
+
+## Phase 3 Exit Provenance Inspector P1
+
+The current `codex/phase-3-exit-provenance-inspector-p1` working tree adds the
+Founder-authorized P1 presentation boundary over one already-loaded
+`HistoricalQuestionArtifact` and its exact persisted packet snapshot. The
+inspector is collapsed by default, opens only on an explicit local action, and
+separately hides exact outgoing content until a second explicit reveal. It
+distinguishes packet selection, one-generation consent, successful-transmission
+reference, and persisted generated artifact while showing exact questions,
+citations, versions, source/artifact revisions, review states, relevance
+reasons, snapshot references, and packet-represented dependencies.
+
+P1 adds runtime validation because schema-v4 hydration previously relied on a
+TypeScript cast. Malformed, unsupported, incomplete, digest-mismatched, or
+contradictory records show one calm fail-closed message instead of partial
+provenance. The inspector receives no store, provider, consent, clipboard, or
+mutation capability; it neither re-queries nor rehydrates deleted sources.
+Existing source invalidation and Historical Question deletion cascades remain
+unchanged.
+
+This is schema-neutral and read-only. It creates no query, table, migration,
+provider call, consent event, audit event, UI-state record, packet mutation, or
+Phase 4 interpretation. It is a partial schema-v4 actual-use view and does not
+complete or replace the future schema-v5 provenance/dependency graph inspector.
+At this document update it is implemented and canonically verified only in the
+uncommitted working tree: 26 Vitest files / 204 tests, 70 Rust library tests, 12
+backup/restore tests, 8 schema-contract tests, typecheck, frontend build, Rust
+check, and repository policy checks passed. The Founder accepted the P1 diff
+and completed the stepwise manual UI review on 2026/07/29,
+including collapsed/open behavior, four-stage provenance, exact-content
+reveal/hide, three-locale parity, R1 coexistence, and restart reset. Destructive
+malformed-data and deletion checks relied on the accepted canonical automated
+evidence rather than altering real user data. Promotion, deployment, and
+release remain unauthorized.

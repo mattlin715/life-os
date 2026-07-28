@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.7
+version: 0.8
 owner: LIN MENGLUNG
-last_updated: 2026/07/26
+last_updated: 2026/07/28
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -77,6 +77,7 @@ Verified against the repository on 2026/07/13:
 - Stale generated results are discarded by snapshot checks both before and inside the serialized artifact mutation boundary, with the SQLite Experience revision check as final write-time protection.
 - Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, ephemeral include/exclude controls, and an explicit session-only saved-date range that narrows candidates before lexical ranking. Retrieval begins only when the user opens that Experience's panel; filtering and selection alone never send data or produce a Cross-Experience conclusion.
 - Governed Historical Reflection Question generation for exact selected sources: exact-content preflight, per-generation/per-purpose consent, provider-independent bounded packet, OpenAI/Gemini destination disclosure, stale-work rejection, and actual-use provenance. The output is limited to neutral source-citing questions and may return no question.
+- The current canonically verified P1 working tree adds a collapsed, explicit-open, local read-only actual-use inspector for one already-loaded Historical Question and exact packet snapshot. Exact outgoing content remains behind a second explicit reveal; invalid provenance fails closed rather than reloading current sources or showing partial evidence. The Founder accepted the diff and stepwise manual UI review on 2026/07/29; P1 is not yet promoted or deployed and does not replace the future schema-v5 provenance graph.
 
 Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Historical candidate retrieval, saved-date controls, and selection stay bounded and local; the range and selection remain ephemeral. Phase 3B permits historical provider transmission only through the separately governed one-generation Historical Reflection Question gate. Cross-Experience Reflection remains deferred.
 
@@ -89,6 +90,7 @@ Important qualification: reviewed artifact records now survive restart locally; 
 - There is no memory graph.
 - There is no identity hypothesis history.
 - Schema v4 preserves existing source-scoped artifacts and adds historical consent, transmission, successful packet snapshot, actual-use provenance, and cross-source dependency records. Further normalization is deferred.
+- The P1 inspector is schema-neutral and introduces no persistence API, query, retention change, provider behavior, or source rehydration. Its view is limited to the actual-use evidence already present in the loaded schema-v4 record.
 - User-controlled per-call consent exists only for the bounded Phase 3B Historical Reflection Question task; no general longitudinal-memory authorization exists.
 - Shared Harness and prompt versions, Context Packet validation, sufficiency gating, and regression tests are implemented. A governed long-term evaluation dataset remains deferred.
 - Tauri bundling is configured, but distributable Windows and macOS builds have not both been verified as release artifacts in this repository.
