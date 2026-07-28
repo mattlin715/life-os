@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-27-phase-3-exit-provenance-inspector-p1",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-27T16:54:41.836Z",
+  "repository_head": "db43b8f47815b0c6ddb1bd8daa9a9503c11a2146",
+  "working_branch": "codex/phase-3-exit-provenance-inspector-p1",
+  "working_tree_digest": "e6013577614138f2b77a4d20d8a26f0358a58053075c0ab038275bed131aca32",
+  "last_event_id": "2026-07-27-phase-3-exit-provenance-inspector-p1:0019",
+  "last_event_hash": "76e9d462c4935720304a40c8a1b041aabdd92b828dafa761cd01f965b1e93e55",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

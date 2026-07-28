@@ -74,6 +74,7 @@ import {
   shouldCloseHistoricalPreflightForSavedDateRangeChange,
   type HistoricalSavedDateRangeControls,
 } from "../historicalContext/savedDateRange";
+import { HistoricalProvenanceInspector } from "./HistoricalProvenanceInspector";
 import type { HistoricalContextCandidate } from "../historicalContext/types";
 import {
   assembleHistoricalContextPacket,
@@ -1796,6 +1797,7 @@ export function App() {
                       {savedHistoricalQuestions.map((artifact) => <article key={artifact.id}>
                         <small>{artifact.packet.destination.provider} / {artifact.packet.destination.model} / {artifact.packet.packetDigest.slice(0, 12)}</small>
                         {artifact.questions.length ? <ul>{artifact.questions.map((question) => <li key={question.id}>{question.text} <code>{question.sourceExperienceIds.join(", ")}</code></li>)}</ul> : <p>{copy.historicalNoQuestion}</p>}
+                        <HistoricalProvenanceInspector artifact={artifact} copy={copy} />
                         <button type="button" className="danger-button compact" onClick={() => deleteHistoricalQuestionArtifact(entry.id, artifact.id)}>{copy.delete}</button>
                       </article>)}
                     </section>

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.6
+version: 0.8
 owner: LIN MENGLUNG
-last_updated: 2026/07/26
+last_updated: 2026/07/28
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -112,20 +112,35 @@ Preserve reviewed understanding so future Reflection can continue rather than re
 
 The Phase 3A foundation implements a bounded set of prior Experience sources
 with visible lexical reasons and user-controlled ephemeral selection. The
-Founder-authorized R1 working-tree implementation adds an explicit,
+Founder-authorized R1 adds an explicit,
 session-only source-Experience saved-date range that filters before the
 unchanged lexical ranking and caps. It does not infer event dates, persist the
 range, transmit historical content, infer a cross-experience pattern, or
-establish consent; Phase 3B supplies the separate governed send gate. R1 still
-requires Founder diff/manual UI review and promotion before it is a promoted
-product capability. Emotion, relationship, and value-conflict retrieval remain
-unimplemented and require separate governance rather than inferred taxonomies.
+establish consent; Phase 3B supplies the separate governed send gate. The
+Founder manually accepted R1, and feature commit
+`2e507728a136ee409c9aa5bb760bc12e57b0d6d1` was promoted through
+non-fast-forward merge commit
+`db43b8f47815b0c6ddb1bd8daa9a9503c11a2146`. R1 remains local,
+session-only, schema-neutral, and not deployed as a release. Emotion,
+relationship, and value-conflict retrieval remain unimplemented and require
+separate governance rather than inferred taxonomies; the broader structured
+retrieval exit gap is therefore not complete.
 
 ### Phase 3B Governed Historical Reflection Questions (Implemented and founder-verified)
 
 Phase 3B implements explicit historical-use consent, exact preflight disclosure, bounded provider-independent packet assembly, transport-time and persistence-time revalidation, provider/privacy disclosure, and actual-use provenance before selected history enters a model call.
 
 The approved non-Phase-4 task is limited to neutral, source-citing Historical Reflection Question generation. It may invite the user to compare exact selected sources, but it may not assert recurrence, contradiction, change, summary, Pattern, or identity meaning. The founder accepted [`architecture/09`](architecture/09_Governed_Historical_Context_Assembly_and_Consent.md) and [`ADR-0009`](adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md), then completed manual verification on 2026/07/14. Each transport remains fail-closed unless its exact preflight, consent, destination, source, and persistence checks succeed.
+
+The Founder-authorized Provenance Inspector P1 is implemented and canonically
+verified in the current uncommitted working tree. The Founder accepted its diff
+and stepwise manual UI review on 2026/07/29; promotion and deployment remain
+separate and unauthorized. It gives one already-loaded schema-v4 Historical Question a
+collapsed, local, read-only actual-use view with a separate exact-content
+reveal. It adds no query, persistence, provider call, consent action, source
+rehydration, or Phase 4 interpretation. P1 is deliberately partial and does not
+complete correction/export requirements or the future schema-v5
+provenance/dependency graph inspector.
 
 ### Exit Criteria
 - Every persisted artifact distinguishes user content from AI hypothesis.

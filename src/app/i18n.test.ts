@@ -49,4 +49,15 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].historicalSavedDateInverted).toContain("未檢索任何歷史紀錄");
     expect(uiText.ja.historicalSavedDateInverted).toContain("履歴は取得されていません");
   });
+  it("keeps the provenance inspector local, read-only, explicit, and fail-closed in every language", () => {
+    expect(uiText.en.historicalProvenanceLocalOnly).toContain("read-only");
+    expect(uiText["zh-TW"].historicalProvenanceLocalOnly).toContain("唯讀");
+    expect(uiText.ja.historicalProvenanceLocalOnly).toContain("読み取り専用");
+    expect(uiText.en.historicalProvenanceExactContentWarning).toContain("does not send");
+    expect(uiText["zh-TW"].historicalProvenanceExactContentWarning).toContain("不會傳送");
+    expect(uiText.ja.historicalProvenanceExactContentWarning).toContain("送信");
+    expect(uiText.en.historicalProvenanceInvalid).toContain("nothing was changed");
+    expect(uiText["zh-TW"].historicalProvenanceInvalid).toContain("沒有變更任何資料");
+    expect(uiText.ja.historicalProvenanceInvalid).toContain("データの変更は行っていません");
+  });
 });

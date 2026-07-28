@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.8
+version: 0.9
 owner: product-and-engineering
-last_updated: 2026/07/26
+last_updated: 2026/07/27
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -72,8 +72,13 @@ Experience and closes its governed preflight. Closing a panel still stops
 retrieval while retaining only the last valid applied range for the current app
 session; reopening retrieves fresh under that range. Range controls, applied
 instants, and timezone are not serialized, persisted, exported, or transmitted.
-The working-tree implementation is automated-verified but still awaits Founder
-diff/manual UI review and promotion.
+The Founder manually accepted this bounded R1 behavior. Feature commit
+`2e507728a136ee409c9aa5bb760bc12e57b0d6d1` was promoted through
+non-fast-forward merge commit
+`db43b8f47815b0c6ddb1bd8daa9a9503c11a2146`. R1 remains local,
+session-only, schema-neutral, and not deployed as a release. It closes only
+the explicit time-range portion of structured retrieval; it does not implement
+emotion, relationship, or value-conflict retrieval.
 
 ## Ephemeral Selection Reconciliation
 

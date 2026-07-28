@@ -646,6 +646,72 @@ button:disabled {
   white-space: normal;
 }
 
+.historical-provenance-inspector {
+  margin: 0.75rem 0;
+  padding: 0.7rem;
+  border: 1px solid rgba(114, 91, 61, 0.24);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.historical-provenance-inspector > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.historical-provenance-close,
+.historical-provenance-inspector[open] .historical-provenance-open {
+  display: none;
+}
+
+.historical-provenance-inspector[open] .historical-provenance-close {
+  display: inline;
+}
+
+.historical-provenance-body {
+  margin-top: 0.75rem;
+}
+
+.historical-provenance-partial,
+.historical-provenance-invalid {
+  padding: 0.65rem;
+  border-left: 3px solid #a66b3f;
+  background: rgba(166, 107, 63, 0.09);
+}
+
+.historical-provenance-stages,
+.historical-provenance-items {
+  display: grid;
+  gap: 0.55rem;
+  padding-left: 1.4rem;
+}
+
+.historical-provenance-fields {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.historical-provenance-fields > div {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.35fr) 1fr;
+  gap: 0.5rem;
+}
+
+.historical-provenance-fields dt {
+  font-weight: 650;
+}
+
+.historical-provenance-fields dd {
+  margin: 0;
+}
+
+.historical-provenance-exact-content {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed rgba(114, 91, 61, 0.35);
+  border-radius: 0.65rem;
+}
+
 .historical-context-selected-preview ul {
   margin: 8px 0 0;
   padding-left: 20px;

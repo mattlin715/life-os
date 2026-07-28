@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 19,
+  "last_event_id": "2026-07-27-phase-3-exit-provenance-inspector-p1:0019",
+  "last_event_hash": "76e9d462c4935720304a40c8a1b041aabdd92b828dafa761cd01f965b1e93e55",
+  "sprint_id": "2026-07-27-phase-3-exit-provenance-inspector-p1",
+  "mission_title": "Phase 3 Exit Provenance Inspector P1",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3-PROVENANCE-INSPECTOR-P1-001 by selecting Option A. I authorize Phase 3 Exit Provenance Inspector P1 only: implement one collapsed-by-default, explicit-open, local, read-only, schema-neutral actual-use inspector for one already persisted Phase 3B Historical Question artifact; consume only the already-loaded HistoricalQuestionArtifact and exact packet snapshot; display the generated artifact identity and time, questions and exact citations, packet identity/digest/schema/versions, provider/model, bounded purpose, consent and transmission references, included Experience and artifact IDs/types/revisions, authorship/review state, relevance reasons, source snapshot references, and packet-represented dependencies; distinguish selected, consented, successful-transmission reference, and persisted generated artifact; keep exact outgoing content separately collapsed behind a second explicit local reveal; create no provider call, consent, audit event, clipboard copy, UI-state persistence, packet mutation, source rehydration, or storage mutation; fail closed with calm English, Traditional Chinese, and Japanese messages for malformed, unsupported, incomplete, or contradictory provenance; preserve existing ADR-0009 source invalidation and Historical Question deletion cascades; add focused validator, view-model, UI, lifecycle, malformed-data, deletion, privacy, i18n, R1 regression, Phase 3B regression, and no-Phase-4 tests; synchronize factual Book One documentation; run canonical verification, Theory Alignment Review, archive/reset, and stop at Founder diff and manual UI review. I accept that P1 is partial and does not complete or replace the future schema-v5 provenance/dependency graph inspector. I do not authorize a new persistence API, SQL query, schema table, migration, retention change, provider or ContextPacket change, consent-policy change, deleted-content resurrection, whole-history loading, Phase 4 interpretation, sensitive inference, Harness expansion, staging, commit, push, merge, PR, deployment, or release.",
+    "selected_option": "A",
+    "authorized_scope": "Phase 3 Exit Provenance Inspector P1 Option A only: one collapsed-by-default explicit-open local read-only schema-v4 Historical Question actual-use inspector over the already-loaded artifact and exact packet snapshot, separate exact-content reveal, fail-closed three-locale validation, focused regressions, factual Book One synchronization, canonical verification, Theory Alignment Review, archive/reset, and stop at Founder review; every stated non-scope remains excluded.",
+    "decided_at": "2026-07-27T16:30:41.383Z",
+    "evidence_reference": "PHASE3-PROVENANCE-INSPECTOR-P1-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3-exit-provenance-inspector-p1",
+  "repository_head": "db43b8f47815b0c6ddb1bd8daa9a9503c11a2146",
+  "working_tree_digest": "e6013577614138f2b77a4d20d8a26f0358a58053075c0ab038275bed131aca32",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-27T16:52:10.899Z",
+      "repository_head": "db43b8f47815b0c6ddb1bd8daa9a9503c11a2146",
+      "working_tree_digest": "e6013577614138f2b77a4d20d8a26f0358a58053075c0ab038275bed131aca32"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-26T16:17:55.255Z",
+  "updated_at": "2026-07-27T16:54:30.878Z"
+}
