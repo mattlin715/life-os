@@ -11,6 +11,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
 
+#[path = "schema_v5_experience_write.rs"]
+mod experience_write;
+
 const APPLICATION_VERSION: &str = "0.2.0";
 const SOURCE_SCHEMA_VERSION: i64 = 4;
 const TARGET_SCHEMA_VERSION: i64 = 5;

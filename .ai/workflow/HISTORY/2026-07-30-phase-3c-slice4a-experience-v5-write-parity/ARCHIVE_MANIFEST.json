@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-07-30-phase-3c-slice4a-experience-v5-write-parity",
+  "terminal_status": "completed",
+  "archived_at": "2026-07-29T16:50:08.363Z",
+  "repository_head": "cf7633780a1a0a72efcad7558e463ceb094468c4",
+  "working_branch": "codex/phase-3c-slice4a-experience-v5-write-parity",
+  "working_tree_digest": "eba523c4a395ebe94986ee1cc496b45d2db479872664d36c4bc389eecbb41f9a",
+  "last_event_id": "2026-07-30-phase-3c-slice4a-experience-v5-write-parity:0019",
+  "last_event_hash": "53c9e0cf428da8f134589e67138d6b9e0e444109219da92030d7c2ebc0da9f51",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

@@ -132,10 +132,12 @@ Phase 3B implements explicit historical-use consent, exact preflight disclosure,
 
 The approved non-Phase-4 task is limited to neutral, source-citing Historical Reflection Question generation. It may invite the user to compare exact selected sources, but it may not assert recurrence, contradiction, change, summary, Pattern, or identity meaning. The founder accepted [`architecture/09`](architecture/09_Governed_Historical_Context_Assembly_and_Consent.md) and [`ADR-0009`](adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md), then completed manual verification on 2026/07/14. Each transport remains fail-closed unless its exact preflight, consent, destination, source, and persistence checks succeed.
 
-The Founder-authorized Provenance Inspector P1 is implemented and canonically
-verified in the current uncommitted working tree. The Founder accepted its diff
-and stepwise manual UI review on 2026/07/29; promotion and deployment remain
-separate and unauthorized. It gives one already-loaded schema-v4 Historical Question a
+The Founder-authorized Provenance Inspector P1 is implemented, canonically
+verified, Founder-manually accepted, and promoted to `develop`. Feature commit
+`824a2294f2090c541eff0530063fc0730c18cc63` was promoted through
+non-fast-forward merge commit
+`cf7633780a1a0a72efcad7558e463ceb094468c4`. Deployment and release remain
+separate and have not occurred. P1 gives one already-loaded schema-v4 Historical Question a
 collapsed, local, read-only actual-use view with a separate exact-content
 reveal. It adds no query, persistence, provider call, consent action, source
 rehydration, or Phase 4 interpretation. P1 is deliberately partial and does not

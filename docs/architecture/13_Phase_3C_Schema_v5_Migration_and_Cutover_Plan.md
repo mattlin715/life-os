@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 2.3
+version: 2.4
 owner: product-and-engineering
-last_updated: 2026/07/27
+last_updated: 2026/07/30
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -35,7 +35,15 @@ On 2026/07/26, the founder resolved `PHASE3C-SLICE3A-001` with Option A and sepa
 
 The founder then resolved `PHASE3C-SLICE3B-001` with Option A and authorized only a private, unregistered, disposable migration restart/orchestration layer extending the existing owned-operation state. It may integrate the verified exact-v4 backup with Slice 3A, classify explicit migration states from read-only durable evidence, conservatively treat generic COMMIT errors as outcome-unknown, preserve the backup, and exercise deterministic synthetic/disposable restart and failure cases. It may not select, retry, replay, roll back, repair, restore, or clean up autonomously, and it does not activate migration for production or real user data.
 
-ADR-0011 is Accepted and `architecture/12` is Founder-approved. Their original migration hold remains the default boundary; the exact `PHASE3C-SLICE3A-001` and `PHASE3C-SLICE3B-001` resolutions grant only the disposable-fixture exceptions above. The Phase 3 exit remains blocked. Promoted retrieval R1 closes only the explicit saved-date-range portion; emotion, relationship, value-conflict, and the broader structured-retrieval capability remain separate blockers.
+On 2026/07/30, the founder resolved `PHASE3C-SLICE4A-001` with Option A and
+authorized only the private, unregistered, path/connection-injected Experience
+write boundary described below. Its create, exact-current-revision correction,
+parent delete, and atomic duplicate-skipping import execute only against
+synthetic/disposable exact-v5 fixtures produced by the promoted migration core.
+This is implementation evidence for current-state write parity, not production
+schema-v5 or real-user activation.
+
+ADR-0011 is Accepted and `architecture/12` is Founder-approved. Their original migration hold remains the default boundary; the exact `PHASE3C-SLICE3A-001`, `PHASE3C-SLICE3B-001`, and `PHASE3C-SLICE4A-001` resolutions grant only the disposable-fixture exceptions above. The Phase 3 exit remains blocked. Promoted retrieval R1 closes only the explicit saved-date-range portion; emotion, relationship, value-conflict, and the broader structured-retrieval capability remain separate blockers.
 
 **We Build Mirrors, Not Oracles.** A migration may preserve history and user decisions. It may not manufacture missing history, elevate AI content, or make deleted content silently reappear.
 
@@ -106,6 +114,13 @@ The proposal is based on the current repository, not an assumed storage layer.
   `5714b3eeeeb4c9612e445dbd78e4f606df41fa27`. This remains
   disposable-fixture evidence only and does not authorize production migration
   or real-user recovery.
+- Founder-authorized Slice 4A adds one private nested Rust module for
+  Experience create, exact-current-revision correction, parent delete, and
+  atomic duplicate-skipping import. It is unregistered and receives only
+  caller-injected disposable paths, canonical test timestamps, guard tokens,
+  failure points, commit outcomes, and expected manifests. Tests first use the
+  promoted migration core to create exact-v5 fixtures; no production database,
+  app-data path, startup, Tauri, renderer, or UI caller can reach the module.
 - `saveArtifacts` deletes all source-scoped `persisted_artifacts` and reinserts the validated current bundle. It also deletes dependent Historical Questions.
 - `createArtifactMutationRunner` serializes mutations in one renderer queue, re-reads durable state, checks generation snapshots, and delegates the durable transaction to the store.
 - Domain objects combine current content, review status, timestamps, and provenance in JSON payloads. Reflection prompt and user response provenance are distinct fields inside one record.
@@ -1404,7 +1419,29 @@ No slice is authorized by this plan alone.
 
 ### Slice 4 — v5 current-state write parity
 
-- Make all existing Experience, artifact-generation, Reflection, Pattern, and Phase 3B operations atomically write v5 authority and v4 projection.
+- **Slice 4A Founder-authorized and implemented in the current working tree on
+  2026/07/30, pending Founder diff review and promotion:** one private,
+  unregistered Rust boundary atomically writes v5 Experience authority before
+  its guarded v4 projection for create, exact-current-revision correction,
+  parent delete, and duplicate-skipping v4-format import. It validates exact
+  schema v5, immutable cutover evidence, the disabled lifecycle/export
+  contract, projection parity, guard emptiness, foreign keys, and integrity
+  before mutation and again through read-only post-transaction reconciliation.
+- Correction appends an immutable user-authored revision and never rebinds old
+  dependencies. It applies ADR-0009 Historical Question deletion in the same
+  transaction but fails closed when ordinary artifact invalidation or
+  reconfirmation parity would be required.
+- Parent deletion purges source content and source-scoped child state while
+  retaining content-free source revision metadata/provenance and a deleted
+  source head. External ordinary dependents fail closed.
+- Import creates one honest `legacy_v4_baseline` revision per new ID, skips
+  exact consistent active/deleted and repeated IDs without overwrite, and
+  rolls back the complete batch on any other failure.
+- Deterministic failure and ambiguous-commit tests prove logical rollback or
+  exact pre/post classification after read-only reopen. No durable per-write
+  restart receipt exists, so production restart recovery remains unproved.
+- Remaining artifact-generation, Reflection, Pattern, and Phase 3B write
+  parity requires separate Founder authority.
 - Preserve current UI behavior; do not add post-review lifecycle UI yet.
 
 ### Slice 5 — Lifecycle vertical slices
@@ -1752,3 +1789,46 @@ automatic retry/replay/rollback/repair/restore/cleanup/candidate selection,
 lifecycle writes, export v2, Slice 4 or later, Phase 4, provider/ContextPacket
 changes, Harness expansion, Stage 2/3, further Git promotion, PR, and deployment remain
 unauthorized.
+
+On 2026/07/30, the founder resolved `PHASE3C-SLICE4A-001` as Option A and
+authorized only the private, unregistered Experience write boundary described
+in Slice 4A. The implementation reuses the promoted migration core to produce
+exact-v5 disposable fixtures and reuses its fixed schema digest,
+domain-separated revision IDs, provenance fingerprints, manifests, receipt and
+contract validation, and integrity checks rather than defining a parallel v5
+authority.
+
+The bounded module implements Experience create, exact-current-revision
+correction, parent delete, and atomic duplicate-skipping v4-format import in
+one `BEGIN IMMEDIATE` transaction. It writes normalized v5 authority and the
+guarded v4 projection together, preserves exact prior source revision content
+on correction, applies ADR-0009 Historical Question deletion without rebinding,
+purges source content on parent deletion, and refuses correction or external
+deletion dependencies when ordinary artifact lifecycle parity would be needed.
+Stale and missing outcomes are explicit and read-only; injected pre-commit
+failures roll back the exact logical operation manifest and leave the guard
+empty. Generic COMMIT ambiguity is classified only by closing the writable
+connection and matching an exact read-only pre- or post-manifest.
+
+Focused disposable tests cover exact multiline UTF-8 preservation, revision and
+provenance shape, correction lineage, stale update/delete, missing source,
+non-advancing refusal, ordinary-artifact refusal, ADR-0009 cascades, parent
+deletion, honest import and full-batch rollback, every create boundary,
+cascade-boundary rollback, ambiguous commit, malformed/older/newer/inconsistent
+databases, deterministic identifiers/manifests, and immutable migration
+receipt manifests.
+
+Canonical local verification passed with 17 workflow tests, 26 Vitest files /
+204 tests, 85 Rust library tests (including 15 Slice 4A tests), 12
+backup/restore integration tests, 8 schema-contract tests, TypeScript
+typecheck, frontend build, Rust check, and repository hygiene checks. No
+desktop runtime verification applies because the module has no runtime or UI
+surface.
+
+This working-tree evidence is pending Founder diff review and promotion.
+Production `SCHEMA_VERSION` and startup support remain 4. Production
+`user_version = 5`, real user databases or app-data, startup/Tauri/renderer/UI
+activation, ordinary artifact/Reflection/Pattern or Phase 3B write parity,
+lifecycle UI, export v2, retention, backup/restore, automatic
+retry/recovery/repair/cleanup, provider/ContextPacket changes, Phase 4, Harness
+expansion, Git promotion, PR, deployment, and release remain unauthorized.
