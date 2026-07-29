@@ -69,8 +69,8 @@ Residual verification boundaries are explicit rather than implied as complete: t
 
 ## Phase 3 Exit Provenance Inspector P1
 
-The current `codex/phase-3-exit-provenance-inspector-p1` working tree adds the
-Founder-authorized P1 presentation boundary over one already-loaded
+Promoted Provenance Inspector P1 adds the Founder-authorized presentation
+boundary over one already-loaded
 `HistoricalQuestionArtifact` and its exact persisted packet snapshot. The
 inspector is collapsed by default, opens only on an explicit local action, and
 separately hides exact outgoing content until a second explicit reveal. It
@@ -91,13 +91,16 @@ This is schema-neutral and read-only. It creates no query, table, migration,
 provider call, consent event, audit event, UI-state record, packet mutation, or
 Phase 4 interpretation. It is a partial schema-v4 actual-use view and does not
 complete or replace the future schema-v5 provenance/dependency graph inspector.
-At this document update it is implemented and canonically verified only in the
-uncommitted working tree: 26 Vitest files / 204 tests, 70 Rust library tests, 12
+It is implemented and canonically verified: 26 Vitest files / 204 tests, 70 Rust library tests, 12
 backup/restore tests, 8 schema-contract tests, typecheck, frontend build, Rust
 check, and repository policy checks passed. The Founder accepted the P1 diff
 and completed the stepwise manual UI review on 2026/07/29,
 including collapsed/open behavior, four-stage provenance, exact-content
 reveal/hide, three-locale parity, R1 coexistence, and restart reset. Destructive
 malformed-data and deletion checks relied on the accepted canonical automated
-evidence rather than altering real user data. Promotion, deployment, and
-release remain unauthorized.
+evidence rather than altering real user data. Feature commit
+`824a2294f2090c541eff0530063fc0730c18cc63` was promoted to `develop` through
+non-fast-forward merge commit
+`cf7633780a1a0a72efcad7558e463ceb094468c4`. P1 is not deployed or released and
+remains a partial schema-v4 actual-use inspector rather than the future
+schema-v5 provenance/dependency graph inspector.
