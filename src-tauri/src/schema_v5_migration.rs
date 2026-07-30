@@ -15,6 +15,8 @@ use std::path::Path;
 mod evidence_write;
 #[path = "schema_v5_experience_write.rs"]
 mod experience_write;
+#[path = "schema_v5_reflection_write.rs"]
+mod reflection_write;
 
 const APPLICATION_VERSION: &str = "0.2.0";
 const SOURCE_SCHEMA_VERSION: i64 = 4;
