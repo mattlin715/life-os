@@ -755,7 +755,9 @@ async fn verify_evidence_projection(
     Ok(())
 }
 
-async fn verify_exact_evidence_v5(connection: &mut SqliteConnection) -> Result<(), MigrationError> {
+pub(super) async fn verify_exact_evidence_v5(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
     verify_exact_v5(connection).await?;
     verify_evidence_projection(connection).await
 }
