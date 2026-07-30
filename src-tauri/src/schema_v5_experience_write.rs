@@ -173,7 +173,9 @@ fn inject(
     }
 }
 
-async fn operation_manifest(connection: &mut SqliteConnection) -> Result<String, MigrationError> {
+pub(super) async fn operation_manifest(
+    connection: &mut SqliteConnection,
+) -> Result<String, MigrationError> {
     let source = manifest(connection, &SOURCE_TABLE_MANIFESTS).await?;
     let target = manifest(connection, &TARGET_TABLE_MANIFESTS).await?;
     Ok(sha256_hex(
@@ -309,7 +311,9 @@ async fn verify_source_projection(connection: &mut SqliteConnection) -> Result<(
     Ok(())
 }
 
-async fn verify_exact_v5(connection: &mut SqliteConnection) -> Result<(), MigrationError> {
+pub(super) async fn verify_exact_v5(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
     if user_version(connection).await? != TARGET_SCHEMA_VERSION {
         return Err(write_error("experience_write_requires_exact_v5"));
     }

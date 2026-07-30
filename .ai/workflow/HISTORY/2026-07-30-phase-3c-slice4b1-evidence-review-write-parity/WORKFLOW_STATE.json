@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 19,
+  "last_event_id": "2026-07-30-phase-3c-slice4b1-evidence-review-write-parity:0019",
+  "last_event_hash": "88f2e3f36edef7f8a1578638ec9a04f421a1ada30d032437f8a6a1a95b611111",
+  "sprint_id": "2026-07-30-phase-3c-slice4b1-evidence-review-write-parity",
+  "mission_title": "Founder-gated disposable Evidence candidate and review write parity",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE4B1-001 by selecting Option A. I authorize Phase 3C Slice 4B-1 only: exact-v5 disposable fixtures produced through the promoted migration core; one private, unregistered, path/connection-injected Rust Evidence mutation boundary implementing the exact Founder decision-package contract for AI/local-mock candidate creation, still-pending user correction, exact-current-revision confirmation, and exact-current-revision rejection; immutable per-revision AI, local_mock, and user authorship/provenance; corrected and superseded lifecycle events; explicit exact-revision review events; synchronous rejected-content purge with content-free tombstone and v4 projection omission; exact current Experience revision dependencies; fail-closed refusal for stale, duplicate, conflicting, malformed, unsupported, or any inbound-dependent state outside this slice; synchronized v5 authority and guarded v4 projection; deterministic injected fixture clocks, identifiers, guard tokens, failure points, commit outcomes, and manifests; read-only post-transaction reconciliation; focused synthetic/disposable tests; factual Book One documentation; canonical verification; Theory Alignment Review; archive/reset; and stop at Founder diff review. I accept that this does not implement confirmed-Evidence correction/deletion, ordinary dependent invalidation, Phase 3B v5 cascade writes, production restart recovery, real-user safety, or production schema-v5 readiness. I do not authorize production SCHEMA_VERSION 5, production user_version 5, real user databases or app-data, startup/Tauri/renderer/UI activation, whole-bundle replacement, Reflection, Pattern, Context Recovery, Historical Question or Phase 3B write parity, retention, export v2, backup/restore, automatic retry/replay/rollback/repair/cleanup/candidate selection, provider or ContextPacket changes, Phase 4, Harness expansion, staging, commit, push, merge, PR, deployment, or release.",
+    "selected_option": "A",
+    "authorized_scope": "Slice 4B-1 Option A exactly as stated by the Founder: private unregistered disposable exact-v5 Evidence candidate, pending correction, exact-revision confirm/reject parity with immutable authorship/provenance, synchronous rejection purge/tombstone, exact source dependency, guarded v4 projection, fail-closed unauthorized dependents, deterministic tests, verification, Theory Review, archive/reset, and Founder diff review only; all listed production, runtime, later-slice, Git, deployment and release actions remain unauthorized.",
+    "decided_at": "2026-07-29T18:46:33.858Z",
+    "evidence_reference": "PHASE3C-SLICE4B1-001 founder response in current Codex task on 2026-07-30"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice4b1-evidence-review-write-parity",
+  "repository_head": "c7fc0c7a61d3b4f44237a83bf8288d1a7d8ae4ca",
+  "working_tree_digest": "896087f2be748e76b7d0cfae76b308eb9d8f5fb96f88fa2d6c96acf26ea89d6a",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-07-29T19:13:40.945Z",
+      "repository_head": "c7fc0c7a61d3b4f44237a83bf8288d1a7d8ae4ca",
+      "working_tree_digest": "896087f2be748e76b7d0cfae76b308eb9d8f5fb96f88fa2d6c96acf26ea89d6a"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-07-29T18:28:46.017Z",
+  "updated_at": "2026-07-29T19:15:05.524Z"
+}
