@@ -1767,7 +1767,7 @@ async fn verify_reflection_projection(
     Ok(())
 }
 
-async fn verify_exact_reflection_v5(
+pub(super) async fn verify_exact_reflection_v5(
     connection: &mut SqliteConnection,
 ) -> Result<(), MigrationError> {
     verify_exact_evidence_v5(connection).await?;
