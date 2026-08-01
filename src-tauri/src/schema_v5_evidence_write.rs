@@ -740,6 +740,39 @@ async fn verify_evidence_projection(
                     return Err(recovery_error("evidence_rejected_projection_mismatch"));
                 }
             }
+            "deleted" => {
+                if current_revision_id.is_some()
+                    || review_state != "confirmed"
+                    || eligibility_state != "ineligible"
+                    || projection.is_some()
+                {
+                    return Err(recovery_error("evidence_deleted_projection_mismatch"));
+                }
+                let retained: (i64, i64, i64, i64) = sqlx::query_as(
+                    "SELECT \
+                       (SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?), \
+                       (SELECT COUNT(*) FROM artifact_revision_content c \
+                         JOIN artifact_revisions r ON r.id = c.revision_id \
+                         WHERE r.artifact_id = ?), \
+                       (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                         WHERE artifact_id = ? AND event_type = 'deleted' \
+                           AND actor = 'user'), \
+                       (SELECT COUNT(*) FROM content_tombstones \
+                         WHERE artifact_id = ? AND subject_type = 'artifact' \
+                           AND artifact_revision_id IS NULL AND content_digest IS NULL \
+                           AND reason_code = 'user_deleted_artifact')",
+                )
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| migration_error("evidence_deletion_history_unreadable", error))?;
+                if retained.0 == 0 || retained.1 != 0 || retained.2 != 1 || retained.3 != 1 {
+                    return Err(recovery_error("evidence_deletion_history_mismatch"));
+                }
+            }
             _ => return Err(recovery_error("evidence_lifecycle_unsupported")),
         }
     }

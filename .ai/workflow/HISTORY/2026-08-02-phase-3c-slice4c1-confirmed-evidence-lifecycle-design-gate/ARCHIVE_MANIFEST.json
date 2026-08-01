@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-02-phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-01T19:11:45.355Z",
+  "repository_head": "adb269dc68d6ec3917819e6ea8c18d84cf89e902",
+  "working_branch": "codex/phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate",
+  "working_tree_digest": "f7dd785b0fdfd50e620397d7807b16e1823f0ccf4a49587d338e9cc1ce37ef58",
+  "last_event_id": "2026-08-02-phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate:0025",
+  "last_event_hash": "4a705457731579ef46e5b129066382e29bd17f8dbd7535325a2e73e6160ba0a0",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

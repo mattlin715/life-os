@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 25,
+  "last_event_id": "2026-08-02-phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate:0025",
+  "last_event_hash": "4a705457731579ef46e5b129066382e29bd17f8dbd7535325a2e73e6160ba0a0",
+  "sprint_id": "2026-08-02-phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate",
+  "mission_title": "Phase 3C Slice 4C-1 Confirmed Evidence Lifecycle and Exact Dependent Invalidation Design Gate",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE4C1-001 by selecting Option B. I authorize Phase 3C Slice 4C-1 only: one private, unregistered, path/connection-injected disposable schema-v5 confirmed-Evidence lifecycle boundary for exact-current confirmed Evidence correction and explicit deletion; correction creates an immutable user-authored successor revision, retains prior content and provenance, returns the head to pending/ineligible, and carries no confirmation forward; deletion purges all Evidence content and retains only minimal content-free metadata and tombstone; complete exact direct and transitive Evidence-to-Reflection-to-Pattern invalidation without rewriting, regeneration, reconfirmation or dependency rebinding; complete ADR-0009 cascade deletion across each affected Historical Question’s one-to-one schema-v4 and normalized-v5 representation; guarded schema-v4 projection synchronization; malformed, stale, incomplete, duplicate, cross-source, cyclic, unsupported or contradictory state fails closed; deterministic disposable tests, exact reconciliation, Clippy, canonical verification, Theory Alignment Review, archive/reset, and stop at Founder diff review.\n\nI accept that Phase 3B v5 runtime creation parity is not included but remains required before production schema-v5 activation. I do not authorize production schema/user_version 5, real user data, migration, runtime/Tauri/UI activation, Phase 3B v5 write parity, provider or ContextPacket changes, consent changes, Phase 4, Harness expansion, staging, commit, push, merge, PR, deployment or release.",
+    "selected_option": "B",
+    "authorized_scope": "Phase 3C Slice 4C-1 Option B only: private, unregistered, path/connection-injected disposable confirmed-Evidence correction/deletion; complete exact ordinary direct/transitive invalidation; complete ADR-0009 migrated one-to-one Historical Question cascade; guarded v4 projection; deterministic disposable tests and exact reconciliation; documentation, Clippy, canonical verification, Theory Alignment Review, archive/reset, stop at Founder diff review. All production schema/runtime/real-data/Phase 3B-v5/provider/consent/Phase-4/Harness/Git/deployment/release authority remains withheld.",
+    "decided_at": "2026-08-01T18:15:45.827Z",
+    "evidence_reference": "PHASE3C-SLICE4C1-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate",
+  "repository_head": "adb269dc68d6ec3917819e6ea8c18d84cf89e902",
+  "working_tree_digest": "f7dd785b0fdfd50e620397d7807b16e1823f0ccf4a49587d338e9cc1ce37ef58",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-01T19:08:49.625Z",
+      "repository_head": "adb269dc68d6ec3917819e6ea8c18d84cf89e902",
+      "working_tree_digest": "f7dd785b0fdfd50e620397d7807b16e1823f0ccf4a49587d338e9cc1ce37ef58"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-01T17:33:52.063Z",
+  "updated_at": "2026-08-01T19:11:32.986Z"
+}
