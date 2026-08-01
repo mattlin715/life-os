@@ -1011,6 +1011,59 @@ async fn verify_pattern_projection(
                     return Err(recovery_error("pattern_provenance_sources_mismatch"));
                 }
             }
+            "invalidated" => {
+                let revision_id = current_revision_id
+                    .ok_or_else(|| recovery_error("pattern_invalidated_revision_missing"))?;
+                if eligibility_state != "ineligible" || projection.is_some() {
+                    return Err(recovery_error("pattern_invalidated_projection_mismatch"));
+                }
+                let retained: Option<(String, String, i64)> = sqlx::query_as(
+                    "SELECT r.content_digest, c.payload, c.byte_length \
+                     FROM artifact_revisions r \
+                     JOIN artifact_revision_content c ON c.revision_id = r.id \
+                     WHERE r.id = ? AND r.artifact_id = ?",
+                )
+                .bind(&revision_id)
+                .bind(&artifact_id)
+                .fetch_optional(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error("pattern_invalidated_content_unreadable", error)
+                })?;
+                let (digest, content, byte_length) = retained
+                    .ok_or_else(|| recovery_error("pattern_invalidated_content_missing"))?;
+                if digest != sha256_hex(content.as_bytes()) || byte_length != content.len() as i64 {
+                    return Err(recovery_error(
+                        "pattern_invalidated_content_digest_mismatch",
+                    ));
+                }
+                let facts: (i64, i64) = sqlx::query_as(
+                    "SELECT \
+                       (SELECT COUNT(*) FROM artifact_revision_provenance \
+                         WHERE artifact_revision_id = ?), \
+                       (SELECT COUNT(*) FROM artifact_lifecycle_events e \
+                         JOIN artifact_dependencies d ON d.id = e.dependency_id \
+                         JOIN artifact_heads s ON s.id = d.source_artifact_id \
+                         WHERE e.artifact_id = ? AND e.subject_revision_id = ? \
+                           AND e.event_type = 'invalidated' \
+                           AND d.dependent_artifact_id = ? AND d.dependent_revision_id = ? \
+                           AND d.relationship_type IN ('uses_evidence','uses_reflection_response') \
+                           AND (s.current_revision_id <> d.source_artifact_revision_id \
+                             OR s.current_revision_id IS NULL OR s.lifecycle_state <> 'active' \
+                             OR s.eligibility_state <> 'eligible'))",
+                )
+                .bind(&revision_id)
+                .bind(&artifact_id)
+                .bind(&revision_id)
+                .bind(&artifact_id)
+                .bind(&revision_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| migration_error("pattern_invalidated_facts_unreadable", error))?;
+                if facts.0 == 0 || facts.1 == 0 {
+                    return Err(recovery_error("pattern_invalidated_facts_mismatch"));
+                }
+            }
             "content_purged" => {
                 if current_revision_id.is_some()
                     || review_state != "rejected"

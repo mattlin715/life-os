@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 3.1
+version: 3.3
 owner: product-and-engineering
 last_updated: 2026/08/02
 depends:
@@ -29,13 +29,15 @@ referenced_by: []
 
 This document records the Founder-approved exact schema v5 migration, cutover, recovery, and implementation sequence for the Founder-approved Phase 3C lifecycle foundation.
 
-It is a **Founder-approved authorization gate whose Slice 0, Slice 1A, Slice 1B-1, Slice 1B-2, Slice 2A, Slice 2B-1, Slice 2B-2, bounded Slice 2B-3, disposable Slice 3A, disposable Slice 3B, disposable Slice 4A, disposable Slice 4B-1, disposable Slice 4B-2, and disposable Slice 4B-3 authorities have been exercised and promoted**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorized fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation after this document was promoted to clean `develop`. Slice 0 was subsequently promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized the bounded Slice 1A startup-safety foundation. Slice 1A was promoted through feature commit `d4f86d72350c7068db76a6706ad7e5ff10ee67b5` and non-fast-forward merge commit `6e9dd6615cb7f99556d258080f6a45140fd55b68`. On 2026/07/19, the founder resolved `PHASE3C-SLICE1B-001` with Option B and authorized only Slice 1B-1 typed Experience create, update, delete, and atomic import parity. Slice 1B-1 was promoted through feature commit `cc82658ee6c551e46548a764ea83c4895ea59ebb` and non-fast-forward merge commit `1ef3aa0acd57756f7593e3fa792c321f0e164dcc`. The founder then resolved `PHASE3C-SLICE1B2-001` as Option A and authorized the bounded completion of schema-v4 typed artifact and historical mutation parity. Slice 1B-2 was promoted through feature commit `93fcc2bae358da21b857153757dbd143024598bd` and non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`. The founder then resolved `PHASE3C-SLICE2A-001` as Option A and authorized only a path-injected, integration-test-local schema-v4 backup creation and verification harness against synthetic/disposable fixtures. Slice 2A was promoted through feature commit `a5ba00650f396470b3a7ac265701d8ce3d90d35e` and non-fast-forward merge commit `9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6`. On 2026/07/24, the founder resolved `PHASE3C-SLICE2B1-001` as Option A and authorized only the fixture-local verified restore and test-injected replacement simulation described below. Slice 2B-1 was promoted through feature commit `5b9d4613c6fa4bb86c8fdfd9009a8a7bbed710bd` and non-fast-forward merge commit `a476c38ba5c4a9b19a81fbb14973aacc4adf25bd`. On 2026/07/25, the founder resolved `PHASE3C-SLICE2B2-001` as Option A and authorized only the unregistered, path-injected production-quality filesystem safety primitive described below, exercised exclusively against synthetic/disposable app-like directories. Slice 2B-2 was promoted through feature commit `a27faec856b2b1d628e87a1c8df1d13279668e14` and non-fast-forward merge commit `277c4b5b2031d5bf88dc2a33b03765c103c62629`. On 2026/07/26, bounded Slice 2B-3 was promoted through feature commit `61518c7d92b88b9b7d40f2229a30ba9d8370b880` and non-fast-forward merge commit `e932ead6da3346d3783da22dc1d1295c31cdc979`. Disposable Slice 3A was promoted through feature commit `3947b1862c177aabc95dc1d1796a4e1ccbc3ade2` and non-fast-forward merge commit `7e0e5c44e03e58769f834243477c901cb01771ab`. Disposable Slice 3B was promoted through feature commit `b96bc84eae0b1d019cce761564c2689d92482705` and non-fast-forward merge commit `5714b3eeeeb4c9612e445dbd78e4f606df41fa27`. Disposable Slice 4A was Founder-reviewed and promoted through feature commit `2928be119084fc552b6ffb02d9451e79d74a997d` and non-fast-forward merge commit `c7fc0c7a61d3b4f44237a83bf8288d1a7d8ae4ca`. Disposable Slice 4B-1 was Founder-reviewed and promoted through feature commit `76b0715722d9431a04a3ca41f947bc60892b5dae` and non-fast-forward merge commit `bb7ef2a6b37f8b4c7fdeab6ee0063d469dd8f011`. On 2026/07/31, the founder separately resolved `PHASE3C-SLICE4B2-001` as Option A and authorized only the private disposable Reflection boundary recorded below. Slice 4B-2 was Founder-reviewed and promoted through feature commit `353a6c1d910c45d9978add7699c1037b8f94a7a1` and non-fast-forward merge commit `c2f518a409c4308682302f505da275b621f16708`. On 2026/08/01, the founder resolved `PHASE3C-SLICE4B3-001` as Option A and authorized only the private disposable single-Experience Pattern boundary recorded below. Slice 4B-3 was Founder-reviewed, canonically verified, and promoted through feature commit `bd1fa7482e8cc52a59518eabca5d4d8c5f541c35` and non-fast-forward merge commit `b8205b12a4ac33ef23d20c84d54a2115fdecb830`.
+It is a **Founder-approved authorization gate whose Slice 0, Slice 1A, Slice 1B-1, Slice 1B-2, Slice 2A, Slice 2B-1, Slice 2B-2, bounded Slice 2B-3, disposable Slice 3A, disposable Slice 3B, disposable Slice 4A, disposable Slice 4B-1, disposable Slice 4B-2, disposable Slice 4B-3, and disposable Slice 4B-4 authorities have been exercised and promoted**. All sixteen decisions were explicitly approved on 2026/07/17. Decision 16B authorized fixed contracts, synthetic fixtures, test-only DDL execution, invariant tests, and synchronized verified documentation after this document was promoted to clean `develop`. Slice 0 was subsequently promoted through feature commit `431c3e7e81b2dcefca873ad3ec1d73680c96d60c` and non-fast-forward merge commit `7921affde544a5852aa58782a1acb0a4f189520e`. On 2026/07/18, the founder separately resolved `PHASE3C-SLICE1A-001` with Option A and authorized the bounded Slice 1A startup-safety foundation. Slice 1A was promoted through feature commit `d4f86d72350c7068db76a6706ad7e5ff10ee67b5` and non-fast-forward merge commit `6e9dd6615cb7f99556d258080f6a45140fd55b68`. On 2026/07/19, the founder resolved `PHASE3C-SLICE1B-001` with Option B and authorized only Slice 1B-1 typed Experience create, update, delete, and atomic import parity. Slice 1B-1 was promoted through feature commit `cc82658ee6c551e46548a764ea83c4895ea59ebb` and non-fast-forward merge commit `1ef3aa0acd57756f7593e3fa792c321f0e164dcc`. The founder then resolved `PHASE3C-SLICE1B2-001` as Option A and authorized the bounded completion of schema-v4 typed artifact and historical mutation parity. Slice 1B-2 was promoted through feature commit `93fcc2bae358da21b857153757dbd143024598bd` and non-fast-forward merge commit `3c84d4660d425a65f1173f3f8501a76ba2b3262a`. The founder then resolved `PHASE3C-SLICE2A-001` as Option A and authorized only a path-injected, integration-test-local schema-v4 backup creation and verification harness against synthetic/disposable fixtures. Slice 2A was promoted through feature commit `a5ba00650f396470b3a7ac265701d8ce3d90d35e` and non-fast-forward merge commit `9e0ff74f3fcdbe64d060e40d800078d90d4d9dc6`. On 2026/07/24, the founder resolved `PHASE3C-SLICE2B1-001` as Option A and authorized only the fixture-local verified restore and test-injected replacement simulation described below. Slice 2B-1 was promoted through feature commit `5b9d4613c6fa4bb86c8fdfd9009a8a7bbed710bd` and non-fast-forward merge commit `a476c38ba5c4a9b19a81fbb14973aacc4adf25bd`. On 2026/07/25, the founder resolved `PHASE3C-SLICE2B2-001` as Option A and authorized only the unregistered, path-injected production-quality filesystem safety primitive described below, exercised exclusively against synthetic/disposable app-like directories. Slice 2B-2 was promoted through feature commit `a27faec856b2b1d628e87a1c8df1d13279668e14` and non-fast-forward merge commit `277c4b5b2031d5bf88dc2a33b03765c103c62629`. On 2026/07/26, bounded Slice 2B-3 was promoted through feature commit `61518c7d92b88b9b7d40f2229a30ba9d8370b880` and non-fast-forward merge commit `e932ead6da3346d3783da22dc1d1295c31cdc979`. Disposable Slice 3A was promoted through feature commit `3947b1862c177aabc95dc1d1796a4e1ccbc3ade2` and non-fast-forward merge commit `7e0e5c44e03e58769f834243477c901cb01771ab`. Disposable Slice 3B was promoted through feature commit `b96bc84eae0b1d019cce761564c2689d92482705` and non-fast-forward merge commit `5714b3eeeeb4c9612e445dbd78e4f606df41fa27`. Disposable Slice 4A was Founder-reviewed and promoted through feature commit `2928be119084fc552b6ffb02d9451e79d74a997d` and non-fast-forward merge commit `c7fc0c7a61d3b4f44237a83bf8288d1a7d8ae4ca`. Disposable Slice 4B-1 was Founder-reviewed and promoted through feature commit `76b0715722d9431a04a3ca41f947bc60892b5dae` and non-fast-forward merge commit `bb7ef2a6b37f8b4c7fdeab6ee0063d469dd8f011`. On 2026/07/31, the founder separately resolved `PHASE3C-SLICE4B2-001` as Option A and authorized only the private disposable Reflection boundary recorded below. Slice 4B-2 was Founder-reviewed and promoted through feature commit `353a6c1d910c45d9978add7699c1037b8f94a7a1` and non-fast-forward merge commit `c2f518a409c4308682302f505da275b621f16708`. On 2026/08/01, the founder resolved `PHASE3C-SLICE4B3-001` as Option A and authorized only the private disposable single-Experience Pattern boundary recorded below. Slice 4B-3 was Founder-reviewed, canonically verified, and promoted through feature commit `bd1fa7482e8cc52a59518eabca5d4d8c5f541c35` and non-fast-forward merge commit `b8205b12a4ac33ef23d20c84d54a2115fdecb830`.
 
 On 2026/08/02, the founder resolved `PHASE3C-SLICE4B4-001` as Option A and
 authorized only the private disposable Context Recovery boundary recorded
-below. That implementation is in the current unpromoted working tree pending
-canonical verification, Theory Alignment Review, and Founder diff review. It
-does not alter the promoted Slice 4B-3 baseline or grant production authority.
+below. It was implemented, canonically verified, Founder accepted, and promoted
+through feature commit `05d623cbe1361e1974517c91c996f7fb7189f83d` and
+non-fast-forward merge commit `adb269dc68d6ec3917819e6ea8c18d84cf89e902`.
+This promotion does not grant production, real-user, runtime, provider,
+Phase 3B v5, Phase 4, deployment, or release authority.
 
 On 2026/07/26, the founder resolved `PHASE3C-SLICE3A-001` with Option A and separately authorized only a private, unregistered, path/connection-injected schema-v4-to-v5 migration core exercised against synthetic/disposable exact-v4 fixtures. That authority permits the fixed DDL, honest baseline backfill, reconciliation, receipt, compatibility guards, `user_version = 5` last inside disposable test databases, failure injection, logical exact-v4 rollback evidence, and read-only post-commit verification. It does not authorize production-path DDL execution, a production `SCHEMA_VERSION` change, real user databases or app-data, startup/Tauri/renderer/UI activation, production backup/restore/replacement, lifecycle writes, export v2, later slices, Phase 4, provider or ContextPacket changes, Git promotion, PR, or deployment.
 
@@ -1450,11 +1452,13 @@ No slice is authorized by this plan alone.
   Slice 4B-2 adds only the promoted private disposable Reflection
   prompt/response parity evidence described below. Slice 4B-3 adds only the
   promoted private disposable single-Experience Pattern create/confirm/reject
-  evidence described below. Slice 4B-4 adds only the current Founder-authorized
-  unpromoted private disposable Context Recovery create/first-answer/skip
-  evidence described below. Confirmed-Pattern mutation, confirmed-Evidence mutation,
-  dependent invalidation, Historical Question/Phase 3B v5 writes, and all
-  remaining current-state parity require separate Founder authority.
+  evidence described below. Slice 4B-4 adds only the promoted private
+  disposable Context Recovery create/first-answer/skip
+  evidence described below. Slice 4C-1 adds only the current Founder-authorized,
+  unpromoted private disposable confirmed-Evidence correction/deletion and exact
+  dependent-consequence evidence described below. Confirmed-Pattern mutation,
+  Phase 3B v5 creation parity, and all remaining current-state parity require
+  separate Founder authority.
 - Slice 4A was promoted through feature commit
   `2928be119084fc552b6ffb02d9451e79d74a997d` and non-fast-forward merge
   commit `c7fc0c7a61d3b4f44237a83bf8288d1a7d8ae4ca`. It remains disposable evidence
@@ -2078,7 +2082,89 @@ Recovery tests, and canonical local verification passed with 17 workflow tests,
 integration tests, 8 schema-contract tests, TypeScript typecheck, frontend
 build, Rust check, UTF-8/whitespace/secret/Markdown-link checks, and no
 Constitution diff. Clippy with warnings denied also passed. Production
-`SCHEMA_VERSION`, startup maximum, and user databases remain schema v4. Founder
-diff review remains pending, so this section records implemented and verified
-working-tree evidence only—not Founder acceptance, promotion, production
-readiness, real-user safety, deployment, or release.
+`SCHEMA_VERSION`, startup maximum, and user databases remain schema v4. The
+Founder accepted the diff and authorized promotion; feature commit
+`05d623cbe1361e1974517c91c996f7fb7189f83d` was merged non-fast-forward through
+`adb269dc68d6ec3917819e6ea8c18d84cf89e902`. This remains private,
+unregistered, disposable-only evidence—not production readiness, real-user
+safety, runtime activation, Phase 3B or Phase 4 authority, deployment, or
+release.
+
+## Slice 4C-1 Disposable Confirmed-Evidence Lifecycle Evidence
+
+On 2026/08/02, the founder resolved `PHASE3C-SLICE4C1-001` as Option B and
+authorized only one private, unregistered, path/connection-injected lifecycle
+boundary against exact-v5 disposable fixtures produced through the promoted
+migration core. The bounded implementation covers exact-current confirmed
+Evidence correction and explicit deletion plus every exact ordinary and
+ADR-0009 consequence required by Decisions 6B, 7B, 9A, 10B, 11A, and 12A.
+
+Correction appends one immutable user-authored revision with an exact
+predecessor and current Experience dependency, retains the superseded
+AI/local-mock content and provenance, appends corrected/superseded facts, and
+returns the Evidence head to pending and ineligible. Confirmation never carries
+forward. The guarded schema-v4 projection becomes a candidate and no dependent
+is rebound to the new revision. Deletion remains distinct from rejection: it
+records explicit user deletion, purges all Evidence revision content, retains
+immutable revision/provenance metadata, clears the current head, removes the v4
+projection, and leaves one minimal artifact-scoped `user_deleted_artifact`
+tombstone with no content digest.
+
+Before mutation the writer validates the exact current active Experience and
+confirmed Evidence, well-formed durable identifiers, the complete direct
+Evidence-to-Reflection/Pattern edge set, the transitive
+Evidence-to-Reflection-to-Pattern closure, and one-to-one schema-v4/normalized-v5
+Historical Question representation. Unsupported relationship or kind,
+cross-source state, stale revision, missing/extra link, malformed identity,
+duplicate dependency fact, and contradictory lifecycle state fail closed.
+
+Ordinary current Reflection and Pattern dependents retain immutable content and
+provenance but receive dependency-specific invalidation facts, become
+invalidated/ineligible, and are omitted from the guarded v4 projection. The
+complete promoted Evidence-to-Reflection-to-Pattern verifier chain now
+recognizes this retained invalidated state only when the cited exact source
+revision is no longer current or eligible. Content is not rewritten,
+regenerated, recalculated, reconfirmed, or silently rebound.
+
+Historical Questions follow the separate ADR-0009 boundary. Each affected
+schema-v4 row is deleted only after exact parity with its normalized v5 head,
+link, and packet-item dependency is proved. Existing guarded bridge and
+provenance triggers then delete the normalized generated artifact, successful
+packet snapshot, actual-use dependency/provenance, consent, and transmission
+reference in the same transaction. No transport tombstone is added, no consent
+is reused, and the unrelated 30-day unsuccessful-attempt boundary is unchanged.
+
+One `BEGIN IMMEDIATE` transaction holds the existing compatibility guard across
+authority, lifecycle facts, projections, ordinary invalidation, and Historical
+Question cascade. Deterministic clocks, identifiers, failure points, commit
+outcomes, and exact pre/post manifests support rollback at every meaningful
+boundary. A generic COMMIT error remains outcome-unknown unless read-only exact
+evidence proves the complete pre-state or post-state; there is no retry, replay,
+repair, cleanup, rebinding, or candidate selection.
+
+Focused local evidence currently includes 7 disposable lifecycle tests covering
+no-dependent correction, pending reconfirmation, retained predecessor and
+provenance, mixed direct/transitive ordinary invalidation, no rebinding,
+ADR-0009 cascade deletion both directly and through an invalidated selected
+Reflection, content-free deletion, stale and incomplete parity refusal, every
+correction/deletion failure boundary, and conservative ambiguous COMMIT
+classification. Full Rust verification passes with 137 library tests,
+12 backup/restore integration tests, and 8 schema-contract tests. Clippy with
+warnings denied passes.
+
+Canonical repository verification passes with 17 workflow tests, 26 Vitest
+files / 204 tests, 137 Rust library tests, 12 backup/restore integration tests,
+8 schema-contract tests, TypeScript typecheck, frontend build, Rust check,
+UTF-8/whitespace/secret/Markdown-link checks, and no Constitution diff. Theory
+Alignment Review Cycle 0 identified a missing Historical Question cascade path
+when an included Reflection, rather than the Evidence itself, depended on the
+corrected or deleted Evidence. The bounded closure correction and regression
+now pass. Final workflow reconciliation is complete, and the Founder accepted
+the diff on 2026/08/02; promotion remains pending. The module has no Tauri,
+renderer, UI, startup, provider, or production caller.
+Phase 3B v5
+runtime creation parity is not implemented here and remains a prerequisite for
+any production schema-v5 activation. Production `SCHEMA_VERSION`, startup
+maximum, and user databases remain schema v4. Real-user migration, fresh-v5
+initialization, runtime activation, provider/ContextPacket/consent changes,
+Phase 4, deployment, release, and Git promotion remain unauthorized.

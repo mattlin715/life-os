@@ -1496,6 +1496,64 @@ async fn verify_reflection_projection(
         let review_state: String = head.get(3);
         let lifecycle_state: String = head.get(4);
         let eligibility_state: String = head.get(5);
+        if lifecycle_state == "invalidated" {
+            let revision_id = revision_id
+                .ok_or_else(|| recovery_error("reflection_invalidated_revision_missing"))?;
+            if eligibility_state != "ineligible" {
+                return Err(recovery_error(
+                    "reflection_invalidated_eligibility_mismatch",
+                ));
+            }
+            let retained: Option<(String, String, i64)> = sqlx::query_as(
+                "SELECT r.content_digest, c.payload, c.byte_length \
+                 FROM artifact_revisions r \
+                 JOIN artifact_revision_content c ON c.revision_id = r.id \
+                 WHERE r.id = ? AND r.artifact_id = ?",
+            )
+            .bind(&revision_id)
+            .bind(&artifact_id)
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_invalidated_content_unreadable", error))?;
+            let (digest, content, byte_length) =
+                retained.ok_or_else(|| recovery_error("reflection_invalidated_content_missing"))?;
+            if digest != sha256_hex(content.as_bytes()) || byte_length != content.len() as i64 {
+                return Err(recovery_error(
+                    "reflection_invalidated_content_digest_mismatch",
+                ));
+            }
+            let facts: (i64, i64, i64) = sqlx::query_as(
+                "SELECT \
+                   (SELECT COUNT(*) FROM persisted_artifacts \
+                     WHERE id = ? AND source_entry_id = ? AND artifact_kind = 'reflection'), \
+                   (SELECT COUNT(*) FROM artifact_revision_provenance \
+                     WHERE artifact_revision_id = ?), \
+                   (SELECT COUNT(*) FROM artifact_lifecycle_events e \
+                     JOIN artifact_dependencies d ON d.id = e.dependency_id \
+                     JOIN artifact_heads s ON s.id = d.source_artifact_id \
+                     WHERE e.artifact_id = ? AND e.subject_revision_id = ? \
+                       AND e.event_type = 'invalidated' \
+                       AND d.dependent_artifact_id = ? AND d.dependent_revision_id = ? \
+                       AND d.relationship_type = 'uses_evidence' \
+                       AND (s.current_revision_id <> d.source_artifact_revision_id \
+                         OR s.current_revision_id IS NULL OR s.lifecycle_state <> 'active' \
+                         OR s.eligibility_state <> 'eligible'))",
+            )
+            .bind(&artifact_id)
+            .bind(&source_id)
+            .bind(&revision_id)
+            .bind(&artifact_id)
+            .bind(&revision_id)
+            .bind(&artifact_id)
+            .bind(&revision_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_invalidated_facts_unreadable", error))?;
+            if facts.0 != 0 || facts.1 == 0 || facts.2 == 0 {
+                return Err(recovery_error("reflection_invalidated_facts_mismatch"));
+            }
+            continue;
+        }
         if lifecycle_state != "active" {
             return Err(recovery_error("reflection_lifecycle_unsupported"));
         }
