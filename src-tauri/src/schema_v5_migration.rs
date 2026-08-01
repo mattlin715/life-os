@@ -19,6 +19,8 @@ mod evidence_lifecycle;
 mod evidence_write;
 #[path = "schema_v5_experience_write.rs"]
 mod experience_write;
+#[path = "schema_v5_historical_question_write.rs"]
+mod historical_question_write;
 #[path = "schema_v5_pattern_write.rs"]
 mod pattern_write;
 #[path = "schema_v5_reflection_write.rs"]
