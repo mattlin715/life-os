@@ -11,6 +11,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
 
+#[path = "schema_v5_context_recovery_write.rs"]
+mod context_recovery_write;
 #[path = "schema_v5_evidence_write.rs"]
 mod evidence_write;
 #[path = "schema_v5_experience_write.rs"]
