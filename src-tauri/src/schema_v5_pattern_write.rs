@@ -55,6 +55,23 @@ enum PatternWriteCommand {
         expected_evidence: Vec<ArtifactRevisionRef>,
         expected_reflections: Vec<ArtifactRevisionRef>,
     },
+    CorrectConfirmed {
+        source_id: String,
+        artifact_id: String,
+        expected_source_revision_id: String,
+        expected_artifact_revision_id: String,
+        expected_evidence: Vec<ArtifactRevisionRef>,
+        expected_reflections: Vec<ArtifactRevisionRef>,
+        text: String,
+    },
+    DeleteExact {
+        source_id: String,
+        artifact_id: String,
+        expected_source_revision_id: String,
+        expected_artifact_revision_id: String,
+        expected_evidence: Vec<ArtifactRevisionRef>,
+        expected_reflections: Vec<ArtifactRevisionRef>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -99,15 +116,20 @@ struct PatternWriteOutcome {
 #[derive(Clone, Debug)]
 struct CurrentPattern {
     revision_id: String,
+    revision_number: i64,
     review_state: String,
     lifecycle_state: String,
     eligibility_state: String,
     serialization_version: String,
+    authorship: String,
+    revision_reason: String,
     content_digest: String,
     payload: Value,
     created_at: String,
     generated_provenance: Value,
 }
+
+type ActivePatternRevisionRow = (String, String, String, i64, String, String, Option<String>);
 
 fn write_error(code: impl Into<String>) -> MigrationError {
     MigrationError::fail_closed(code)
@@ -316,6 +338,31 @@ fn generated_provenance_value(source_id: &str, provenance: &PatternProvenanceInp
     })
 }
 
+fn user_provenance_value(
+    source_id: &str,
+    evidence: &[ArtifactRevisionRef],
+    reflections: &[ArtifactRevisionRef],
+    occurred_at: &str,
+) -> Value {
+    let source_artifact_ids = evidence
+        .iter()
+        .chain(reflections)
+        .map(|item| item.artifact_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    json!({
+        "generatedAt": occurred_at,
+        "harnessVersion": null,
+        "model": null,
+        "origin": "user",
+        "promptVersion": null,
+        "provider": null,
+        "sourceArtifactIds": source_artifact_ids,
+        "sourceEntryId": source_id
+    })
+}
+
 fn v4_projection_value(
     content: &Value,
     status: &str,
@@ -502,14 +549,12 @@ async fn remove_guard(
 async fn inbound_dependency_count(
     connection: &mut SqliteConnection,
     artifact_id: &str,
-    revision_id: &str,
 ) -> Result<i64, MigrationError> {
     let normalized: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM artifact_dependencies  \
-         WHERE source_artifact_id = ? AND source_artifact_revision_id = ?",
+         WHERE source_artifact_id = ?",
     )
     .bind(artifact_id)
-    .bind(revision_id)
     .fetch_one(&mut *connection)
     .await
     .map_err(|error| migration_error("pattern_inbound_dependency_lookup_failed", error))?;
@@ -535,7 +580,8 @@ async fn current_pattern(
     let row = sqlx::query(
         "SELECT h.source_id, h.current_revision_id, h.review_state,  \
                 h.lifecycle_state, h.eligibility_state, h.created_at,  \
-                r.serialization_version, r.content_digest, c.payload,  \
+                r.revision_number, r.serialization_version, r.authorship,  \
+                r.revision_reason, r.content_digest, c.payload,  \
                 p.canonical_payload  \
          FROM artifact_heads h  \
          JOIN artifact_revisions r ON r.id = h.current_revision_id  \
@@ -559,22 +605,25 @@ async fn current_pattern(
     if actual_source != source_id || revision_id != expected_revision_id {
         return Err(write_error("pattern_artifact_revision_stale"));
     }
-    let raw_payload: String = row.get(8);
+    let raw_payload: String = row.get(11);
     let payload: Value = serde_json::from_str(&raw_payload)
         .map_err(|error| migration_error("pattern_current_payload_malformed", error))?;
-    let provenance_raw: String = row.get(9);
+    let provenance_raw: String = row.get(12);
     let generated_provenance: Value = serde_json::from_str(&provenance_raw)
         .map_err(|error| migration_error("pattern_current_provenance_malformed", error))?;
-    let content_digest: String = row.get(7);
+    let content_digest: String = row.get(10);
     if content_digest != sha256_hex(raw_payload.as_bytes()) {
         return Err(recovery_error("pattern_current_digest_mismatch"));
     }
     Ok(CurrentPattern {
         revision_id,
+        revision_number: row.get(6),
         review_state: row.get(2),
         lifecycle_state: row.get(3),
         eligibility_state: row.get(4),
-        serialization_version: row.get(6),
+        serialization_version: row.get(7),
+        authorship: row.get(8),
+        revision_reason: row.get(9),
         content_digest,
         payload,
         created_at: row.get(5),
@@ -846,8 +895,9 @@ async fn verify_pattern_projection(
                 projected += 1;
                 let revision_id = current_revision_id
                     .ok_or_else(|| recovery_error("pattern_active_revision_missing"))?;
-                let revision: Option<(String, String, String, i64)> = sqlx::query_as(
-                    "SELECT r.serialization_version, r.content_digest, c.payload, c.byte_length  \
+                let revision: Option<ActivePatternRevisionRow> = sqlx::query_as(
+                    "SELECT r.serialization_version, r.content_digest, c.payload, c.byte_length, \
+                            r.authorship, r.revision_reason, r.predecessor_revision_id  \
                      FROM artifact_revisions r  \
                      JOIN artifact_revision_content c ON c.revision_id = r.id  \
                      WHERE r.id = ? AND r.artifact_id = ?",
@@ -857,8 +907,15 @@ async fn verify_pattern_projection(
                 .fetch_optional(&mut *connection)
                 .await
                 .map_err(|error| migration_error("pattern_revision_unreadable", error))?;
-                let (serialization, digest, content, byte_length) =
-                    revision.ok_or_else(|| recovery_error("pattern_active_content_missing"))?;
+                let (
+                    serialization,
+                    digest,
+                    content,
+                    byte_length,
+                    authorship,
+                    revision_reason,
+                    predecessor,
+                ) = revision.ok_or_else(|| recovery_error("pattern_active_content_missing"))?;
                 if digest != sha256_hex(content.as_bytes()) || byte_length != content.len() as i64 {
                     return Err(recovery_error("pattern_content_digest_mismatch"));
                 }
@@ -1010,6 +1067,49 @@ async fn verify_pattern_projection(
                 if declared_sources != provenance_sources {
                     return Err(recovery_error("pattern_provenance_sources_mismatch"));
                 }
+                if revision_reason == "corrected" {
+                    let predecessor = predecessor
+                        .ok_or_else(|| recovery_error("pattern_correction_predecessor_missing"))?;
+                    if authorship != "user" {
+                        return Err(recovery_error("pattern_correction_authorship_mismatch"));
+                    }
+                    let facts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+                        "SELECT \
+                           (SELECT COUNT(*) FROM artifact_revision_content \
+                            WHERE revision_id = ?), \
+                           (SELECT COUNT(*) FROM artifact_revision_provenance \
+                            WHERE artifact_revision_id = ? AND role = 'content'), \
+                           (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                            WHERE artifact_id = ? AND subject_revision_id = ? \
+                              AND related_revision_id = ? AND event_type = 'corrected' \
+                              AND actor = 'user'), \
+                           (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                            WHERE artifact_id = ? AND subject_revision_id = ? \
+                              AND related_revision_id = ? AND event_type = 'superseded' \
+                              AND actor = 'user'), \
+                           (SELECT COUNT(*) FROM artifact_review_events \
+                            WHERE artifact_id = ? AND subject_revision_id = ?)",
+                    )
+                    .bind(&predecessor)
+                    .bind(&predecessor)
+                    .bind(&artifact_id)
+                    .bind(&revision_id)
+                    .bind(&predecessor)
+                    .bind(&artifact_id)
+                    .bind(&predecessor)
+                    .bind(&revision_id)
+                    .bind(&artifact_id)
+                    .bind(&revision_id)
+                    .fetch_one(&mut *connection)
+                    .await
+                    .map_err(|error| {
+                        migration_error("pattern_correction_facts_unreadable", error)
+                    })?;
+                    let expected_review_events = if review_state == "confirmed" { 1 } else { 0 };
+                    if facts != (1, 1, 1, 1, expected_review_events) {
+                        return Err(recovery_error("pattern_correction_facts_mismatch"));
+                    }
+                }
             }
             "invalidated" => {
                 let revision_id = current_revision_id
@@ -1089,6 +1189,61 @@ async fn verify_pattern_projection(
                 .map_err(|error| migration_error("pattern_rejection_history_unreadable", error))?;
                 if retained != (1, 1, 1) {
                     return Err(recovery_error("pattern_rejection_history_mismatch"));
+                }
+            }
+            "deleted" => {
+                if current_revision_id.is_some()
+                    || eligibility_state != "ineligible"
+                    || projection.is_some()
+                    || !matches!(review_state.as_str(), "pending" | "confirmed")
+                {
+                    return Err(recovery_error("pattern_deleted_projection_mismatch"));
+                }
+                let retained: (i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                    "SELECT \
+                       (SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?), \
+                       (SELECT COUNT(*) FROM artifact_revision_content c \
+                        JOIN artifact_revisions r ON r.id = c.revision_id \
+                        WHERE r.artifact_id = ?), \
+                       (SELECT COUNT(*) FROM artifact_revision_provenance p \
+                        JOIN artifact_revisions r ON r.id = p.artifact_revision_id \
+                        WHERE r.artifact_id = ? AND p.role = 'content'), \
+                       (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                        WHERE artifact_id = ? AND event_type = 'deleted' \
+                          AND actor = 'user' AND reason_code = 'explicit_user_deletion'), \
+                       (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                        WHERE artifact_id = ? AND event_type = 'content_purged' \
+                          AND actor = 'user' \
+                          AND reason_code = 'user_deleted_artifact_content_purged'), \
+                       (SELECT COUNT(*) FROM content_tombstones \
+                        WHERE artifact_id = ? AND subject_type = 'artifact' \
+                          AND artifact_revision_id IS NULL AND content_digest IS NULL \
+                          AND reason_code = 'user_deleted_artifact'), \
+                       ((SELECT COUNT(*) FROM artifact_dependencies \
+                         WHERE source_artifact_id = ?) + \
+                        (SELECT COUNT(*) FROM historical_artifact_dependencies \
+                         WHERE source_artifact_id = ?))",
+                )
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .bind(&artifact_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| migration_error("pattern_deletion_facts_unreadable", error))?;
+                if retained.0 == 0
+                    || retained.1 != 0
+                    || retained.2 != retained.0
+                    || retained.3 != 1
+                    || retained.4 != retained.0
+                    || retained.5 != 1
+                    || retained.6 != 0
+                {
+                    return Err(recovery_error("pattern_deletion_facts_mismatch"));
                 }
             }
             _ => return Err(recovery_error("pattern_lifecycle_unsupported")),
@@ -1263,7 +1418,7 @@ async fn ensure_expected_dependencies(
     current: &CurrentPattern,
     expected_evidence: &[ArtifactRevisionRef],
     expected_reflections: &[ArtifactRevisionRef],
-) -> Result<(), MigrationError> {
+) -> Result<(Vec<ArtifactRevisionRef>, Vec<ArtifactRevisionRef>), MigrationError> {
     let expected_evidence = normalize_refs(expected_evidence, "evidence", true)?;
     let expected_reflections = normalize_refs(expected_reflections, "reflection", false)?;
     validate_current_evidence(
@@ -1301,7 +1456,7 @@ async fn ensure_expected_dependencies(
             return Err(write_error("pattern_expected_dependencies_mismatch"));
         }
     }
-    Ok(())
+    Ok((expected_evidence, expected_reflections))
 }
 
 fn current_source_id(payload: &Value) -> Result<&str, MigrationError> {
@@ -1309,6 +1464,346 @@ fn current_source_id(payload: &Value) -> Result<&str, MigrationError> {
         .get("sourceEntryId")
         .and_then(Value::as_str)
         .ok_or_else(|| write_error("pattern_source_missing"))
+}
+
+fn current_created_at(payload: &Value) -> Result<&str, MigrationError> {
+    payload
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("pattern_created_at_missing"))
+}
+
+fn current_text(payload: &Value) -> Result<&str, MigrationError> {
+    payload
+        .get("text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("pattern_text_missing"))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn correct_confirmed(
+    connection: &mut SqliteConnection,
+    source_id: &str,
+    artifact_id: &str,
+    expected_source_revision_id: &str,
+    expected_artifact_revision_id: &str,
+    expected_evidence: &[ArtifactRevisionRef],
+    expected_reflections: &[ArtifactRevisionRef],
+    text: &str,
+    context: &PatternWriteContext<'_>,
+) -> Result<(String, String), MigrationError> {
+    validate_text(text)?;
+    exact_current_source(connection, source_id, expected_source_revision_id).await?;
+    let current = current_pattern(
+        connection,
+        source_id,
+        artifact_id,
+        expected_artifact_revision_id,
+    )
+    .await?;
+    if current.review_state != "confirmed"
+        || current.lifecycle_state != "active"
+        || current.eligibility_state != "eligible"
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "user" | "legacy_unknown"
+        )
+        || !matches!(
+            current.revision_reason.as_str(),
+            "created" | "corrected" | "legacy_v4_baseline"
+        )
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
+    {
+        return Err(write_error("pattern_confirmed_correction_not_allowed"));
+    }
+    if current_text(&current.payload)? == text {
+        return Err(write_error("pattern_correction_not_advancing"));
+    }
+    let (evidence, reflections) = ensure_expected_dependencies(
+        connection,
+        &current,
+        expected_evidence,
+        expected_reflections,
+    )
+    .await?;
+    if inbound_dependency_count(connection, artifact_id).await? != 0 {
+        return Err(write_error("pattern_inbound_dependency_not_authorized"));
+    }
+
+    let content = content_value(
+        artifact_id,
+        source_id,
+        text,
+        &evidence,
+        &reflections,
+        current_created_at(&current.payload)?,
+    );
+    let payload = canonical_json(&content)?;
+    let digest = sha256_hex(payload.as_bytes());
+    let revision_id = artifact_revision_id(artifact_id, "pattern", context.occurred_at, &digest);
+    let provenance = user_provenance_value(source_id, &evidence, &reflections, context.occurred_at);
+    let provenance_id = insert_provenance(connection, &provenance, context.occurred_at).await?;
+    inject(context, PatternWriteFailurePoint::AfterProvenance)?;
+    insert_revision(
+        connection,
+        artifact_id,
+        source_id,
+        &revision_id,
+        current.revision_number + 1,
+        Some(&current.revision_id),
+        "user",
+        "corrected",
+        &payload,
+        context.occurred_at,
+    )
+    .await?;
+    inject(context, PatternWriteFailurePoint::AfterRevision)?;
+    insert_content(connection, &revision_id, &payload).await?;
+    inject(context, PatternWriteFailurePoint::AfterContent)?;
+    sqlx::query(
+        "INSERT INTO artifact_revision_provenance \
+         (artifact_revision_id, role, provenance_id) VALUES (?, 'content', ?)",
+    )
+    .bind(&revision_id)
+    .bind(provenance_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_provenance_link_failed", error))?;
+    insert_source_dependency(
+        connection,
+        artifact_id,
+        &revision_id,
+        source_id,
+        expected_source_revision_id,
+        context.occurred_at,
+    )
+    .await?;
+    insert_artifact_dependencies(
+        connection,
+        artifact_id,
+        &revision_id,
+        "uses_evidence",
+        &evidence,
+        context.occurred_at,
+    )
+    .await?;
+    insert_artifact_dependencies(
+        connection,
+        artifact_id,
+        &revision_id,
+        "uses_reflection_response",
+        &reflections,
+        context.occurred_at,
+    )
+    .await?;
+    inject(context, PatternWriteFailurePoint::AfterDependency)?;
+    for (domain, event_type, subject, related, reason) in [
+        (
+            "life-os/pattern-confirmed-corrected-event-id-v1",
+            "corrected",
+            revision_id.as_str(),
+            current.revision_id.as_str(),
+            "confirmed_pattern_user_corrected",
+        ),
+        (
+            "life-os/pattern-confirmed-superseded-event-id-v1",
+            "superseded",
+            current.revision_id.as_str(),
+            revision_id.as_str(),
+            "replaced_by_user_correction",
+        ),
+    ] {
+        insert_lifecycle_event(
+            connection,
+            domain,
+            event_type,
+            "user",
+            reason,
+            artifact_id,
+            subject,
+            Some(related),
+            context.occurred_at,
+        )
+        .await?;
+    }
+    inject(context, PatternWriteFailurePoint::AfterLifecycle)?;
+    let updated = sqlx::query(
+        "UPDATE artifact_heads SET current_revision_id = ?, review_state = 'pending', \
+           lifecycle_state = 'active', eligibility_state = 'ineligible', \
+           eligibility_reason = 'correction_requires_confirmation', updated_at = ? \
+         WHERE id = ? AND source_id = ? AND current_revision_id = ? \
+           AND artifact_kind = 'pattern' AND review_state = 'confirmed' \
+           AND lifecycle_state = 'active' AND eligibility_state = 'eligible'",
+    )
+    .bind(&revision_id)
+    .bind(context.occurred_at)
+    .bind(artifact_id)
+    .bind(source_id)
+    .bind(&current.revision_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_correction_head_failed", error))?;
+    if updated.rows_affected() != 1 {
+        return Err(write_error("pattern_artifact_revision_stale"));
+    }
+    inject(context, PatternWriteFailurePoint::AfterHead)?;
+    let projection = v4_projection_value(&content, "candidate", context.occurred_at, &provenance)?;
+    write_projection(
+        connection,
+        artifact_id,
+        source_id,
+        &projection,
+        &current.created_at,
+        context.occurred_at,
+        false,
+    )
+    .await?;
+    inject(context, PatternWriteFailurePoint::AfterProjection)?;
+    Ok((artifact_id.to_string(), revision_id))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn delete_exact(
+    connection: &mut SqliteConnection,
+    source_id: &str,
+    artifact_id: &str,
+    expected_source_revision_id: &str,
+    expected_artifact_revision_id: &str,
+    expected_evidence: &[ArtifactRevisionRef],
+    expected_reflections: &[ArtifactRevisionRef],
+    context: &PatternWriteContext<'_>,
+) -> Result<(String, String), MigrationError> {
+    exact_current_source(connection, source_id, expected_source_revision_id).await?;
+    let current = current_pattern(
+        connection,
+        source_id,
+        artifact_id,
+        expected_artifact_revision_id,
+    )
+    .await?;
+    let active_state = (current.review_state == "confirmed"
+        && current.eligibility_state == "eligible")
+        || (current.review_state == "pending" && current.eligibility_state == "ineligible");
+    if current.lifecycle_state != "active" || !active_state {
+        return Err(write_error("pattern_deletion_not_allowed"));
+    }
+    ensure_expected_dependencies(
+        connection,
+        &current,
+        expected_evidence,
+        expected_reflections,
+    )
+    .await?;
+    if inbound_dependency_count(connection, artifact_id).await? != 0 {
+        return Err(write_error("pattern_inbound_dependency_not_authorized"));
+    }
+    let content_revisions: Vec<String> = sqlx::query_scalar(
+        "SELECT r.id FROM artifact_revisions r \
+         JOIN artifact_revision_content c ON c.revision_id = r.id \
+         WHERE r.artifact_id = ? ORDER BY r.revision_number",
+    )
+    .bind(artifact_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_deletion_content_scan_failed", error))?;
+    if content_revisions.is_empty() {
+        return Err(recovery_error("pattern_deletion_content_missing"));
+    }
+    insert_lifecycle_event(
+        connection,
+        "life-os/pattern-user-deleted-event-id-v1",
+        "deleted",
+        "user",
+        "explicit_user_deletion",
+        artifact_id,
+        &current.revision_id,
+        None,
+        context.occurred_at,
+    )
+    .await?;
+    for revision_id in &content_revisions {
+        insert_lifecycle_event(
+            connection,
+            "life-os/pattern-user-deleted-content-purged-event-id-v1",
+            "content_purged",
+            "user",
+            "user_deleted_artifact_content_purged",
+            artifact_id,
+            revision_id,
+            None,
+            context.occurred_at,
+        )
+        .await?;
+    }
+    inject(context, PatternWriteFailurePoint::AfterLifecycle)?;
+    let updated = sqlx::query(
+        "UPDATE artifact_heads SET current_revision_id = NULL, \
+           lifecycle_state = 'deleted', eligibility_state = 'ineligible', \
+           eligibility_reason = 'explicit_user_deletion', updated_at = ? \
+         WHERE id = ? AND source_id = ? AND current_revision_id = ? \
+           AND artifact_kind = 'pattern' AND lifecycle_state = 'active'",
+    )
+    .bind(context.occurred_at)
+    .bind(artifact_id)
+    .bind(source_id)
+    .bind(&current.revision_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_delete_head_failed", error))?;
+    if updated.rows_affected() != 1 {
+        return Err(write_error("pattern_artifact_revision_stale"));
+    }
+    inject(context, PatternWriteFailurePoint::AfterHead)?;
+    let tombstone_id = format!(
+        "v5ts_{}",
+        sha256_hex(
+            format!("life-os/pattern-user-deleted-artifact-tombstone-id-v1\0{artifact_id}")
+                .as_bytes()
+        )
+    );
+    sqlx::query(
+        "INSERT INTO content_tombstones ( \
+           id, subject_type, source_id, source_revision_id, artifact_id, \
+           artifact_revision_id, content_digest, reason_code, purged_at \
+         ) VALUES (?, 'artifact', NULL, NULL, ?, NULL, NULL, \
+           'user_deleted_artifact', ?)",
+    )
+    .bind(tombstone_id)
+    .bind(artifact_id)
+    .bind(context.occurred_at)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_tombstone_insert_failed", error))?;
+    inject(context, PatternWriteFailurePoint::AfterTombstone)?;
+    let purged = sqlx::query(
+        "DELETE FROM artifact_revision_content WHERE revision_id IN ( \
+           SELECT id FROM artifact_revisions WHERE artifact_id = ?)",
+    )
+    .bind(artifact_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_content_purge_failed", error))?;
+    if purged.rows_affected() != content_revisions.len() as u64 {
+        return Err(recovery_error("pattern_content_purge_identity_mismatch"));
+    }
+    inject(context, PatternWriteFailurePoint::AfterPurge)?;
+    let projected = sqlx::query(
+        "DELETE FROM persisted_artifacts \
+         WHERE id = ? AND source_entry_id = ? AND artifact_kind = 'pattern'",
+    )
+    .bind(artifact_id)
+    .bind(source_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("pattern_projection_delete_failed", error))?;
+    if projected.rows_affected() != 1 {
+        return Err(recovery_error("pattern_projection_identity_mismatch"));
+    }
+    inject(context, PatternWriteFailurePoint::AfterProjection)?;
+    Ok((artifact_id.to_string(), current.revision_id))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1346,7 +1841,7 @@ async fn confirm_pending(
         expected_reflections,
     )
     .await?;
-    if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
+    if inbound_dependency_count(connection, artifact_id).await? != 0 {
         return Err(write_error(
             "pattern_inbound_dependency_requires_later_slice",
         ));
@@ -1434,7 +1929,7 @@ async fn reject_pending(
         expected_reflections,
     )
     .await?;
-    if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
+    if inbound_dependency_count(connection, artifact_id).await? != 0 {
         return Err(write_error(
             "pattern_inbound_dependency_requires_later_slice",
         ));
@@ -1571,6 +2066,48 @@ async fn apply_command(
             expected_reflections,
         } => {
             reject_pending(
+                connection,
+                &source_id,
+                &artifact_id,
+                &expected_source_revision_id,
+                &expected_artifact_revision_id,
+                &expected_evidence,
+                &expected_reflections,
+                context,
+            )
+            .await
+        }
+        PatternWriteCommand::CorrectConfirmed {
+            source_id,
+            artifact_id,
+            expected_source_revision_id,
+            expected_artifact_revision_id,
+            expected_evidence,
+            expected_reflections,
+            text,
+        } => {
+            correct_confirmed(
+                connection,
+                &source_id,
+                &artifact_id,
+                &expected_source_revision_id,
+                &expected_artifact_revision_id,
+                &expected_evidence,
+                &expected_reflections,
+                &text,
+                context,
+            )
+            .await
+        }
+        PatternWriteCommand::DeleteExact {
+            source_id,
+            artifact_id,
+            expected_source_revision_id,
+            expected_artifact_revision_id,
+            expected_evidence,
+            expected_reflections,
+        } => {
+            delete_exact(
                 connection,
                 &source_id,
                 &artifact_id,
@@ -1921,6 +2458,38 @@ mod tests {
         .await
         .unwrap();
         (outcome, evidence, reflections)
+    }
+
+    async fn create_confirmed(
+        path: &Path,
+        id: &str,
+        origin: &str,
+        reflections: Vec<ArtifactRevisionRef>,
+    ) -> (
+        PatternWriteOutcome,
+        ArtifactRevisionRef,
+        Vec<ArtifactRevisionRef>,
+    ) {
+        let (created, evidence, reflections) = create(path, id, origin, reflections).await;
+        let confirmed = execute_disposable(
+            path,
+            PatternWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(path).await,
+                expected_artifact_revision_id: created.revision_id,
+                expected_evidence: vec![evidence.clone()],
+                expected_reflections: reflections.clone(),
+            },
+            context(
+                "2026-08-01T01:01:00.000Z",
+                "guard-pattern-create-confirmed-000000001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        (confirmed, evidence, reflections)
     }
 
     async fn scalar(path: &Path, query: &str) -> i64 {
@@ -2351,6 +2920,575 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn confirmed_correction_appends_user_revision_and_preserves_exact_sources() {
+        for origin in ["ai", "local_mock"] {
+            let (_directory, path) = exact_v5_fixture().await;
+            let reflection = artifact_ref(&path, REFLECTION_ID, "reflection").await;
+            let id = format!("pattern-correct-{origin}");
+            let (confirmed, evidence, reflections) =
+                create_confirmed(&path, &id, origin, vec![reflection]).await;
+            let before: (String, String, String) = {
+                let mut connection = connect(&path, true).await.unwrap();
+                sqlx::query_as(
+                    "SELECT r.authorship, c.payload, p.canonical_payload \
+                     FROM artifact_revisions r \
+                     JOIN artifact_revision_content c ON c.revision_id = r.id \
+                     JOIN artifact_revision_provenance rp ON rp.artifact_revision_id = r.id \
+                     JOIN provenance_records p ON p.id = rp.provenance_id \
+                     WHERE r.id = ? AND rp.role = 'content'",
+                )
+                .bind(&confirmed.revision_id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+            };
+            let corrected = execute_disposable(
+                &path,
+                PatternWriteCommand::CorrectConfirmed {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: confirmed.revision_id.clone(),
+                    expected_evidence: vec![evidence.clone()],
+                    expected_reflections: reflections.clone(),
+                    text: "A user-revised hypothesis that remains tentative.".into(),
+                },
+                context(
+                    "2026-08-01T01:02:00.000Z",
+                    "guard-pattern-confirmed-correction-00001",
+                    PatternWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .unwrap();
+            let mut connection = connect(&path, true).await.unwrap();
+            let revisions: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
+                "SELECT id, authorship, revision_reason, predecessor_revision_id \
+                 FROM artifact_revisions WHERE artifact_id = ? ORDER BY revision_number",
+            )
+            .bind(&id)
+            .fetch_all(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(revisions.len(), 2);
+            assert_eq!(revisions[0].1, origin);
+            assert_eq!(revisions[1].1, "user");
+            assert_eq!(revisions[1].2, "corrected");
+            assert_eq!(
+                revisions[1].3.as_deref(),
+                Some(confirmed.revision_id.as_str())
+            );
+            let predecessor: (String, String, String) = sqlx::query_as(
+                "SELECT r.authorship, c.payload, p.canonical_payload \
+                 FROM artifact_revisions r \
+                 JOIN artifact_revision_content c ON c.revision_id = r.id \
+                 JOIN artifact_revision_provenance rp ON rp.artifact_revision_id = r.id \
+                 JOIN provenance_records p ON p.id = rp.provenance_id \
+                 WHERE r.id = ? AND rp.role = 'content'",
+            )
+            .bind(&confirmed.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(predecessor, before);
+            let state: (String, String, String, String) = sqlx::query_as(
+                "SELECT current_revision_id, review_state, lifecycle_state, eligibility_state \
+                 FROM artifact_heads WHERE id = ?",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(
+                state,
+                (
+                    corrected.revision_id.clone(),
+                    "pending".into(),
+                    "active".into(),
+                    "ineligible".into()
+                )
+            );
+            let projection: String = sqlx::query_scalar(
+                "SELECT payload FROM persisted_artifacts WHERE id = ? AND artifact_kind = 'pattern'",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            let projection: Value = serde_json::from_str(&projection).unwrap();
+            assert_eq!(projection["status"], "candidate");
+            assert_eq!(
+                projection["text"],
+                "A user-revised hypothesis that remains tentative."
+            );
+            assert_eq!(projection["provenance"]["origin"], "user");
+            let dependency_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM artifact_dependencies WHERE dependent_revision_id = ?",
+            )
+            .bind(&corrected.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(dependency_count, 3);
+            drop(connection);
+
+            execute_disposable(
+                &path,
+                PatternWriteCommand::ConfirmPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: corrected.revision_id.clone(),
+                    expected_evidence: vec![evidence],
+                    expected_reflections: reflections,
+                },
+                context(
+                    "2026-08-01T01:03:00.000Z",
+                    "guard-pattern-corrected-reconfirm-000001",
+                    PatternWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!(
+                        "SELECT COUNT(*) FROM artifact_review_events WHERE artifact_id='{id}' \
+                         AND subject_revision_id='{}' AND decision='confirmed'",
+                        corrected.revision_id
+                    )
+                )
+                .await,
+                1
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_deletion_purges_all_pattern_content_and_keeps_content_free_facts() {
+        for delete_corrected_pending in [false, true] {
+            let (_directory, path) = exact_v5_fixture().await;
+            let id = if delete_corrected_pending {
+                "pattern-delete-corrected"
+            } else {
+                "pattern-delete-confirmed"
+            };
+            let reflection = artifact_ref(&path, REFLECTION_ID, "reflection").await;
+            let (confirmed, evidence, reflections) =
+                create_confirmed(&path, id, "ai", vec![reflection]).await;
+            let current_revision = if delete_corrected_pending {
+                execute_disposable(
+                    &path,
+                    PatternWriteCommand::CorrectConfirmed {
+                        source_id: SOURCE_ID.into(),
+                        artifact_id: id.into(),
+                        expected_source_revision_id: source_revision(&path).await,
+                        expected_artifact_revision_id: confirmed.revision_id,
+                        expected_evidence: vec![evidence.clone()],
+                        expected_reflections: reflections.clone(),
+                        text: "A corrected hypothesis to delete explicitly.".into(),
+                    },
+                    context(
+                        "2026-08-01T01:02:00.000Z",
+                        "guard-pattern-correct-before-delete-0001",
+                        PatternWriteFailurePoint::None,
+                    ),
+                )
+                .await
+                .unwrap()
+                .revision_id
+            } else {
+                confirmed.revision_id
+            };
+            execute_disposable(
+                &path,
+                PatternWriteCommand::DeleteExact {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.into(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: current_revision,
+                    expected_evidence: vec![evidence],
+                    expected_reflections: reflections,
+                },
+                context(
+                    "2026-08-01T01:04:00.000Z",
+                    "guard-pattern-explicit-deletion-0000001",
+                    PatternWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .unwrap();
+            let expected_revisions = if delete_corrected_pending { 2 } else { 1 };
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id='{id}'")
+                )
+                .await,
+                expected_revisions
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM artifact_revision_content c JOIN artifact_revisions r ON r.id=c.revision_id WHERE r.artifact_id='{id}'")
+                )
+                .await,
+                0
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM artifact_lifecycle_events WHERE artifact_id='{id}' AND event_type='content_purged'")
+                )
+                .await,
+                expected_revisions
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM content_tombstones WHERE artifact_id='{id}' AND subject_type='artifact' AND content_digest IS NULL AND reason_code='user_deleted_artifact'")
+                )
+                .await,
+                1
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM persisted_artifacts WHERE id='{id}'")
+                )
+                .await,
+                0
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    &format!("SELECT COUNT(*) FROM artifact_heads WHERE id='{id}' AND current_revision_id IS NULL AND lifecycle_state='deleted' AND eligibility_state='ineligible'")
+                )
+                .await,
+                1
+            );
+            assert_eq!(
+                scalar(
+                    &path,
+                    "SELECT COUNT(*) FROM persisted_artifacts WHERE id = 'fixture-v4-evidence'"
+                )
+                .await,
+                1
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn lifecycle_refuses_noop_duplicate_drift_and_historical_pattern_inbound_edges() {
+        let (_directory, path) = exact_v5_fixture().await;
+        let (confirmed, evidence, reflections) =
+            create_confirmed(&path, "pattern-lifecycle-refuse", "ai", Vec::new()).await;
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        for command in [
+            PatternWriteCommand::CorrectConfirmed {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-lifecycle-refuse".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: confirmed.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+                expected_reflections: reflections.clone(),
+                text: "A tentative single-experience hypothesis that may be useful to revisit."
+                    .into(),
+            },
+            PatternWriteCommand::CorrectConfirmed {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-lifecycle-refuse".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: confirmed.revision_id.clone(),
+                expected_evidence: vec![evidence.clone(), evidence.clone()],
+                expected_reflections: reflections.clone(),
+                text: "A distinct correction with duplicate source input.".into(),
+            },
+            PatternWriteCommand::CorrectConfirmed {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-lifecycle-refuse".into(),
+                expected_source_revision_id: "stale-source-revision".into(),
+                expected_artifact_revision_id: confirmed.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+                expected_reflections: reflections.clone(),
+                text: "A distinct correction with a stale source.".into(),
+            },
+        ] {
+            assert!(execute_disposable(
+                &path,
+                command,
+                context(
+                    "2026-08-01T01:02:00.000Z",
+                    "guard-pattern-lifecycle-refusal-00001",
+                    PatternWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .is_err());
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        }
+
+        {
+            let mut connection = connect(&path, false).await.unwrap();
+            let historical_id: String = sqlx::query_scalar(
+                "SELECT id FROM historical_question_artifacts ORDER BY id LIMIT 1",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            raw_sql("BEGIN IMMEDIATE")
+                .execute(&mut connection)
+                .await
+                .unwrap();
+            sqlx::query(
+                "INSERT INTO v5_compatibility_write_guard VALUES \
+                 ('manual-pattern-historical-inbound-0001','2026-08-01T01:02:30.000Z')",
+            )
+            .execute(&mut connection)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO historical_artifact_dependencies \
+                 (historical_artifact_id, source_entry_id, source_artifact_id, source_revision) \
+                 VALUES (?, ?, 'pattern-lifecycle-refuse', '2026-08-01T01:02:30.000Z')",
+            )
+            .bind(historical_id)
+            .bind(SOURCE_ID)
+            .execute(&mut connection)
+            .await
+            .unwrap();
+            sqlx::query("DELETE FROM v5_compatibility_write_guard")
+                .execute(&mut connection)
+                .await
+                .unwrap();
+            raw_sql("COMMIT").execute(&mut connection).await.unwrap();
+        }
+        let malformed_before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &path,
+            PatternWriteCommand::DeleteExact {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-lifecycle-refuse".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: confirmed.revision_id,
+                expected_evidence: vec![evidence],
+                expected_reflections: reflections,
+            },
+            context(
+                "2026-08-01T01:03:00.000Z",
+                "guard-pattern-historical-inbound-refuse-01",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.code.contains("inbound_dependency_not_authorized"));
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            operation_manifest(&mut connection).await.unwrap(),
+            malformed_before
+        );
+    }
+
+    #[tokio::test]
+    async fn lifecycle_refuses_normalized_inbound_to_any_retained_pattern_revision() {
+        let (_directory, path) = exact_v5_fixture().await;
+        let (predecessor, evidence, reflections) =
+            create_confirmed(&path, "pattern-normalized-inbound", "ai", Vec::new()).await;
+        let corrected = execute_disposable(
+            &path,
+            PatternWriteCommand::CorrectConfirmed {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-normalized-inbound".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: predecessor.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+                expected_reflections: reflections.clone(),
+                text: "A corrected hypothesis with an immutable predecessor.".into(),
+            },
+            context(
+                "2026-08-01T01:02:00.000Z",
+                "guard-pattern-normalized-correction-00001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        execute_disposable(
+            &path,
+            PatternWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-normalized-inbound".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: corrected.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+                expected_reflections: reflections.clone(),
+            },
+            context(
+                "2026-08-01T01:03:00.000Z",
+                "guard-pattern-normalized-confirm-0000001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+
+        let dependent = artifact_ref(&path, REFLECTION_ID, "reflection").await;
+        {
+            let mut connection = connect(&path, false).await.unwrap();
+            raw_sql("BEGIN IMMEDIATE")
+                .execute(&mut connection)
+                .await
+                .unwrap();
+            sqlx::query(
+                "INSERT INTO v5_compatibility_write_guard VALUES \
+                 ('manual-pattern-normalized-inbound-0001','2026-08-01T01:03:30.000Z')",
+            )
+            .execute(&mut connection)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO artifact_dependencies ( \
+                   id, dependent_artifact_id, dependent_revision_id, relationship_type, \
+                   source_revision_id, source_artifact_id, source_artifact_revision_id, created_at \
+                 ) VALUES ( \
+                   'dep-pattern-predecessor-inbound-0001', ?, ?, 'uses_evidence', \
+                   NULL, 'pattern-normalized-inbound', ?, '2026-08-01T01:03:30.000Z' \
+                 )",
+            )
+            .bind(&dependent.artifact_id)
+            .bind(&dependent.revision_id)
+            .bind(&predecessor.revision_id)
+            .execute(&mut connection)
+            .await
+            .unwrap();
+            sqlx::query("DELETE FROM v5_compatibility_write_guard")
+                .execute(&mut connection)
+                .await
+                .unwrap();
+            raw_sql("COMMIT").execute(&mut connection).await.unwrap();
+        }
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &path,
+            PatternWriteCommand::DeleteExact {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "pattern-normalized-inbound".into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: corrected.revision_id,
+                expected_evidence: vec![evidence],
+                expected_reflections: reflections,
+            },
+            context(
+                "2026-08-01T01:04:00.000Z",
+                "guard-pattern-normalized-inbound-refuse-1",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.code.contains("inbound_dependency_not_authorized"));
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn lifecycle_failure_points_roll_back_exactly() {
+        let correction_points = [
+            PatternWriteFailurePoint::AfterGuard,
+            PatternWriteFailurePoint::AfterProvenance,
+            PatternWriteFailurePoint::AfterRevision,
+            PatternWriteFailurePoint::AfterContent,
+            PatternWriteFailurePoint::AfterDependency,
+            PatternWriteFailurePoint::AfterLifecycle,
+            PatternWriteFailurePoint::AfterHead,
+            PatternWriteFailurePoint::AfterProjection,
+            PatternWriteFailurePoint::AfterReconciliation,
+            PatternWriteFailurePoint::AfterGuardRemoval,
+        ];
+        for point in correction_points {
+            let (_directory, path) = exact_v5_fixture().await;
+            let (confirmed, evidence, reflections) =
+                create_confirmed(&path, "pattern-correction-failure", "ai", Vec::new()).await;
+            let before = {
+                let mut connection = connect(&path, true).await.unwrap();
+                operation_manifest(&mut connection).await.unwrap()
+            };
+            assert!(execute_disposable(
+                &path,
+                PatternWriteCommand::CorrectConfirmed {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: "pattern-correction-failure".into(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: confirmed.revision_id,
+                    expected_evidence: vec![evidence],
+                    expected_reflections: reflections,
+                    text: "Correction that must roll back under injection.".into(),
+                },
+                PatternWriteContext {
+                    occurred_at: "2026-08-01T01:02:00.000Z",
+                    guard_token: "guard-pattern-correction-failure-00001",
+                    failure_point: point,
+                },
+            )
+            .await
+            .is_err());
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        }
+
+        for point in [
+            PatternWriteFailurePoint::AfterGuard,
+            PatternWriteFailurePoint::AfterLifecycle,
+            PatternWriteFailurePoint::AfterHead,
+            PatternWriteFailurePoint::AfterTombstone,
+            PatternWriteFailurePoint::AfterPurge,
+            PatternWriteFailurePoint::AfterProjection,
+            PatternWriteFailurePoint::AfterReconciliation,
+            PatternWriteFailurePoint::AfterGuardRemoval,
+        ] {
+            let (_directory, path) = exact_v5_fixture().await;
+            let (confirmed, evidence, reflections) =
+                create_confirmed(&path, "pattern-deletion-failure", "ai", Vec::new()).await;
+            let before = {
+                let mut connection = connect(&path, true).await.unwrap();
+                operation_manifest(&mut connection).await.unwrap()
+            };
+            assert!(execute_disposable(
+                &path,
+                PatternWriteCommand::DeleteExact {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: "pattern-deletion-failure".into(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: confirmed.revision_id,
+                    expected_evidence: vec![evidence],
+                    expected_reflections: reflections,
+                },
+                PatternWriteContext {
+                    occurred_at: "2026-08-01T01:02:00.000Z",
+                    guard_token: "guard-pattern-deletion-failure-0000001",
+                    failure_point: point,
+                },
+            )
+            .await
+            .is_err());
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        }
+    }
+
+    #[tokio::test]
     async fn rejection_purges_content_and_projection_but_retains_content_free_facts() {
         let (_directory, path) = exact_v5_fixture().await;
         let (created, evidence, reflections) =
@@ -2618,6 +3756,7 @@ mod tests {
     struct InjectedCommitAdapter {
         outcome: CommitAttemptOutcome,
         commit_first: bool,
+        third_state: bool,
         calls: Cell<usize>,
     }
 
@@ -2625,7 +3764,16 @@ mod tests {
         async fn commit(&self, connection: &mut SqliteConnection) -> CommitAttemptOutcome {
             self.calls.set(self.calls.get() + 1);
             if self.commit_first {
-                raw_sql("COMMIT").execute(connection).await.unwrap();
+                raw_sql("COMMIT").execute(&mut *connection).await.unwrap();
+                if self.third_state {
+                    sqlx::query(
+                        "INSERT INTO v5_compatibility_write_guard VALUES \
+                         ('injected-pattern-third-state-guard','2026-08-01T01:09:30.000Z')",
+                    )
+                    .execute(&mut *connection)
+                    .await
+                    .unwrap();
+                }
             }
             self.outcome.clone()
         }
@@ -2650,6 +3798,7 @@ mod tests {
                     error_class: "injected_commit_ambiguity".into(),
                 },
                 commit_first,
+                third_state: false,
                 calls: Cell::new(0),
             };
             let result = execute_with_adapter(
@@ -2683,6 +3832,57 @@ mod tests {
                     .unwrap_err()
                     .code
                     .contains("pattern_commit_outcome_unknown_unchanged"));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn lifecycle_ambiguous_commit_classifies_exact_pre_post_and_third_state() {
+        for (commit_first, third_state) in [(false, false), (true, false), (true, true)] {
+            let (_directory, path) = exact_v5_fixture().await;
+            let id = format!("pattern-lifecycle-ambiguous-{commit_first}-{third_state}");
+            let (confirmed, evidence, reflections) =
+                create_confirmed(&path, &id, "ai", Vec::new()).await;
+            let adapter = InjectedCommitAdapter {
+                outcome: CommitAttemptOutcome::OutcomeUnknown {
+                    error_class: "injected_lifecycle_commit_ambiguity".into(),
+                },
+                commit_first,
+                third_state,
+                calls: Cell::new(0),
+            };
+            let result = execute_with_adapter(
+                &path,
+                PatternWriteCommand::CorrectConfirmed {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id,
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: confirmed.revision_id,
+                    expected_evidence: vec![evidence],
+                    expected_reflections: reflections,
+                    text: "A lifecycle correction under ambiguous COMMIT.".into(),
+                },
+                context(
+                    "2026-08-01T01:09:00.000Z",
+                    "guard-pattern-lifecycle-ambiguous-0001",
+                    PatternWriteFailurePoint::None,
+                ),
+                &adapter,
+            )
+            .await;
+            assert_eq!(adapter.calls.get(), 1);
+            match (commit_first, third_state) {
+                (false, false) => assert!(result
+                    .unwrap_err()
+                    .code
+                    .contains("pattern_commit_outcome_unknown_unchanged")),
+                (true, false) => assert_eq!(result.unwrap().status, PatternWriteStatus::Committed),
+                (true, true) => {
+                    let error = result.unwrap_err();
+                    assert!(error.recovery_required);
+                    assert!(error.code.contains("pattern_commit_outcome_unknown"));
+                }
+                _ => unreachable!(),
             }
         }
     }
