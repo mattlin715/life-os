@@ -1,5 +1,6 @@
 use super::evidence_write::verify_exact_evidence_v5;
 use super::experience_write::operation_manifest;
+use super::pattern_write::verify_exact_pattern_v5;
 use super::*;
 use sqlx::{raw_sql, Row};
 use std::collections::{BTreeMap, BTreeSet};
@@ -53,6 +54,13 @@ enum ReflectionWriteCommand {
         expected_evidence: Vec<EvidenceRevisionRef>,
         response: String,
     },
+    DeleteAnswered {
+        source_id: String,
+        artifact_id: String,
+        expected_source_revision_id: String,
+        expected_artifact_revision_id: String,
+        expected_evidence: Vec<EvidenceRevisionRef>,
+    },
     SkipSuggested {
         source_id: String,
         artifact_id: String,
@@ -74,6 +82,10 @@ enum ReflectionWriteFailurePoint {
     AfterDependency,
     AfterLifecycle,
     AfterReview,
+    AfterOrdinaryInvalidation,
+    AfterHistoricalCascade,
+    AfterTombstone,
+    AfterPurge,
     AfterProjection,
     AfterReconciliation,
     AfterGuardRemoval,
@@ -90,7 +102,25 @@ struct ReflectionWriteContext<'a> {
 struct ReflectionWriteOutcome {
     artifact_id: String,
     revision_id: String,
+    invalidated_pattern_ids: Vec<String>,
+    deleted_historical_artifact_ids: Vec<String>,
     operation_manifest: String,
+}
+
+#[derive(Clone, Debug)]
+struct PatternDependentEdge {
+    dependency_id: String,
+    artifact_id: String,
+    revision_id: String,
+    current_revision_id: Option<String>,
+    lifecycle_state: String,
+    eligibility_state: String,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ReflectionDependentClosure {
+    pattern_edges: BTreeMap<String, PatternDependentEdge>,
+    historical_ids: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +139,7 @@ struct CurrentReflection {
     prompt_provenance: Value,
     response_provenance: Option<Value>,
     created_at: String,
+    projection_updated_at: String,
 }
 
 fn write_error(code: impl Into<String>) -> MigrationError {
@@ -692,8 +723,8 @@ async fn current_reflection(
     let row = sqlx::query(
         "SELECT h.source_id, h.current_revision_id, h.review_state, h.lifecycle_state, \
                 h.eligibility_state, h.created_at, r.revision_number, r.serialization_version, \
-                r.authorship, r.content_digest, c.payload, pa.payload, pp.provenance_id, \
-                p.canonical_payload, rp.canonical_payload \
+                r.authorship, r.content_digest, c.payload, pa.payload, pa.updated_at, \
+                pp.provenance_id, p.canonical_payload, rp.canonical_payload \
          FROM artifact_heads h \
          JOIN artifact_revisions r ON r.id = h.current_revision_id AND r.artifact_id = h.id \
          JOIN artifact_revision_content c ON c.revision_id = r.id \
@@ -733,16 +764,17 @@ async fn current_reflection(
         authorship: row.get(8),
         payload: serde_json::from_str(&raw_payload)
             .map_err(|error| migration_error("reflection_current_payload_malformed", error))?,
-        prompt_provenance_id: row.get(12),
-        prompt_provenance: serde_json::from_str(&row.get::<String, _>(13))
+        prompt_provenance_id: row.get(13),
+        prompt_provenance: serde_json::from_str(&row.get::<String, _>(14))
             .map_err(|error| migration_error("reflection_prompt_provenance_malformed", error))?,
         response_provenance: row
-            .try_get::<Option<String>, _>(14)
+            .try_get::<Option<String>, _>(15)
             .map_err(|error| migration_error("reflection_response_provenance_unreadable", error))?
             .map(|raw| serde_json::from_str(&raw))
             .transpose()
             .map_err(|error| migration_error("reflection_response_provenance_malformed", error))?,
         created_at: row.get(5),
+        projection_updated_at: row.get(12),
     })
 }
 
@@ -848,32 +880,6 @@ async fn validate_prompt_lineage(
     Ok(prompt_revision)
 }
 
-async fn inbound_dependency_count(
-    connection: &mut SqliteConnection,
-    artifact_id: &str,
-    revision_id: &str,
-) -> Result<i64, MigrationError> {
-    let normalized: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM artifact_dependencies \
-         WHERE source_artifact_id = ? AND source_artifact_revision_id = ? \
-           AND NOT (dependent_artifact_id = ? AND relationship_type = 'answers_prompt')",
-    )
-    .bind(artifact_id)
-    .bind(revision_id)
-    .bind(artifact_id)
-    .fetch_one(&mut *connection)
-    .await
-    .map_err(|error| migration_error("reflection_inbound_dependency_lookup_failed", error))?;
-    let historical: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM historical_artifact_dependencies WHERE source_artifact_id = ?",
-    )
-    .bind(artifact_id)
-    .fetch_one(&mut *connection)
-    .await
-    .map_err(|error| migration_error("reflection_historical_dependency_lookup_failed", error))?;
-    Ok(normalized + historical)
-}
-
 async fn ensure_expected_evidence(
     connection: &mut SqliteConnection,
     current: &CurrentReflection,
@@ -886,6 +892,450 @@ async fn ensure_expected_evidence(
         return Err(write_error("reflection_evidence_dependency_mismatch"));
     }
     Ok(expected)
+}
+
+async fn collect_dependent_closure(
+    connection: &mut SqliteConnection,
+    current: &CurrentReflection,
+) -> Result<ReflectionDependentClosure, MigrationError> {
+    let rows = sqlx::query(
+        "SELECT d.id, d.relationship_type, d.dependent_artifact_id, \
+                d.dependent_revision_id, d.source_artifact_revision_id, \
+                h.artifact_kind, h.source_id, h.current_revision_id, \
+                h.lifecycle_state, h.eligibility_state \
+         FROM artifact_dependencies d \
+         JOIN artifact_heads h ON h.id = d.dependent_artifact_id \
+         WHERE d.source_artifact_id = ? ORDER BY d.id",
+    )
+    .bind(&current.artifact_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_lifecycle_dependencies_unreadable", error))?;
+
+    let mut closure = ReflectionDependentClosure::default();
+    let mut normalized_historical = BTreeSet::new();
+    for row in rows {
+        let dependency_id: String = row.get(0);
+        let relationship: String = row.get(1);
+        let dependent_artifact_id: String = row.get(2);
+        let dependent_revision_id: String = row.get(3);
+        let source_artifact_revision_id: String = row.get(4);
+        let artifact_kind: String = row.get(5);
+        let source_id: String = row.get(6);
+        for (value, field) in [
+            (&dependency_id, "dependency_id"),
+            (&dependent_artifact_id, "dependent_artifact_id"),
+            (&dependent_revision_id, "dependent_revision_id"),
+            (&source_artifact_revision_id, "source_artifact_revision_id"),
+        ] {
+            validate_identifier(value, field)?;
+        }
+
+        if relationship == "answers_prompt" && dependent_artifact_id == current.artifact_id {
+            let prompt_revision: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ? AND id = ? \
+                   AND revision_number = 1 AND predecessor_revision_id IS NULL",
+            )
+            .bind(&current.artifact_id)
+            .bind(&source_artifact_revision_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("reflection_lifecycle_prompt_dependency_unreadable", error)
+            })?;
+            if prompt_revision != 1 {
+                return Err(write_error(
+                    "reflection_lifecycle_prompt_dependency_unsupported",
+                ));
+            }
+            continue;
+        }
+
+        if artifact_kind == "pattern" && relationship == "uses_reflection_response" {
+            if source_id != current.source_id || dependent_artifact_id == current.artifact_id {
+                return Err(write_error(
+                    "reflection_lifecycle_pattern_dependency_unsupported",
+                ));
+            }
+            let edge = PatternDependentEdge {
+                dependency_id: dependency_id.clone(),
+                artifact_id: dependent_artifact_id.clone(),
+                revision_id: dependent_revision_id,
+                current_revision_id: row.get(7),
+                lifecycle_state: row.get(8),
+                eligibility_state: row.get(9),
+            };
+            match (edge.lifecycle_state.as_str(), edge.eligibility_state.as_str()) {
+                ("active", _) if source_artifact_revision_id == current.revision_id => {}
+                ("invalidated", "ineligible") => {}
+                _ => {
+                    return Err(write_error(
+                        "reflection_lifecycle_pattern_dependency_state_unsupported",
+                    ))
+                }
+            }
+            let unsupported_inbound: i64 = sqlx::query_scalar(
+                "SELECT \
+                   (SELECT COUNT(*) FROM artifact_dependencies WHERE source_artifact_id = ?) + \
+                   (SELECT COUNT(*) FROM historical_artifact_dependencies \
+                      WHERE source_artifact_id = ?)",
+            )
+            .bind(&dependent_artifact_id)
+            .bind(&dependent_artifact_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("reflection_lifecycle_pattern_inbound_unreadable", error)
+            })?;
+            if unsupported_inbound != 0 {
+                return Err(write_error(
+                    "reflection_lifecycle_pattern_inbound_unsupported",
+                ));
+            }
+            if closure
+                .pattern_edges
+                .insert(dependency_id, edge)
+                .is_some()
+            {
+                return Err(write_error(
+                    "reflection_lifecycle_dependency_id_duplicate",
+                ));
+            }
+            continue;
+        }
+
+        if artifact_kind == "historical_question" && relationship == "historical_packet_item" {
+            if source_artifact_revision_id != current.revision_id {
+                return Err(write_error(
+                    "reflection_lifecycle_historical_revision_not_current",
+                ));
+            }
+            let historical_id: String = sqlx::query_scalar(
+                "SELECT historical_artifact_id FROM historical_question_lifecycle_links \
+                 WHERE artifact_id = ?",
+            )
+            .bind(&dependent_artifact_id)
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("reflection_lifecycle_historical_link_unreadable", error)
+            })?
+            .ok_or_else(|| write_error("reflection_lifecycle_historical_link_missing"))?;
+            if !normalized_historical.insert(historical_id) {
+                return Err(write_error(
+                    "reflection_lifecycle_historical_dependency_duplicate",
+                ));
+            }
+            continue;
+        }
+
+        return Err(write_error(
+            "reflection_lifecycle_inbound_dependency_unsupported",
+        ));
+    }
+
+    let v4_rows: Vec<(String, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT historical_artifact_id, source_entry_id, source_artifact_id, source_revision \
+         FROM historical_artifact_dependencies WHERE source_artifact_id = ? \
+         ORDER BY historical_artifact_id",
+    )
+    .bind(&current.artifact_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_lifecycle_v4_history_unreadable", error))?;
+    let mut v4_historical = BTreeSet::new();
+    for (historical_id, source_id, artifact_id, source_revision) in v4_rows {
+        validate_identifier(&historical_id, "historical_artifact_id")?;
+        if source_id != current.source_id
+            || artifact_id.as_deref() != Some(current.artifact_id.as_str())
+            || source_revision != current.projection_updated_at
+            || !v4_historical.insert(historical_id)
+        {
+            return Err(write_error(
+                "reflection_lifecycle_v4_historical_dependency_mismatch",
+            ));
+        }
+    }
+    if normalized_historical != v4_historical {
+        return Err(write_error(
+            "reflection_lifecycle_historical_representation_mismatch",
+        ));
+    }
+    for historical_id in &normalized_historical {
+        let represented: (i64, i64, i64) = sqlx::query_as(
+            "SELECT \
+               (SELECT COUNT(*) FROM historical_question_artifacts WHERE id = ?), \
+               (SELECT COUNT(*) FROM historical_question_lifecycle_links \
+                  WHERE historical_artifact_id = ?), \
+               (SELECT COUNT(*) FROM historical_question_lifecycle_links l \
+                  JOIN artifact_heads h ON h.id = l.artifact_id \
+                  WHERE l.historical_artifact_id = ? \
+                    AND h.artifact_kind = 'historical_question' \
+                    AND h.lifecycle_state = 'active')",
+        )
+        .bind(historical_id)
+        .bind(historical_id)
+        .bind(historical_id)
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|error| {
+            migration_error(
+                "reflection_lifecycle_historical_representation_unreadable",
+                error,
+            )
+        })?;
+        if represented != (1, 1, 1) {
+            return Err(write_error(
+                "reflection_lifecycle_historical_representation_incomplete",
+            ));
+        }
+    }
+    closure.historical_ids = normalized_historical;
+    Ok(closure)
+}
+
+async fn append_pattern_invalidation_event(
+    connection: &mut SqliteConnection,
+    edge: &PatternDependentEdge,
+    occurred_at: &str,
+) -> Result<(), MigrationError> {
+    let existing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM artifact_lifecycle_events \
+         WHERE artifact_id = ? AND subject_revision_id = ? \
+           AND dependency_id = ? AND event_type = 'invalidated'",
+    )
+    .bind(&edge.artifact_id)
+    .bind(&edge.revision_id)
+    .bind(&edge.dependency_id)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| {
+        migration_error("reflection_lifecycle_pattern_invalidation_unreadable", error)
+    })?;
+    if existing == 1 {
+        return Ok(());
+    }
+    if existing != 0 {
+        return Err(recovery_error(
+            "reflection_lifecycle_pattern_invalidation_duplicate",
+        ));
+    }
+    let domain = format!(
+        "life-os/reflection-dependent-pattern-invalidated-event-id-v1:{}",
+        edge.dependency_id
+    );
+    let id = event_id("v5le_", &domain, &edge.artifact_id, &edge.revision_id);
+    sqlx::query(
+        "INSERT INTO artifact_lifecycle_events (id, artifact_id, subject_revision_id, \
+           related_revision_id, dependency_id, event_type, actor, reason_code, occurred_at) \
+         VALUES (?, ?, ?, NULL, ?, 'invalidated', 'system', \
+           'exact_reflection_revision_no_longer_current', ?)",
+    )
+    .bind(id)
+    .bind(&edge.artifact_id)
+    .bind(&edge.revision_id)
+    .bind(&edge.dependency_id)
+    .bind(occurred_at)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| {
+        migration_error("reflection_lifecycle_pattern_invalidation_failed", error)
+    })?;
+    Ok(())
+}
+
+async fn invalidate_pattern_dependents(
+    connection: &mut SqliteConnection,
+    closure: &ReflectionDependentClosure,
+    context: &ReflectionWriteContext<'_>,
+) -> Result<Vec<String>, MigrationError> {
+    let mut affected = BTreeSet::new();
+    for edge in closure.pattern_edges.values() {
+        append_pattern_invalidation_event(connection, edge, context.occurred_at).await?;
+        match (edge.lifecycle_state.as_str(), edge.eligibility_state.as_str()) {
+            ("active", _) => {
+                if edge.current_revision_id.as_deref() != Some(edge.revision_id.as_str()) {
+                    return Err(write_error(
+                        "reflection_lifecycle_pattern_revision_stale",
+                    ));
+                }
+                let updated = sqlx::query(
+                    "UPDATE artifact_heads SET lifecycle_state = 'invalidated', \
+                       eligibility_state = 'ineligible', \
+                       eligibility_reason = 'exact_dependency_invalidated', updated_at = ? \
+                     WHERE id = ? AND current_revision_id = ? AND artifact_kind = 'pattern' \
+                       AND lifecycle_state = 'active'",
+                )
+                .bind(context.occurred_at)
+                .bind(&edge.artifact_id)
+                .bind(&edge.revision_id)
+                .execute(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error("reflection_lifecycle_pattern_head_update_failed", error)
+                })?;
+                if updated.rows_affected() != 1 {
+                    return Err(write_error(
+                        "reflection_lifecycle_pattern_revision_stale",
+                    ));
+                }
+                let deleted = sqlx::query(
+                    "DELETE FROM persisted_artifacts WHERE id = ? \
+                       AND artifact_kind = 'pattern'",
+                )
+                .bind(&edge.artifact_id)
+                .execute(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error(
+                        "reflection_lifecycle_pattern_projection_delete_failed",
+                        error,
+                    )
+                })?;
+                if deleted.rows_affected() != 1 {
+                    return Err(recovery_error(
+                        "reflection_lifecycle_pattern_projection_mismatch",
+                    ));
+                }
+            }
+            ("invalidated", "ineligible") => {
+                let projection: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM persisted_artifacts WHERE id = ? \
+                       AND artifact_kind = 'pattern'",
+                )
+                .bind(&edge.artifact_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error(
+                        "reflection_lifecycle_pattern_projection_unreadable",
+                        error,
+                    )
+                })?;
+                if projection != 0 {
+                    return Err(recovery_error(
+                        "reflection_lifecycle_invalidated_pattern_projection_present",
+                    ));
+                }
+            }
+            _ => {
+                return Err(write_error(
+                    "reflection_lifecycle_pattern_state_unsupported",
+                ))
+            }
+        }
+        affected.insert(edge.artifact_id.clone());
+    }
+    inject(
+        context,
+        ReflectionWriteFailurePoint::AfterOrdinaryInvalidation,
+    )?;
+    Ok(affected.into_iter().collect())
+}
+
+async fn cascade_historical_questions(
+    connection: &mut SqliteConnection,
+    closure: &ReflectionDependentClosure,
+    context: &ReflectionWriteContext<'_>,
+) -> Result<Vec<String>, MigrationError> {
+    for historical_id in &closure.historical_ids {
+        let identities: (String, String, String) = sqlx::query_as(
+            "SELECT l.artifact_id, q.consent_id, q.transmission_id \
+             FROM historical_question_lifecycle_links l \
+             JOIN historical_question_artifacts q ON q.id = l.historical_artifact_id \
+             WHERE l.historical_artifact_id = ?",
+        )
+        .bind(historical_id)
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|error| {
+            migration_error("reflection_lifecycle_historical_identity_unreadable", error)
+        })?;
+        if identities.0.as_str() != historical_id.as_str() {
+            return Err(write_error(
+                "reflection_lifecycle_historical_identity_mismatch",
+            ));
+        }
+        let deleted = sqlx::query("DELETE FROM historical_question_artifacts WHERE id = ?")
+            .bind(historical_id)
+            .execute(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("reflection_lifecycle_historical_delete_failed", error)
+            })?;
+        if deleted.rows_affected() != 1 {
+            return Err(recovery_error(
+                "reflection_lifecycle_historical_delete_identity_mismatch",
+            ));
+        }
+        let remaining: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT \
+               (SELECT COUNT(*) FROM historical_question_artifacts WHERE id = ?), \
+               (SELECT COUNT(*) FROM historical_artifact_dependencies \
+                  WHERE historical_artifact_id = ?), \
+               (SELECT COUNT(*) FROM historical_question_lifecycle_links \
+                  WHERE historical_artifact_id = ?), \
+               (SELECT COUNT(*) FROM artifact_heads WHERE id = ?), \
+               (SELECT COUNT(*) FROM historical_consent_events WHERE id = ?), \
+               (SELECT COUNT(*) FROM historical_transmission_events WHERE id = ?)",
+        )
+        .bind(historical_id)
+        .bind(historical_id)
+        .bind(historical_id)
+        .bind(&identities.0)
+        .bind(&identities.1)
+        .bind(&identities.2)
+        .fetch_one(&mut *connection)
+        .await
+        .map_err(|error| {
+            migration_error("reflection_lifecycle_historical_delete_reconcile_failed", error)
+        })?;
+        if remaining != (0, 0, 0, 0, 0, 0) {
+            return Err(recovery_error(
+                "reflection_lifecycle_historical_delete_incomplete",
+            ));
+        }
+    }
+    inject(
+        context,
+        ReflectionWriteFailurePoint::AfterHistoricalCascade,
+    )?;
+    Ok(closure.historical_ids.iter().cloned().collect())
+}
+
+async fn verify_historical_link_integrity(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    let counts: (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT \
+           (SELECT COUNT(*) FROM historical_question_artifacts), \
+           (SELECT COUNT(*) FROM historical_question_lifecycle_links), \
+           (SELECT COUNT(*) FROM artifact_heads WHERE artifact_kind = 'historical_question'), \
+           (SELECT COUNT(*) FROM historical_question_lifecycle_links l \
+              JOIN historical_question_artifacts q ON q.id = l.historical_artifact_id \
+              JOIN artifact_heads h ON h.id = l.artifact_id \
+              WHERE h.artifact_kind = 'historical_question')",
+    )
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| {
+        migration_error("reflection_lifecycle_historical_links_unreadable", error)
+    })?;
+    if counts.0 != counts.1 || counts.1 != counts.2 || counts.2 != counts.3 {
+        return Err(recovery_error(
+            "reflection_lifecycle_historical_links_inconsistent",
+        ));
+    }
+    Ok(())
+}
+
+async fn verify_lifecycle_database(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    verify_exact_pattern_v5(connection).await?;
+    verify_historical_link_integrity(connection).await?;
+    current_content_checks(connection).await?;
+    integrity_checks(connection).await
 }
 
 async fn create_suggested(
@@ -1163,7 +1613,7 @@ async fn correct_response(
     expected_evidence: &[EvidenceRevisionRef],
     response: &str,
     context: &ReflectionWriteContext<'_>,
-) -> Result<(String, String), MigrationError> {
+) -> Result<(String, String, Vec<String>, Vec<String>), MigrationError> {
     validate_text(response, "response")?;
     exact_current_source(connection, source_id, expected_source_revision_id).await?;
     let current = current_reflection(
@@ -1181,11 +1631,6 @@ async fn correct_response(
         || current.response_provenance.is_none()
     {
         return Err(write_error("reflection_response_correction_not_allowed"));
-    }
-    if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
-        return Err(write_error(
-            "reflection_inbound_dependency_requires_later_slice",
-        ));
     }
     let current_response = current
         .payload
@@ -1207,6 +1652,7 @@ async fn correct_response(
         .and_then(Value::as_str)
         .ok_or_else(|| write_error("reflection_created_at_missing"))?;
     let prompt_revision = validate_prompt_lineage(connection, &current).await?;
+    let closure = collect_dependent_closure(connection, &current).await?;
     let content = content_value(
         artifact_id,
         source_id,
@@ -1290,6 +1736,9 @@ async fn correct_response(
     )
     .await?;
     inject(context, ReflectionWriteFailurePoint::AfterLifecycle)?;
+    let invalidated_patterns =
+        invalidate_pattern_dependents(connection, &closure, context).await?;
+    let deleted_historical = cascade_historical_questions(connection, &closure, context).await?;
     let updated = sqlx::query(
         "UPDATE artifact_heads SET current_revision_id = ?, review_state = 'not_applicable', \
            lifecycle_state = 'active', eligibility_state = 'eligible', \
@@ -1328,7 +1777,177 @@ async fn correct_response(
     )
     .await?;
     inject(context, ReflectionWriteFailurePoint::AfterProjection)?;
-    Ok((artifact_id.into(), revision_id))
+    Ok((
+        artifact_id.into(),
+        revision_id,
+        invalidated_patterns,
+        deleted_historical,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn delete_answered(
+    connection: &mut SqliteConnection,
+    source_id: &str,
+    artifact_id: &str,
+    expected_source_revision_id: &str,
+    expected_artifact_revision_id: &str,
+    expected_evidence: &[EvidenceRevisionRef],
+    context: &ReflectionWriteContext<'_>,
+) -> Result<(String, String, Vec<String>, Vec<String>), MigrationError> {
+    exact_current_source(connection, source_id, expected_source_revision_id).await?;
+    let current = current_reflection(
+        connection,
+        source_id,
+        artifact_id,
+        expected_artifact_revision_id,
+    )
+    .await?;
+    if current.review_state != "not_applicable"
+        || current.lifecycle_state != "active"
+        || current.eligibility_state != "eligible"
+        || current.serialization_version != "canonical-json-v1"
+        || current.authorship != "mixed"
+        || current.response_provenance.is_none()
+        || current
+            .payload
+            .get("response")
+            .and_then(Value::as_str)
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        return Err(write_error("reflection_answered_deletion_not_allowed"));
+    }
+    ensure_expected_evidence(connection, &current, expected_evidence).await?;
+    validate_prompt_lineage(connection, &current).await?;
+    let closure = collect_dependent_closure(connection, &current).await?;
+    let content_revisions: Vec<String> = sqlx::query_scalar(
+        "SELECT r.id FROM artifact_revisions r \
+         JOIN artifact_revision_content c ON c.revision_id = r.id \
+         WHERE r.artifact_id = ? ORDER BY r.revision_number",
+    )
+    .bind(artifact_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_deletion_content_scan_failed", error))?;
+    let revision_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?",
+    )
+    .bind(artifact_id)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_deletion_revision_count_failed", error))?;
+    if content_revisions.is_empty() || content_revisions.len() as i64 != revision_count {
+        return Err(recovery_error("reflection_deletion_content_incomplete"));
+    }
+
+    insert_lifecycle_event(
+        connection,
+        "life-os/reflection-user-deleted-event-id-v1",
+        "deleted",
+        "user",
+        "explicit_user_deletion",
+        artifact_id,
+        &current.revision_id,
+        None,
+        context.occurred_at,
+    )
+    .await?;
+    for revision_id in &content_revisions {
+        insert_lifecycle_event(
+            connection,
+            "life-os/reflection-user-deleted-content-purged-event-id-v1",
+            "content_purged",
+            "user",
+            "user_deleted_artifact_content_purged",
+            artifact_id,
+            revision_id,
+            None,
+            context.occurred_at,
+        )
+        .await?;
+    }
+    inject(context, ReflectionWriteFailurePoint::AfterLifecycle)?;
+
+    let invalidated_patterns =
+        invalidate_pattern_dependents(connection, &closure, context).await?;
+    let deleted_historical = cascade_historical_questions(connection, &closure, context).await?;
+
+    let updated = sqlx::query(
+        "UPDATE artifact_heads SET current_revision_id = NULL, \
+           lifecycle_state = 'deleted', eligibility_state = 'ineligible', \
+           eligibility_reason = 'explicit_user_deletion', updated_at = ? \
+         WHERE id = ? AND source_id = ? AND current_revision_id = ? \
+           AND artifact_kind = 'reflection' AND review_state = 'not_applicable' \
+           AND lifecycle_state = 'active' AND eligibility_state = 'eligible'",
+    )
+    .bind(context.occurred_at)
+    .bind(artifact_id)
+    .bind(source_id)
+    .bind(&current.revision_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_delete_head_failed", error))?;
+    if updated.rows_affected() != 1 {
+        return Err(write_error("reflection_artifact_revision_stale"));
+    }
+    inject(context, ReflectionWriteFailurePoint::AfterHead)?;
+
+    let tombstone_id = format!(
+        "v5ts_{}",
+        sha256_hex(
+            format!("life-os/reflection-user-deleted-artifact-tombstone-id-v1\0{artifact_id}")
+                .as_bytes()
+        )
+    );
+    sqlx::query(
+        "INSERT INTO content_tombstones (id, subject_type, source_id, \
+           source_revision_id, artifact_id, artifact_revision_id, content_digest, \
+           reason_code, purged_at) \
+         VALUES (?, 'artifact', NULL, NULL, ?, NULL, NULL, \
+           'user_deleted_artifact', ?)",
+    )
+    .bind(tombstone_id)
+    .bind(artifact_id)
+    .bind(context.occurred_at)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_tombstone_insert_failed", error))?;
+    inject(context, ReflectionWriteFailurePoint::AfterTombstone)?;
+
+    let purged = sqlx::query(
+        "DELETE FROM artifact_revision_content WHERE revision_id IN ( \
+           SELECT id FROM artifact_revisions WHERE artifact_id = ?)",
+    )
+    .bind(artifact_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_content_purge_failed", error))?;
+    if purged.rows_affected() != content_revisions.len() as u64 {
+        return Err(recovery_error(
+            "reflection_content_purge_identity_mismatch",
+        ));
+    }
+    inject(context, ReflectionWriteFailurePoint::AfterPurge)?;
+
+    let projected = sqlx::query(
+        "DELETE FROM persisted_artifacts WHERE id = ? AND source_entry_id = ? \
+           AND artifact_kind = 'reflection'",
+    )
+    .bind(artifact_id)
+    .bind(source_id)
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_projection_delete_failed", error))?;
+    if projected.rows_affected() != 1 {
+        return Err(recovery_error("reflection_projection_identity_mismatch"));
+    }
+    inject(context, ReflectionWriteFailurePoint::AfterProjection)?;
+    Ok((
+        artifact_id.to_string(),
+        current.revision_id,
+        invalidated_patterns,
+        deleted_historical,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1410,12 +2029,14 @@ async fn apply_command(
     connection: &mut SqliteConnection,
     command: ReflectionWriteCommand,
     context: &ReflectionWriteContext<'_>,
-) -> Result<(String, String), MigrationError> {
+) -> Result<(String, String, Vec<String>, Vec<String>), MigrationError> {
     match command {
         ReflectionWriteCommand::CreateSuggested {
             expected_source_revision_id,
             prompt,
-        } => create_suggested(connection, &expected_source_revision_id, prompt, context).await,
+        } => create_suggested(connection, &expected_source_revision_id, prompt, context)
+            .await
+            .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new())),
         ReflectionWriteCommand::SaveResponse {
             source_id,
             artifact_id,
@@ -1435,6 +2056,7 @@ async fn apply_command(
                 context,
             )
             .await
+            .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new()))
         }
         ReflectionWriteCommand::CorrectResponse {
             source_id,
@@ -1456,6 +2078,24 @@ async fn apply_command(
             )
             .await
         }
+        ReflectionWriteCommand::DeleteAnswered {
+            source_id,
+            artifact_id,
+            expected_source_revision_id,
+            expected_artifact_revision_id,
+            expected_evidence,
+        } => {
+            delete_answered(
+                connection,
+                &source_id,
+                &artifact_id,
+                &expected_source_revision_id,
+                &expected_artifact_revision_id,
+                &expected_evidence,
+                context,
+            )
+            .await
+        }
         ReflectionWriteCommand::SkipSuggested {
             source_id,
             artifact_id,
@@ -1473,6 +2113,7 @@ async fn apply_command(
                 context,
             )
             .await
+            .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new()))
         }
     }
 }
@@ -1496,6 +2137,63 @@ async fn verify_reflection_projection(
         let review_state: String = head.get(3);
         let lifecycle_state: String = head.get(4);
         let eligibility_state: String = head.get(5);
+        if lifecycle_state == "deleted" {
+            if revision_id.is_some()
+                || review_state != "not_applicable"
+                || eligibility_state != "ineligible"
+            {
+                return Err(recovery_error("reflection_deleted_head_mismatch"));
+            }
+            let facts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT \
+                   (SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?), \
+                   (SELECT COUNT(*) FROM artifact_revision_content c \
+                      JOIN artifact_revisions r ON r.id = c.revision_id \
+                      WHERE r.artifact_id = ?), \
+                   (SELECT COUNT(*) FROM artifact_revision_provenance p \
+                      JOIN artifact_revisions r ON r.id = p.artifact_revision_id \
+                      WHERE r.artifact_id = ?), \
+                   (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                      WHERE artifact_id = ? AND event_type = 'deleted' \
+                        AND actor = 'user' AND reason_code = 'explicit_user_deletion'), \
+                   (SELECT COUNT(*) FROM artifact_lifecycle_events \
+                      WHERE artifact_id = ? AND event_type = 'content_purged' \
+                        AND reason_code = 'user_deleted_artifact_content_purged'), \
+                   (SELECT COUNT(*) FROM content_tombstones \
+                      WHERE artifact_id = ? AND subject_type = 'artifact' \
+                        AND artifact_revision_id IS NULL AND content_digest IS NULL \
+                        AND reason_code = 'user_deleted_artifact')",
+            )
+            .bind(&artifact_id)
+            .bind(&artifact_id)
+            .bind(&artifact_id)
+            .bind(&artifact_id)
+            .bind(&artifact_id)
+            .bind(&artifact_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_deleted_facts_unreadable", error))?;
+            let projection: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM persisted_artifacts WHERE id = ? \
+                   AND source_entry_id = ? AND artifact_kind = 'reflection'",
+            )
+            .bind(&artifact_id)
+            .bind(&source_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_deleted_projection_unreadable", error))?;
+            if facts.0 == 0
+                || facts.1 != 0
+                || facts.2 == 0
+                || facts.3 != 1
+                || facts.4 != facts.0
+                || facts.5 != 1
+                || projection != 0
+            {
+                return Err(recovery_error("reflection_deleted_facts_mismatch"));
+            }
+            continue;
+        }
         if lifecycle_state == "invalidated" {
             let revision_id = revision_id
                 .ok_or_else(|| recovery_error("reflection_invalidated_revision_missing"))?;
@@ -1838,24 +2536,27 @@ async fn prepare_write(
     context: &ReflectionWriteContext<'_>,
 ) -> Result<ReflectionWriteOutcome, MigrationError> {
     insert_guard(connection, context).await?;
-    let (artifact_id, revision_id) = apply_command(connection, command, context).await?;
+    let (artifact_id, revision_id, invalidated_pattern_ids, deleted_historical_artifact_ids) =
+        apply_command(connection, command, context).await?;
     verify_reflection_projection(connection).await?;
     current_content_checks(connection).await?;
     integrity_checks(connection).await?;
     inject(context, ReflectionWriteFailurePoint::AfterReconciliation)?;
     remove_guard(connection, context).await?;
-    verify_exact_reflection_v5(connection).await?;
+    verify_lifecycle_database(connection).await?;
     let post_manifest = operation_manifest(connection).await?;
     Ok(ReflectionWriteOutcome {
         artifact_id,
         revision_id,
+        invalidated_pattern_ids,
+        deleted_historical_artifact_ids,
         operation_manifest: post_manifest,
     })
 }
 
 async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), MigrationError> {
     let mut connection = connect(path, true).await?;
-    verify_exact_reflection_v5(&mut connection).await?;
+    verify_lifecycle_database(&mut connection).await?;
     let actual = operation_manifest(&mut connection).await?;
     if actual != expected_manifest {
         return Err(recovery_error("reflection_operation_manifest_mismatch"));
@@ -1870,7 +2571,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     adapter: &A,
 ) -> Result<ReflectionWriteOutcome, MigrationError> {
     let mut connection = connect(path, false).await?;
-    verify_exact_reflection_v5(&mut connection).await?;
+    verify_lifecycle_database(&mut connection).await?;
     let pre_manifest = operation_manifest(&mut connection).await?;
     raw_sql("BEGIN IMMEDIATE")
         .execute(&mut connection)
@@ -2092,6 +2793,303 @@ mod tests {
         )
         .await
         .unwrap()
+    }
+
+    async fn insert_pattern_dependent(
+        path: &Path,
+        pattern_id: &str,
+        reflection_id: &str,
+        reflection_revision_id: &str,
+        evidence: &EvidenceRevisionRef,
+        source_revision_id: &str,
+        created_at: &str,
+    ) -> String {
+        let content = json!({
+            "createdAt": created_at,
+            "id": pattern_id,
+            "sourceEntryId": SOURCE_ID,
+            "sourceEvidenceIds": [evidence.artifact_id.clone()],
+            "sourceReflectionPromptIds": [reflection_id],
+            "text": "A bounded disposable Pattern hypothesis."
+        });
+        let provenance = json!({
+            "generatedAt": created_at,
+            "harnessVersion": "harness-v1",
+            "model": null,
+            "origin": "local_mock",
+            "promptVersion": "pattern-v1",
+            "provider": "mock",
+            "sourceArtifactIds": [evidence.artifact_id.clone(), reflection_id],
+            "sourceEntryId": SOURCE_ID
+        });
+        let payload = canonical_json(&content).unwrap();
+        let revision_id = artifact_revision_id(
+            pattern_id,
+            "pattern",
+            created_at,
+            &sha256_hex(payload.as_bytes()),
+        );
+        let projection = json!({
+            "createdAt": created_at,
+            "id": pattern_id,
+            "provenance": provenance.clone(),
+            "sourceEntryId": SOURCE_ID,
+            "sourceEvidenceIds": [evidence.artifact_id.clone()],
+            "sourceReflectionPromptIds": [reflection_id],
+            "status": "candidate",
+            "text": "A bounded disposable Pattern hypothesis.",
+            "updatedAt": created_at
+        });
+        let mut connection = connect(path, false).await.unwrap();
+        raw_sql("BEGIN IMMEDIATE")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)",
+        )
+        .bind(format!("guard-pattern-fixture-{pattern_id}-0000000000000001"))
+        .bind(created_at)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let provenance_id = insert_provenance(&mut connection, &provenance, created_at)
+            .await
+            .unwrap();
+        insert_revision(
+            &mut connection,
+            pattern_id,
+            SOURCE_ID,
+            &revision_id,
+            1,
+            None,
+            "local_mock",
+            "created",
+            &payload,
+            created_at,
+        )
+        .await
+        .unwrap();
+        insert_content(&mut connection, &revision_id, &payload)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO artifact_heads (id, source_id, artifact_kind, current_revision_id, \
+               review_state, lifecycle_state, eligibility_state, eligibility_reason, \
+               created_at, updated_at) \
+             VALUES (?, ?, 'pattern', ?, 'pending', 'active', 'ineligible', \
+               'pending_explicit_review', ?, ?)",
+        )
+        .bind(pattern_id)
+        .bind(SOURCE_ID)
+        .bind(&revision_id)
+        .bind(created_at)
+        .bind(created_at)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        link_provenance(&mut connection, &revision_id, "content", &provenance_id)
+            .await
+            .unwrap();
+        for (relationship, source_artifact_id, source_artifact_revision_id) in [
+            (
+                "uses_evidence",
+                evidence.artifact_id.as_str(),
+                evidence.revision_id.as_str(),
+            ),
+            (
+                "uses_reflection_response",
+                reflection_id,
+                reflection_revision_id,
+            ),
+        ] {
+            let id = dependency_id(
+                pattern_id,
+                &revision_id,
+                relationship,
+                source_artifact_id,
+                source_artifact_revision_id,
+            );
+            sqlx::query(
+                "INSERT INTO artifact_dependencies (id, dependent_artifact_id, \
+                   dependent_revision_id, relationship_type, source_revision_id, \
+                   source_artifact_id, source_artifact_revision_id, created_at) \
+                 VALUES (?, ?, ?, ?, NULL, ?, ?, ?)",
+            )
+            .bind(id)
+            .bind(pattern_id)
+            .bind(&revision_id)
+            .bind(relationship)
+            .bind(source_artifact_id)
+            .bind(source_artifact_revision_id)
+            .bind(created_at)
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        }
+        let source_dependency = dependency_id(
+            pattern_id,
+            &revision_id,
+            "derived_from_experience",
+            SOURCE_ID,
+            source_revision_id,
+        );
+        sqlx::query(
+            "INSERT INTO artifact_dependencies (id, dependent_artifact_id, \
+               dependent_revision_id, relationship_type, source_revision_id, \
+               source_artifact_id, source_artifact_revision_id, created_at) \
+             VALUES (?, ?, ?, 'derived_from_experience', ?, NULL, NULL, ?)",
+        )
+        .bind(source_dependency)
+        .bind(pattern_id)
+        .bind(&revision_id)
+        .bind(source_revision_id)
+        .bind(created_at)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        insert_lifecycle_event(
+            &mut connection,
+            "life-os/pattern-created-event-id-v1",
+            "created",
+            "system",
+            "pattern_candidate_created",
+            pattern_id,
+            &revision_id,
+            None,
+            created_at,
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO persisted_artifacts (id, source_entry_id, artifact_kind, payload, \
+               created_at, updated_at) VALUES (?, ?, 'pattern', ?, ?, ?)",
+        )
+        .bind(pattern_id)
+        .bind(SOURCE_ID)
+        .bind(canonical_json(&projection).unwrap())
+        .bind(created_at)
+        .bind(created_at)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM v5_compatibility_write_guard")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        raw_sql("COMMIT").execute(&mut connection).await.unwrap();
+        verify_exact_pattern_v5(&mut connection).await.unwrap();
+        revision_id
+    }
+
+    async fn retarget_fixture_historical_question(
+        path: &Path,
+        reflection_id: &str,
+        reflection_revision_id: &str,
+    ) {
+        let mut connection = connect(path, false).await.unwrap();
+        raw_sql("BEGIN IMMEDIATE")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        let reflection_updated_at: String = sqlx::query_scalar(
+            "SELECT updated_at FROM persisted_artifacts WHERE id = ? \
+               AND artifact_kind = 'reflection'",
+        )
+        .bind(reflection_id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        let historical_revision: String = sqlx::query_scalar(
+            "SELECT current_revision_id FROM artifact_heads \
+             WHERE id = 'fixture-v4-question' AND artifact_kind = 'historical_question'",
+        )
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO v5_compatibility_write_guard (token, created_at) \
+             VALUES ('guard-reflection-historical-fixture-0001', ?)",
+        )
+        .bind("2026-08-04T02:02:00.000Z")
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM historical_artifact_dependencies \
+             WHERE historical_artifact_id = 'fixture-v4-question'",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM artifact_dependencies WHERE dependent_artifact_id = \
+               'fixture-v4-question' AND relationship_type = 'historical_packet_item'",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO historical_artifact_dependencies \
+               (historical_artifact_id, source_entry_id, source_artifact_id, source_revision) \
+             VALUES ('fixture-v4-question', ?, ?, ?)",
+        )
+        .bind(SOURCE_ID)
+        .bind(reflection_id)
+        .bind(&reflection_updated_at)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let dependency = dependency_id(
+            "fixture-v4-question",
+            &historical_revision,
+            "historical_packet_item",
+            reflection_id,
+            reflection_revision_id,
+        );
+        sqlx::query(
+            "INSERT INTO artifact_dependencies (id, dependent_artifact_id, \
+               dependent_revision_id, relationship_type, source_revision_id, \
+               source_artifact_id, source_artifact_revision_id, created_at) \
+             VALUES (?, 'fixture-v4-question', ?, 'historical_packet_item', \
+               NULL, ?, ?, '2026-08-04T02:02:00.000Z')",
+        )
+        .bind(dependency)
+        .bind(historical_revision)
+        .bind(reflection_id)
+        .bind(reflection_revision_id)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO historical_consent_events VALUES ( \
+               'fixture-unrelated-failed-consent', \
+               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', \
+               '{}', 'consumed', '2026-08-04T02:00:00.000Z', \
+               '2026-09-03T02:00:00.000Z')",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO historical_transmission_events VALUES ( \
+               'fixture-unrelated-failed-transmission', \
+               'fixture-unrelated-failed-consent', \
+               'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', \
+               'gemini', 'fixture-model', 'failed', '2026-08-04T02:00:01.000Z', \
+               '2026-09-03T02:00:01.000Z')",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM v5_compatibility_write_guard")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        raw_sql("COMMIT").execute(&mut connection).await.unwrap();
+        verify_historical_link_integrity(&mut connection)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -2496,7 +3494,303 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn correction_with_inbound_dependency_fails_closed_without_rebinding() {
+    async fn dependent_aware_correction_invalidates_patterns_and_cascades_history() {
+        let (_directory, path) = exact_v5_fixture().await;
+        let id = "reflection-lifecycle-correct";
+        let (created, evidence, source) = create(&path, id, "ai").await;
+        let answered = answer(&path, id, &created.revision_id, &evidence, &source).await;
+        for (index, pattern_id) in ["pattern-reflection-one", "pattern-reflection-two"]
+            .into_iter()
+            .enumerate()
+        {
+            insert_pattern_dependent(
+                &path,
+                pattern_id,
+                id,
+                &answered.revision_id,
+                &evidence,
+                &source,
+                if index == 0 {
+                    "2026-08-04T02:02:10.000Z"
+                } else {
+                    "2026-08-04T02:02:11.000Z"
+                },
+            )
+            .await;
+        }
+        retarget_fixture_historical_question(&path, id, &answered.revision_id).await;
+        let corrected = execute_disposable(
+            &path,
+            ReflectionWriteCommand::CorrectResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: answered.revision_id.clone(),
+                expected_evidence: vec![evidence],
+                response: "My corrected response remains mine.".into(),
+            },
+            context(
+                "2026-08-04T02:03:00.000Z",
+                "guard-reflection-lifecycle-correct-0001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            corrected.invalidated_pattern_ids,
+            vec!["pattern-reflection-one", "pattern-reflection-two"]
+        );
+        assert_eq!(
+            corrected.deleted_historical_artifact_ids,
+            vec!["fixture-v4-question"]
+        );
+        let mut connection = connect(&path, true).await.unwrap();
+        let reflection: (String, String, String, String) = sqlx::query_as(
+            "SELECT h.current_revision_id, h.lifecycle_state, h.eligibility_state, pa.payload \
+             FROM artifact_heads h JOIN persisted_artifacts pa ON pa.id = h.id \
+             WHERE h.id = ?",
+        )
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(reflection.0, corrected.revision_id);
+        assert_eq!((reflection.1.as_str(), reflection.2.as_str()), ("active", "eligible"));
+        assert!(reflection.3.contains("My corrected response remains mine."));
+        let old_content: String = sqlx::query_scalar(
+            "SELECT payload FROM artifact_revision_content WHERE revision_id = ?",
+        )
+        .bind(&answered.revision_id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert!(old_content.contains("I want to respond in my own words."));
+        let pattern_facts: (i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT \
+               (SELECT COUNT(*) FROM artifact_heads WHERE id IN \
+                  ('pattern-reflection-one','pattern-reflection-two') \
+                  AND lifecycle_state='invalidated' AND eligibility_state='ineligible'), \
+               (SELECT COUNT(*) FROM persisted_artifacts WHERE id IN \
+                  ('pattern-reflection-one','pattern-reflection-two')), \
+               (SELECT COUNT(*) FROM artifact_revision_content c JOIN artifact_revisions r \
+                  ON r.id=c.revision_id WHERE r.artifact_id IN \
+                  ('pattern-reflection-one','pattern-reflection-two')), \
+               (SELECT COUNT(*) FROM artifact_dependencies WHERE source_artifact_id = ? \
+                  AND source_artifact_revision_id = ?)",
+        )
+        .bind(id)
+        .bind(&corrected.revision_id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(pattern_facts, (2, 0, 2, 0));
+        let historical: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT \
+               (SELECT COUNT(*) FROM historical_question_artifacts \
+                  WHERE id='fixture-v4-question'), \
+               (SELECT COUNT(*) FROM historical_question_lifecycle_links \
+                  WHERE historical_artifact_id='fixture-v4-question'), \
+               (SELECT COUNT(*) FROM artifact_heads WHERE id='fixture-v4-question'), \
+               (SELECT COUNT(*) FROM historical_transmission_events \
+                  WHERE id='fixture-v4-transmission'), \
+               (SELECT COUNT(*) FROM historical_transmission_events \
+                  WHERE id='fixture-unrelated-failed-transmission'), \
+               (SELECT COUNT(*) FROM historical_consent_events \
+                  WHERE id='fixture-unrelated-failed-consent')",
+        )
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(historical, (0, 0, 0, 0, 1, 1));
+        verify_lifecycle_database(&mut connection).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn explicit_answered_deletion_purges_all_reflection_content_and_exact_dependents() {
+        let (_directory, path) = exact_v5_fixture().await;
+        let id = "reflection-lifecycle-delete";
+        let (created, evidence, source) = create(&path, id, "local_mock").await;
+        let answered = answer(&path, id, &created.revision_id, &evidence, &source).await;
+        let corrected = execute_disposable(
+            &path,
+            ReflectionWriteCommand::CorrectResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: answered.revision_id,
+                expected_evidence: vec![evidence.clone()],
+                response: "A retained correction before explicit deletion.".into(),
+            },
+            context(
+                "2026-08-04T03:01:00.000Z",
+                "guard-reflection-pre-delete-correct-001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        insert_pattern_dependent(
+            &path,
+            "pattern-reflection-delete",
+            id,
+            &corrected.revision_id,
+            &evidence,
+            &source,
+            "2026-08-04T03:02:00.000Z",
+        )
+        .await;
+        retarget_fixture_historical_question(&path, id, &corrected.revision_id).await;
+        let deleted = execute_disposable(
+            &path,
+            ReflectionWriteCommand::DeleteAnswered {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: corrected.revision_id.clone(),
+                expected_evidence: vec![evidence],
+            },
+            context(
+                "2026-08-04T03:03:00.000Z",
+                "guard-reflection-lifecycle-delete-0001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            deleted.invalidated_pattern_ids,
+            vec!["pattern-reflection-delete"]
+        );
+        assert_eq!(
+            deleted.deleted_historical_artifact_ids,
+            vec!["fixture-v4-question"]
+        );
+        let mut connection = connect(&path, true).await.unwrap();
+        let facts: (Option<String>, String, String, i64, i64, i64, i64, i64) =
+            sqlx::query_as(
+                "SELECT h.current_revision_id, h.lifecycle_state, h.eligibility_state, \
+                   (SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = h.id), \
+                   (SELECT COUNT(*) FROM artifact_revision_content c JOIN artifact_revisions r \
+                      ON r.id=c.revision_id WHERE r.artifact_id=h.id), \
+                   (SELECT COUNT(*) FROM artifact_revision_provenance p \
+                      JOIN artifact_revisions r ON r.id=p.artifact_revision_id \
+                      WHERE r.artifact_id=h.id), \
+                   (SELECT COUNT(*) FROM content_tombstones WHERE artifact_id=h.id \
+                      AND content_digest IS NULL AND reason_code='user_deleted_artifact'), \
+                   (SELECT COUNT(*) FROM persisted_artifacts WHERE id=h.id) \
+                 FROM artifact_heads h WHERE h.id = ?",
+            )
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(facts.0, None);
+        assert_eq!((facts.1.as_str(), facts.2.as_str()), ("deleted", "ineligible"));
+        assert_eq!((facts.3, facts.4, facts.6, facts.7), (3, 0, 1, 0));
+        assert!(facts.5 >= 5);
+        let reusable_text: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM content_tombstones WHERE artifact_id = ? \
+               AND (content_digest IS NOT NULL OR reason_code LIKE '%response%')",
+        )
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(reusable_text, 0);
+        verify_lifecycle_database(&mut connection).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn answered_deletion_refuses_suggested_skipped_stale_and_duplicate_states() {
+        let (_directory, path) = exact_v5_fixture().await;
+        let (created, evidence, source) = create(&path, "reflection-delete-refuse", "ai").await;
+        let suggested_error = execute_disposable(
+            &path,
+            ReflectionWriteCommand::DeleteAnswered {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "reflection-delete-refuse".into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: created.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+            },
+            context(
+                "2026-08-04T04:00:00.000Z",
+                "guard-reflection-delete-suggested-0001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            suggested_error.code,
+            "reflection_answered_deletion_not_allowed"
+        );
+        let answered = answer(
+            &path,
+            "reflection-delete-refuse",
+            &created.revision_id,
+            &evidence,
+            &source,
+        )
+        .await;
+        let stale = execute_disposable(
+            &path,
+            ReflectionWriteCommand::DeleteAnswered {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "reflection-delete-refuse".into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: created.revision_id,
+                expected_evidence: vec![evidence.clone()],
+            },
+            context(
+                "2026-08-04T04:01:00.000Z",
+                "guard-reflection-delete-stale-0000001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(stale.code, "reflection_artifact_revision_stale");
+        execute_disposable(
+            &path,
+            ReflectionWriteCommand::DeleteAnswered {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "reflection-delete-refuse".into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: answered.revision_id.clone(),
+                expected_evidence: vec![evidence.clone()],
+            },
+            context(
+                "2026-08-04T04:02:00.000Z",
+                "guard-reflection-delete-success-0001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let duplicate = execute_disposable(
+            &path,
+            ReflectionWriteCommand::DeleteAnswered {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "reflection-delete-refuse".into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: answered.revision_id,
+                expected_evidence: vec![evidence],
+            },
+            context(
+                "2026-08-04T04:03:00.000Z",
+                "guard-reflection-delete-duplicate-0001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(duplicate.code, "reflection_artifact_not_found");
+    }
+
+    #[tokio::test]
+    async fn unsupported_historical_relationship_fails_closed_without_rebinding() {
         let (_directory, path) = exact_v5_fixture().await;
         let id = "reflection-dependent";
         let (created, evidence, source) = create(&path, id, "ai").await;
@@ -2554,10 +3848,126 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.code,
-            "reflection_inbound_dependency_requires_later_slice"
+            "reflection_lifecycle_inbound_dependency_unsupported"
         );
         let mut connection = connect(&path, true).await.unwrap();
         assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn every_dependent_correction_boundary_rolls_back_to_exact_logical_prestate() {
+        let points = [
+            ReflectionWriteFailurePoint::AfterRevision,
+            ReflectionWriteFailurePoint::AfterContent,
+            ReflectionWriteFailurePoint::AfterHead,
+            ReflectionWriteFailurePoint::AfterDependency,
+            ReflectionWriteFailurePoint::AfterLifecycle,
+            ReflectionWriteFailurePoint::AfterOrdinaryInvalidation,
+            ReflectionWriteFailurePoint::AfterHistoricalCascade,
+            ReflectionWriteFailurePoint::AfterProjection,
+            ReflectionWriteFailurePoint::AfterReconciliation,
+            ReflectionWriteFailurePoint::AfterGuardRemoval,
+        ];
+        for (index, point) in points.into_iter().enumerate() {
+            let (_directory, path) = exact_v5_fixture().await;
+            let id = format!("reflection-correction-rollback-{index}");
+            let (created, evidence, source) = create(&path, &id, "ai").await;
+            let answered = answer(&path, &id, &created.revision_id, &evidence, &source).await;
+            insert_pattern_dependent(
+                &path,
+                &format!("pattern-correction-rollback-{index}"),
+                &id,
+                &answered.revision_id,
+                &evidence,
+                &source,
+                "2026-08-04T05:01:00.000Z",
+            )
+            .await;
+            retarget_fixture_historical_question(&path, &id, &answered.revision_id).await;
+            let before = {
+                let mut connection = connect(&path, true).await.unwrap();
+                operation_manifest(&mut connection).await.unwrap()
+            };
+            let error = execute_disposable(
+                &path,
+                ReflectionWriteCommand::CorrectResponse {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id,
+                    expected_source_revision_id: source,
+                    expected_artifact_revision_id: answered.revision_id,
+                    expected_evidence: vec![evidence],
+                    response: "This correction must roll back completely.".into(),
+                },
+                context(
+                    "2026-08-04T05:02:00.000Z",
+                    "guard-reflection-correction-rollback-0001",
+                    point,
+                ),
+            )
+            .await
+            .unwrap_err();
+            assert!(!error.recovery_required, "{point:?}: {error}");
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+            verify_lifecycle_database(&mut connection).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn every_answered_deletion_boundary_rolls_back_to_exact_logical_prestate() {
+        let points = [
+            ReflectionWriteFailurePoint::AfterLifecycle,
+            ReflectionWriteFailurePoint::AfterOrdinaryInvalidation,
+            ReflectionWriteFailurePoint::AfterHistoricalCascade,
+            ReflectionWriteFailurePoint::AfterHead,
+            ReflectionWriteFailurePoint::AfterTombstone,
+            ReflectionWriteFailurePoint::AfterPurge,
+            ReflectionWriteFailurePoint::AfterProjection,
+            ReflectionWriteFailurePoint::AfterReconciliation,
+            ReflectionWriteFailurePoint::AfterGuardRemoval,
+        ];
+        for (index, point) in points.into_iter().enumerate() {
+            let (_directory, path) = exact_v5_fixture().await;
+            let id = format!("reflection-deletion-rollback-{index}");
+            let (created, evidence, source) = create(&path, &id, "local_mock").await;
+            let answered = answer(&path, &id, &created.revision_id, &evidence, &source).await;
+            insert_pattern_dependent(
+                &path,
+                &format!("pattern-deletion-rollback-{index}"),
+                &id,
+                &answered.revision_id,
+                &evidence,
+                &source,
+                "2026-08-04T06:01:00.000Z",
+            )
+            .await;
+            retarget_fixture_historical_question(&path, &id, &answered.revision_id).await;
+            let before = {
+                let mut connection = connect(&path, true).await.unwrap();
+                operation_manifest(&mut connection).await.unwrap()
+            };
+            let error = execute_disposable(
+                &path,
+                ReflectionWriteCommand::DeleteAnswered {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id,
+                    expected_source_revision_id: source,
+                    expected_artifact_revision_id: answered.revision_id,
+                    expected_evidence: vec![evidence],
+                },
+                context(
+                    "2026-08-04T06:02:00.000Z",
+                    "guard-reflection-deletion-rollback-0001",
+                    point,
+                ),
+            )
+            .await
+            .unwrap_err();
+            assert!(!error.recovery_required, "{point:?}: {error}");
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+            verify_lifecycle_database(&mut connection).await.unwrap();
+        }
     }
 
     #[tokio::test]
@@ -2656,6 +4066,7 @@ mod tests {
         DefinitelyNotCommitted,
         UnknownWithoutCommit,
         UnknownAfterCommit,
+        UnknownAfterCommitWithThirdState,
     }
 
     struct InjectedCommitAdapter {
@@ -2682,6 +4093,19 @@ mod tests {
                         error_class: "injected_unknown_after_commit".into(),
                     }
                 }
+                InjectedCommit::UnknownAfterCommitWithThirdState => {
+                    raw_sql("COMMIT")
+                        .execute(&mut *connection)
+                        .await
+                        .unwrap();
+                    raw_sql("PRAGMA user_version = 6")
+                        .execute(&mut *connection)
+                        .await
+                        .unwrap();
+                    CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_unknown_third_state".into(),
+                    }
+                }
             }
         }
 
@@ -2698,6 +4122,7 @@ mod tests {
             (InjectedCommit::DefinitelyNotCommitted, false, 1),
             (InjectedCommit::UnknownWithoutCommit, false, 0),
             (InjectedCommit::UnknownAfterCommit, true, 0),
+            (InjectedCommit::UnknownAfterCommitWithThirdState, false, 0),
         ] {
             let (_directory, path) = exact_v5_fixture().await;
             let source = source_revision(&path).await;
@@ -2722,10 +4147,23 @@ mod tests {
             )
             .await;
             assert_eq!(result.is_ok(), succeeds);
+            if matches!(mode, InjectedCommit::UnknownAfterCommitWithThirdState) {
+                let error = result.unwrap_err();
+                assert!(error.recovery_required);
+                assert!(error.code.contains("reflection_commit_outcome_unknown"));
+            }
             assert_eq!(adapter.commits.get(), 1);
             assert_eq!(adapter.rollbacks.get(), rollback_count);
             let mut connection = connect(&path, true).await.unwrap();
-            verify_exact_reflection_v5(&mut connection).await.unwrap();
+            if matches!(mode, InjectedCommit::UnknownAfterCommitWithThirdState) {
+                let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap();
+                assert_eq!(version, 6);
+            } else {
+                verify_exact_reflection_v5(&mut connection).await.unwrap();
+            }
         }
     }
 
