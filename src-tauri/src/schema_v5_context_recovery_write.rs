@@ -1257,6 +1257,237 @@ async fn verify_context_recovery_projection(
         let lifecycle_state: String = head.get(4);
         let eligibility_state: String = head.get(5);
         let eligibility_reason: String = head.get(6);
+        if lifecycle_state == "invalidated" {
+            if eligibility_state != "ineligible"
+                || eligibility_reason != "source_experience_revision_superseded"
+            {
+                return Err(recovery_error("context_recovery_invalidated_head_mismatch"));
+            }
+            let revision: Option<RecoveryRevisionRow> = sqlx::query_as(
+                "SELECT r.serialization_version, r.authorship, r.content_digest, c.payload, c.byte_length, \
+                        r.revision_number, r.revision_reason, r.predecessor_revision_id \
+                 FROM artifact_revisions r JOIN artifact_revision_content c ON c.revision_id = r.id \
+                 WHERE r.id = ? AND r.artifact_id = ? AND r.source_id = ?",
+            )
+            .bind(&revision_id)
+            .bind(&artifact_id)
+            .bind(&source_id)
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("context_recovery_invalidated_revision_unreadable", error)
+            })?;
+            let (
+                serialization,
+                authorship,
+                digest,
+                content,
+                byte_length,
+                revision_number,
+                revision_reason,
+                predecessor,
+            ) = revision
+                .ok_or_else(|| recovery_error("context_recovery_invalidated_content_missing"))?;
+            if digest != sha256_hex(content.as_bytes()) || byte_length != content.len() as i64 {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_content_digest_mismatch",
+                ));
+            }
+            let projection_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM persisted_artifacts \
+                 WHERE id = ? AND source_entry_id = ? AND artifact_kind = 'recovery_turn'",
+            )
+            .bind(&artifact_id)
+            .bind(&source_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("context_recovery_invalidated_projection_unreadable", error)
+            })?;
+            if projection_count != 0 {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_projection_present",
+                ));
+            }
+            let content_value: Value = serde_json::from_str(&content).map_err(|error| {
+                migration_error("context_recovery_invalidated_content_malformed", error)
+            })?;
+            if content_value.get("id").and_then(Value::as_str) != Some(&artifact_id)
+                || content_value.get("sourceEntryId").and_then(Value::as_str) != Some(&source_id)
+                || !matches!(
+                    content_value.get("locale").and_then(Value::as_str),
+                    Some("en" | "zh-TW" | "ja")
+                )
+                || content_value
+                    .get("question")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .is_none()
+            {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_content_contract_mismatch",
+                ));
+            }
+            let prompt_rows: Vec<String> = sqlx::query_scalar(
+                "SELECT p.canonical_payload FROM artifact_revision_provenance rp \
+                 JOIN provenance_records p ON p.id = rp.provenance_id \
+                 WHERE rp.artifact_revision_id = ? AND rp.role = 'prompt'",
+            )
+            .bind(&revision_id)
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("context_recovery_invalidated_prompt_unreadable", error)
+            })?;
+            if prompt_rows.len() != 1 {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_prompt_count_mismatch",
+                ));
+            }
+            let prompt: Value = serde_json::from_str(&prompt_rows[0]).map_err(|error| {
+                migration_error("context_recovery_invalidated_prompt_malformed", error)
+            })?;
+            let initial_created = content_value
+                .get("createdAt")
+                .and_then(Value::as_str)
+                .ok_or_else(|| recovery_error("context_recovery_created_at_missing"))?;
+            verify_prompt_provenance(&prompt, &source_id, initial_created)?;
+            let response_rows: Vec<String> = sqlx::query_scalar(
+                "SELECT p.canonical_payload FROM artifact_revision_provenance rp \
+                 JOIN provenance_records p ON p.id = rp.provenance_id \
+                 WHERE rp.artifact_revision_id = ? AND rp.role = 'response'",
+            )
+            .bind(&revision_id)
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("context_recovery_invalidated_response_unreadable", error)
+            })?;
+            match review_state.as_str() {
+                "pending" | "skipped" => {
+                    if !response_rows.is_empty()
+                        || content_value
+                            .get("response")
+                            .is_some_and(|value| !value.is_null())
+                    {
+                        return Err(recovery_error(
+                            "context_recovery_invalidated_terminal_mismatch",
+                        ));
+                    }
+                }
+                "not_applicable" => {
+                    if response_rows.len() != 1
+                        || content_value
+                            .get("response")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .filter(|value| !value.is_empty())
+                            .is_none()
+                    {
+                        return Err(recovery_error(
+                            "context_recovery_invalidated_answer_mismatch",
+                        ));
+                    }
+                    let response: Value =
+                        serde_json::from_str(&response_rows[0]).map_err(|error| {
+                            migration_error(
+                                "context_recovery_invalidated_response_malformed",
+                                error,
+                            )
+                        })?;
+                    verify_response_provenance(&response, &source_id, &artifact_id)?;
+                }
+                _ => {
+                    return Err(recovery_error(
+                        "context_recovery_invalidated_review_unsupported",
+                    ))
+                }
+            }
+            if serialization == "canonical-json-v1" {
+                match review_state.as_str() {
+                    "pending" | "skipped"
+                        if revision_number == 1
+                            && revision_reason == "created"
+                            && predecessor.is_none()
+                            && matches!(authorship.as_str(), "ai" | "local_mock") => {}
+                    "not_applicable"
+                        if revision_number == 2
+                            && revision_reason == "answered"
+                            && predecessor.is_some()
+                            && authorship == "mixed" => {}
+                    _ => {
+                        return Err(recovery_error(
+                            "context_recovery_invalidated_revision_contract_mismatch",
+                        ))
+                    }
+                }
+            } else if serialization != "legacy-v4-raw" {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_serialization_unsupported",
+                ));
+            }
+            let dependencies: Vec<RecoveryDependencyRow> = sqlx::query_as(
+                "SELECT relationship_type, source_revision_id, source_artifact_id, source_artifact_revision_id \
+                 FROM artifact_dependencies WHERE dependent_artifact_id = ? \
+                   AND dependent_revision_id = ? ORDER BY relationship_type",
+            )
+            .bind(&artifact_id)
+            .bind(&revision_id)
+            .fetch_all(&mut *connection)
+            .await
+            .map_err(|error| {
+                migration_error("context_recovery_invalidated_dependencies_unreadable", error)
+            })?;
+            let source_count = dependencies
+                .iter()
+                .filter(
+                    |(relationship, source_revision, source_artifact, source_artifact_revision)| {
+                        relationship == "derived_from_experience"
+                            && source_revision.is_some()
+                            && source_artifact.is_none()
+                            && source_artifact_revision.is_none()
+                    },
+                )
+                .count();
+            let answer_count = dependencies
+                .iter()
+                .filter(
+                    |(relationship, _, source_artifact, source_artifact_revision)| {
+                        relationship == "answers_prompt"
+                            && source_artifact.as_deref() == Some(&artifact_id)
+                            && source_artifact_revision.is_some()
+                    },
+                )
+                .count();
+            let dependency_contract_matches = if serialization == "legacy-v4-raw" {
+                dependencies.len() == 1 && answer_count == 0
+            } else if review_state == "not_applicable" {
+                dependencies.len() == 2 && answer_count == 1
+            } else {
+                dependencies.len() == 1 && answer_count == 0
+            };
+            if source_count != 1 || !dependency_contract_matches {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_dependency_contract_mismatch",
+                ));
+            }
+            if !super::experience_write::verify_source_caused_invalidation(
+                connection,
+                &artifact_id,
+                &revision_id,
+                &source_id,
+                &head.get::<String, _>(8),
+            )
+            .await?
+                || inbound_dependency_count(connection, &artifact_id, &revision_id).await? != 0
+            {
+                return Err(recovery_error(
+                    "context_recovery_invalidated_facts_mismatch",
+                ));
+            }
+            continue;
+        }
         if lifecycle_state != "active" {
             return Err(recovery_error("context_recovery_lifecycle_unsupported"));
         }
