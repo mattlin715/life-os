@@ -731,6 +731,71 @@ async fn verify_evidence_projection(
                     return Err(recovery_error("evidence_serialization_version_unsupported"));
                 }
             }
+            "invalidated" => {
+                let revision_id = current_revision_id
+                    .ok_or_else(|| recovery_error("evidence_invalidated_revision_missing"))?;
+                if eligibility_state != "ineligible"
+                    || !matches!(review_state.as_str(), "pending" | "confirmed")
+                    || projection.is_some()
+                {
+                    return Err(recovery_error("evidence_invalidated_head_mismatch"));
+                }
+                let retained: Option<(String, String, i64)> = sqlx::query_as(
+                    "SELECT r.content_digest, c.payload, c.byte_length \
+                     FROM artifact_revisions r \
+                     JOIN artifact_revision_content c ON c.revision_id = r.id \
+                     WHERE r.id = ? AND r.artifact_id = ? AND r.source_id = ?",
+                )
+                .bind(&revision_id)
+                .bind(&artifact_id)
+                .bind(&source_id)
+                .fetch_optional(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error("evidence_invalidated_content_unreadable", error)
+                })?;
+                let (digest, content, byte_length) = retained
+                    .ok_or_else(|| recovery_error("evidence_invalidated_content_missing"))?;
+                if digest != sha256_hex(content.as_bytes()) || byte_length != content.len() as i64 {
+                    return Err(recovery_error(
+                        "evidence_invalidated_content_digest_mismatch",
+                    ));
+                }
+                let provenance_count: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM artifact_revision_provenance \
+                     WHERE artifact_revision_id = ?",
+                )
+                .bind(&revision_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error("evidence_invalidated_provenance_unreadable", error)
+                })?;
+                if provenance_count == 0 {
+                    return Err(recovery_error("evidence_invalidated_provenance_missing"));
+                }
+                let eligibility_reason: String = sqlx::query_scalar(
+                    "SELECT eligibility_reason FROM artifact_heads WHERE id = ?",
+                )
+                .bind(&artifact_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| {
+                    migration_error("evidence_invalidated_reason_unreadable", error)
+                })?;
+                if eligibility_reason != "source_experience_revision_superseded"
+                    || !super::experience_write::verify_source_caused_invalidation(
+                        connection,
+                        &artifact_id,
+                        &revision_id,
+                        &source_id,
+                        &head.get::<String, _>(7),
+                    )
+                    .await?
+                {
+                    return Err(recovery_error("evidence_invalidated_facts_mismatch"));
+                }
+            }
             "content_purged" => {
                 if current_revision_id.is_some()
                     || review_state != "rejected"

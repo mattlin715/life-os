@@ -1160,7 +1160,29 @@ async fn verify_pattern_projection(
                 .fetch_one(&mut *connection)
                 .await
                 .map_err(|error| migration_error("pattern_invalidated_facts_unreadable", error))?;
-                if facts.0 == 0 || facts.1 == 0 {
+                let eligibility_reason: String = sqlx::query_scalar(
+                    "SELECT eligibility_reason FROM artifact_heads WHERE id = ?",
+                )
+                .bind(&artifact_id)
+                .fetch_one(&mut *connection)
+                .await
+                .map_err(|error| migration_error("pattern_invalidated_reason_unreadable", error))?;
+                let source_invalidated =
+                    if eligibility_reason == "source_experience_revision_superseded" {
+                        super::experience_write::verify_source_caused_invalidation(
+                            connection,
+                            &artifact_id,
+                            &revision_id,
+                            &source_id,
+                            &head.get::<String, _>(7),
+                        )
+                        .await?
+                    } else {
+                        false
+                    };
+                let artifact_invalidated =
+                    eligibility_reason == "exact_dependency_invalidated" && facts.1 > 0;
+                if facts.0 == 0 || source_invalidated == artifact_invalidated {
                     return Err(recovery_error("pattern_invalidated_facts_mismatch"));
                 }
             }
