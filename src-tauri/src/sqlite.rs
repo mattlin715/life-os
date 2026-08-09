@@ -1,8 +1,18 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Connection, Executor, SqliteConnection};
-use std::{collections::HashSet, path::Path, str::FromStr};
+use std::{
+    collections::HashSet,
+    fs::File,
+    path::Path,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tauri::{AppHandle, Manager};
+
+use crate::filesystem_safety::{
+    inspect_readiness_filesystem, ReadinessFilesystemFailure, ReadinessOperationEvidence,
+};
 
 const SCHEMA_VERSION: i64 = 4;
 const NEWER_SCHEMA_ERROR: &str = "database_schema_newer_than_supported";
@@ -37,6 +47,49 @@ impl DatabaseStartupState {
             initialization_required: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseReadinessResult {
+    classification: String,
+    database_exists: Option<bool>,
+    detected_schema_version: Option<i64>,
+    supported_schema_version: i64,
+    wal_present: Option<bool>,
+    shm_present: Option<bool>,
+    rollback_journal_present: Option<bool>,
+    quiescence: String,
+    operation_evidence: String,
+    schema_v5_available: bool,
+    inspected_at_unix_ms: u64,
+}
+
+impl DatabaseReadinessResult {
+    fn bounded(classification: &str) -> Self {
+        Self {
+            classification: classification.into(),
+            database_exists: None,
+            detected_schema_version: None,
+            supported_schema_version: SCHEMA_VERSION,
+            wal_present: None,
+            shm_present: None,
+            rollback_journal_present: None,
+            quiescence: "not_proven".into(),
+            operation_evidence: "unknown".into(),
+            schema_v5_available: false,
+            inspected_at_unix_ms: inspection_time_ms(),
+        }
+    }
+}
+
+fn inspection_time_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 #[derive(Debug, Clone)]
@@ -241,6 +294,86 @@ async fn inspect_database_path(path: &Path) -> Result<DatabaseStartupState, Stri
     }
 }
 
+async fn inspect_database_readiness_path(root: &Path, path: &Path) -> DatabaseReadinessResult {
+    let filesystem = match inspect_readiness_filesystem(root, path) {
+        Ok(snapshot) => snapshot,
+        Err(ReadinessFilesystemFailure::PathUnsafe) => {
+            return DatabaseReadinessResult::bounded("path_unsafe")
+        }
+        Err(ReadinessFilesystemFailure::Unreadable) => {
+            return DatabaseReadinessResult::bounded("unreadable")
+        }
+        Err(ReadinessFilesystemFailure::RecoveryRequired) => {
+            return DatabaseReadinessResult::bounded("recovery_required")
+        }
+    };
+
+    let mut result = DatabaseReadinessResult {
+        classification: "missing".into(),
+        database_exists: Some(filesystem.database_exists),
+        detected_schema_version: None,
+        supported_schema_version: SCHEMA_VERSION,
+        wal_present: Some(filesystem.wal_present),
+        shm_present: Some(filesystem.shm_present),
+        rollback_journal_present: Some(filesystem.rollback_journal_present),
+        quiescence: "not_proven".into(),
+        operation_evidence: match filesystem.operation_evidence {
+            ReadinessOperationEvidence::None => "none",
+            ReadinessOperationEvidence::Present => "present",
+        }
+        .into(),
+        schema_v5_available: false,
+        inspected_at_unix_ms: inspection_time_ms(),
+    };
+
+    if filesystem.wal_present
+        || filesystem.shm_present
+        || filesystem.rollback_journal_present
+        || filesystem.operation_evidence == ReadinessOperationEvidence::Present
+    {
+        result.classification = "recovery_required".into();
+        return result;
+    }
+    if !filesystem.database_exists {
+        return result;
+    }
+
+    if File::open(path).is_err() {
+        result.classification = "unreadable".into();
+        return result;
+    }
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(path)
+        .read_only(true)
+        .create_if_missing(false)
+        .immutable(true)
+        .foreign_keys(true);
+    let mut connection = match SqliteConnection::connect_with(&options).await {
+        Ok(connection) => connection,
+        Err(_) => {
+            result.classification = "malformed".into();
+            return result;
+        }
+    };
+    let version = match read_schema_version(&mut connection).await {
+        Ok(version) => version,
+        Err(_) => {
+            result.classification = "malformed".into();
+            return result;
+        }
+    };
+    result.detected_schema_version = Some(version);
+    result.classification = if version < SCHEMA_VERSION {
+        "older_supported"
+    } else if version == SCHEMA_VERSION {
+        "exact_v4"
+    } else {
+        "newer_unsupported"
+    }
+    .into();
+    result
+}
+
 pub async fn migrate_connection(
     conn: &mut SqliteConnection,
     inject_failure: bool,
@@ -304,6 +437,15 @@ pub async fn inspect_sqlite_database(app: AppHandle) -> Result<DatabaseStartupSt
         .map_err(|e| e.to_string())?
         .join("life-os.db");
     inspect_database_path(&path).await
+}
+
+#[tauri::command]
+pub async fn inspect_database_readiness(app: AppHandle) -> DatabaseReadinessResult {
+    let root = match app.path().app_data_dir() {
+        Ok(root) => root,
+        Err(_) => return DatabaseReadinessResult::bounded("unreadable"),
+    };
+    inspect_database_readiness_path(&root, &root.join("life-os.db")).await
 }
 
 #[tauri::command]
@@ -1409,6 +1551,148 @@ mod tests {
 
         assert!(error.contains("database_inspection_failed"));
         assert_eq!(after, before);
+    }
+
+    async fn readiness_fixture(root: &Path, version: i64) -> std::path::PathBuf {
+        let path = root.join("life-os.db");
+        let mut conn = connect(&path).await.unwrap();
+        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('preserve-me');")
+            .await
+            .unwrap();
+        conn.execute(format!("PRAGMA user_version = {version}").as_str())
+            .await
+            .unwrap();
+        drop(conn);
+        path
+    }
+
+    #[tokio::test]
+    async fn readiness_missing_path_does_not_create_a_directory_or_database() {
+        let parent = tempfile::tempdir().unwrap();
+        let root = parent.path().join("missing-app-data");
+        let path = root.join("life-os.db");
+
+        let result = inspect_database_readiness_path(&root, &path).await;
+
+        assert_eq!(result.classification, "missing");
+        assert_eq!(result.database_exists, Some(false));
+        assert!(!root.exists());
+        assert!(!path.exists());
+        assert!(!result.schema_v5_available);
+    }
+
+    #[tokio::test]
+    async fn readiness_classifies_supported_exact_and_newer_versions_without_mutation() {
+        for (version, expected) in [
+            (3, "older_supported"),
+            (4, "exact_v4"),
+            (5, "newer_unsupported"),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let path = readiness_fixture(root.path(), version).await;
+            let before = std::fs::read(&path).unwrap();
+            let modified_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+            let first = inspect_database_readiness_path(root.path(), &path).await;
+            let second = inspect_database_readiness_path(root.path(), &path).await;
+
+            assert_eq!(first.classification, expected);
+            assert_eq!(first.detected_schema_version, Some(version));
+            assert_eq!(first.supported_schema_version, 4);
+            assert_eq!(first.quiescence, "not_proven");
+            assert_eq!(first.operation_evidence, "none");
+            assert!(!first.schema_v5_available);
+            assert_eq!(second.classification, expected);
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+            assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), modified_before);
+        }
+        assert_eq!(SCHEMA_VERSION, 4);
+    }
+
+    #[tokio::test]
+    async fn readiness_malformed_database_fails_closed_without_raw_error_or_mutation() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("life-os.db");
+        std::fs::write(&path, b"not-a-sqlite-database").unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        let result = inspect_database_readiness_path(root.path(), &path).await;
+
+        assert_eq!(result.classification, "malformed");
+        assert_eq!(result.database_exists, Some(true));
+        assert_eq!(result.detected_schema_version, None);
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn readiness_sidecars_are_disclosed_and_left_byte_identical() {
+        let root = tempfile::tempdir().unwrap();
+        let path = readiness_fixture(root.path(), 4).await;
+        let wal = root.path().join("life-os.db-wal");
+        let shm = root.path().join("life-os.db-shm");
+        let journal = root.path().join("life-os.db-journal");
+        std::fs::write(&wal, b"wal-evidence").unwrap();
+        std::fs::write(&shm, b"shm-evidence").unwrap();
+        std::fs::write(&journal, b"journal-evidence").unwrap();
+
+        let result = inspect_database_readiness_path(root.path(), &path).await;
+
+        assert_eq!(result.classification, "recovery_required");
+        assert_eq!(result.wal_present, Some(true));
+        assert_eq!(result.shm_present, Some(true));
+        assert_eq!(result.rollback_journal_present, Some(true));
+        assert_eq!(std::fs::read(&wal).unwrap(), b"wal-evidence");
+        assert_eq!(std::fs::read(&shm).unwrap(), b"shm-evidence");
+        assert_eq!(std::fs::read(&journal).unwrap(), b"journal-evidence");
+    }
+
+    #[tokio::test]
+    async fn readiness_malformed_or_multiple_owned_operations_require_recovery_without_cleanup() {
+        let root = tempfile::tempdir().unwrap();
+        let path = readiness_fixture(root.path(), 4).await;
+        let first = root.path().join("life-os-0123456789abcdef0123456789abcdef.operation");
+        std::fs::create_dir(&first).unwrap();
+
+        let missing_state = inspect_database_readiness_path(root.path(), &path).await;
+        assert_eq!(missing_state.classification, "recovery_required");
+        assert!(first.exists());
+
+        std::fs::write(first.join("state.json"), b"{malformed").unwrap();
+        let malformed = inspect_database_readiness_path(root.path(), &path).await;
+        assert_eq!(malformed.classification, "recovery_required");
+        assert_eq!(std::fs::read(first.join("state.json")).unwrap(), b"{malformed");
+
+        let second = root.path().join("life-os-1123456789abcdef0123456789abcdef.operation");
+        std::fs::create_dir(&second).unwrap();
+        let multiple = inspect_database_readiness_path(root.path(), &path).await;
+        assert_eq!(multiple.classification, "recovery_required");
+        assert!(first.exists());
+        assert!(second.exists());
+    }
+
+    #[tokio::test]
+    async fn readiness_refuses_traversal_and_hard_link_aliases() {
+        let root = tempfile::tempdir().unwrap();
+        let path = readiness_fixture(root.path(), 4).await;
+        let aliased_root = root.path().join("nested").join("..");
+        let aliased_path = aliased_root.join("life-os.db");
+        assert_eq!(
+            inspect_database_readiness_path(&aliased_root, &aliased_path)
+                .await
+                .classification,
+            "path_unsafe"
+        );
+
+        let alias = root.path().join("alias.db");
+        std::fs::hard_link(&path, &alias).unwrap();
+        assert_eq!(
+            inspect_database_readiness_path(root.path(), &path)
+                .await
+                .classification,
+            "path_unsafe"
+        );
+        assert!(alias.exists());
+        assert!(path.exists());
     }
 
     #[tokio::test]

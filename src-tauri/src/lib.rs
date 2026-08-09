@@ -298,6 +298,7 @@ pub fn run() {
             generate_openai_response,
             generate_gemini_response,
             sqlite::inspect_sqlite_database,
+            sqlite::inspect_database_readiness,
             sqlite::initialize_sqlite_database,
             sqlite::create_sqlite_experience,
             sqlite::update_sqlite_experience,

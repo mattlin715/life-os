@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 0.2
+version: 0.3
 owner: product-and-engineering
 last_updated: 2026/08/10
 depends:
@@ -33,9 +33,10 @@ authorization gate. It audits what Life OS can prove after the promoted private
 Slice 2 through Slice 4C-6B work and authorizes one smallest next implementation
 slice only within the exact Option A boundary below.
 
-It does not activate schema v5. It does not authorize a migration, backup,
-restore, retention job, runtime command, UI control, real-user operation,
-deployment, or release.
+It does not activate schema v5. The subsequently promoted Founder decision
+authorizes only the exact read-only Inspector R1 runtime command and UI below;
+it does not authorize a migration, backup, restore, retention job, write-capable
+control, real-user migration test, deployment, or release.
 
 Passing disposable tests is evidence about a contract. It is not evidence that
 the production app can safely execute that contract against a user's database.
@@ -43,6 +44,14 @@ the production app can safely execute that contract against a user's database.
 ## Repository Baseline
 
 - Audited branch point: `c28f5872f321ef0ad2f54f7952fc76f3c5e0be61`.
+- This audit gate and its exact Founder Option A resolution were promoted through
+  feature commit `7ce7cd4542a37f7163677725af12710762b2ccac` and
+  non-fast-forward merge commit
+  `bed87283f9141144a1c11500457363d5a8081aed`, whose parents are
+  `c28f5872f321ef0ad2f54f7952fc76f3c5e0be61` and
+  `7ce7cd4542a37f7163677725af12710762b2ccac`. The promoted scope was 14
+  files with 1704 insertions and 17 deletions, measured with
+  `git diff-tree --no-commit-id --shortstat -r c28f5872f321ef0ad2f54f7952fc76f3c5e0be61 7ce7cd4542a37f7163677725af12710762b2ccac`.
 - Slice 4C-6B feature commit:
   `6d7b51d3d5ae3c27028951c3228f19a204bb62e1`.
 - Slice 4C-6B non-fast-forward merge parents:
@@ -321,6 +330,37 @@ review. Do not use a production migration candidate or enable any write action.
    disposable evidence unless the Founder deliberately supplies a disposable
    app profile. Never corrupt or copy the real user database for this check.
 
+## Database Readiness Inspector R1 Implementation Evidence
+
+The bounded R1 implementation is production-path reachable only after the user
+opens the panel and separately chooses `Check now`. Opening, normal startup,
+and normal schema-v4 product use do not invoke the command. The command returns
+only a fixed content-free result covering database presence, bounded version
+classification, sidecar presence, non-proven quiescence, owned-operation
+evidence, the supported maximum, schema-v5 unavailability, and inspection time.
+
+The Rust path validates the exact app-data database identity, rejects traversal,
+links/reparse points, hard-link aliases, malformed or multiple operation
+evidence, and uses create-disabled read-only immutable SQLite inspection.
+Missing paths are not created. Sidecars and owned-operation evidence are not
+checkpointed, selected, moved, deleted, repaired, or retried. The TypeScript
+adapter rejects unknown or authority-expanding fields and suppresses raw backend
+errors and paths. The session UI exposes only `Check now` and `Close` controls,
+with equivalent English, Traditional Chinese, and Japanese disclosure.
+
+R1 does not make the readiness result executable migration authority and does
+not close any fresh-v5, existing-v4 migration, backup/restore, retention,
+v5-routing, lifecycle UI, full provenance, export-v2, real-user, deployment, or
+release gate. Production `SCHEMA_VERSION` and startup maximum remain 4.
+
+Canonical repository verification passes with 17 workflow tests, 28 Vitest
+files / 227 tests, 189 Rust library tests, 12 backup/restore integration tests,
+and 8 schema-contract integration tests, plus TypeScript typecheck, production
+frontend build, Rust check, repository hygiene, and no Constitution diff.
+Focused R1 evidence includes 17 adapter tests, 5 panel tests, the three-language
+i18n assertions, and 7 Rust readiness tests. Clippy also passes for all affected
+Rust targets with warnings denied.
+
 ## Founder Decisions
 
 The Founder must decide:
@@ -360,8 +400,9 @@ On 2026/08/10, the Founder resolved
 - the factual Slice 5 clarification; and
 - the conclusion that no new ADR is required.
 
-This approval does not promote this document and does not authorize fresh-v5
-initialization, existing-v4 migration, production backup or restore, retention,
-v5 read/write routing, lifecycle UI, full provenance inspection, export v2,
-real-user migration testing, provider or ContextPacket changes, Phase 4,
-Harness expansion, Git promotion, deployment, or release.
+This approval and document were subsequently promoted by the commits recorded in
+the Repository Baseline. That promotion authorizes only Inspector R1 and does
+not authorize fresh-v5 initialization, existing-v4 migration, production backup
+or restore, retention, v5 read/write routing, lifecycle UI, full provenance
+inspection, export v2, real-user migration testing, provider or ContextPacket
+changes, Phase 4, Harness expansion, deployment, or release.

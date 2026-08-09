@@ -16,6 +16,28 @@ const OPERATION_STATE_SCHEMA: u8 = 3;
 const MAX_OPERATION_ID_ATTEMPTS: usize = 16;
 static OPERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadinessFilesystemFailure {
+    PathUnsafe,
+    Unreadable,
+    RecoveryRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReadinessOperationEvidence {
+    None,
+    Present,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ReadinessFilesystemSnapshot {
+    pub(crate) database_exists: bool,
+    pub(crate) wal_present: bool,
+    pub(crate) shm_present: bool,
+    pub(crate) rollback_journal_present: bool,
+    pub(crate) operation_evidence: ReadinessOperationEvidence,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SafetyError {
     pub(crate) code: String,
@@ -1450,6 +1472,164 @@ fn ensure_no_sidecars(live: &Path) -> Result<(), SafetyError> {
         }
     }
     Ok(())
+}
+
+/// Observes only the exact app-owned database boundary needed by the explicit
+/// readiness inspector. It never creates a path, opens a writable handle, or
+/// cleans up sidecars/operation evidence.
+pub(crate) fn inspect_readiness_filesystem(
+    root: &Path,
+    live: &Path,
+) -> Result<ReadinessFilesystemSnapshot, ReadinessFilesystemFailure> {
+    reject_lexical_alias(root).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+    reject_lexical_alias(live).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+    if live.parent() != Some(root) || live.file_name().and_then(|name| name.to_str()) != Some("life-os.db") {
+        return Err(ReadinessFilesystemFailure::PathUnsafe);
+    }
+    reject_reparse_chain(root).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+
+    match fs::symlink_metadata(root) {
+        Ok(metadata) => {
+            reject_link_flags(
+                metadata.file_type().is_symlink(),
+                platform_reparse_point(&metadata),
+            )
+            .map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+            if !metadata.is_dir() {
+                return Err(ReadinessFilesystemFailure::PathUnsafe);
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(ReadinessFilesystemSnapshot {
+                database_exists: false,
+                wal_present: false,
+                shm_present: false,
+                rollback_journal_present: false,
+                operation_evidence: ReadinessOperationEvidence::None,
+            });
+        }
+        Err(_) => return Err(ReadinessFilesystemFailure::Unreadable),
+    }
+
+    let canonical_root = fs::canonicalize(root)
+        .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+    let root_metadata = fs::metadata(&canonical_root)
+        .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+    if !root_metadata.is_dir() {
+        return Err(ReadinessFilesystemFailure::PathUnsafe);
+    }
+
+    let database_exists = match fs::symlink_metadata(live) {
+        Ok(metadata) => {
+            reject_link_flags(
+                metadata.file_type().is_symlink(),
+                platform_reparse_point(&metadata),
+            )
+            .map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+            if !metadata.is_file() {
+                return Err(ReadinessFilesystemFailure::PathUnsafe);
+            }
+            let canonical_live = fs::canonicalize(live)
+                .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+            if canonical_live.parent() != Some(canonical_root.as_path()) {
+                return Err(ReadinessFilesystemFailure::PathUnsafe);
+            }
+            reject_multiple_links(&canonical_live)
+                .map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+            true
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(_) => return Err(ReadinessFilesystemFailure::Unreadable),
+    };
+
+    let sidecar_present = |suffix: &str| -> Result<bool, ReadinessFilesystemFailure> {
+        let path = append_suffix(live, suffix);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) => {
+                reject_link_flags(
+                    metadata.file_type().is_symlink(),
+                    platform_reparse_point(&metadata),
+                )
+                .map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+                if !metadata.is_file() {
+                    return Err(ReadinessFilesystemFailure::PathUnsafe);
+                }
+                let canonical_sidecar = fs::canonicalize(&path)
+                    .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+                if canonical_sidecar.parent() != Some(canonical_root.as_path()) {
+                    return Err(ReadinessFilesystemFailure::PathUnsafe);
+                }
+                reject_multiple_links(&canonical_sidecar)
+                    .map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
+                Ok(true)
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(ReadinessFilesystemFailure::Unreadable),
+        }
+    };
+
+    let mut operation_directories = Vec::new();
+    for entry in fs::read_dir(&canonical_root).map_err(|_| ReadinessFilesystemFailure::Unreadable)? {
+        let entry = entry.map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            return Err(ReadinessFilesystemFailure::RecoveryRequired);
+        };
+        if name.starts_with("life-os-") && name.ends_with(".operation") {
+            operation_directories.push(entry.path());
+        }
+    }
+    if operation_directories.len() > 1 {
+        return Err(ReadinessFilesystemFailure::RecoveryRequired);
+    }
+    let operation_evidence = if let Some(operation_root) = operation_directories.pop() {
+        let metadata = fs::symlink_metadata(&operation_root)
+            .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
+        if metadata.file_type().is_symlink()
+            || platform_reparse_point(&metadata)
+            || !metadata.is_dir()
+        {
+            return Err(ReadinessFilesystemFailure::RecoveryRequired);
+        }
+        let canonical_operation = fs::canonicalize(&operation_root)
+            .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
+        if canonical_operation.parent() != Some(canonical_root.as_path()) {
+            return Err(ReadinessFilesystemFailure::RecoveryRequired);
+        }
+        let name = canonical_operation
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or(ReadinessFilesystemFailure::RecoveryRequired)?;
+        let operation_id = name
+            .strip_prefix("life-os-")
+            .and_then(|value| value.strip_suffix(".operation"))
+            .ok_or(ReadinessFilesystemFailure::RecoveryRequired)?;
+        validate_operation_id(operation_id)
+            .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
+        let operation = OwnedOperation {
+            operation_id: operation_id.to_string(),
+            owned_root: canonical_root.clone(),
+            root: canonical_operation.clone(),
+            live: fs::canonicalize(live)
+                .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?,
+            backup: canonical_operation.join("backup.db"),
+            staging: canonical_operation.join("staging.db"),
+            state: canonical_operation.join("state.json"),
+        };
+        read_owned_state(&operation)
+            .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
+        ReadinessOperationEvidence::Present
+    } else {
+        ReadinessOperationEvidence::None
+    };
+
+    Ok(ReadinessFilesystemSnapshot {
+        database_exists,
+        wal_present: sidecar_present("-wal")?,
+        shm_present: sidecar_present("-shm")?,
+        rollback_journal_present: sidecar_present("-journal")?,
+        operation_evidence,
+    })
 }
 
 fn append_suffix(path: &Path, suffix: &str) -> PathBuf {
@@ -3202,5 +3382,23 @@ mod tests {
         for (path, bytes) in protected.iter().zip(before) {
             assert_eq!(fs::read(path).unwrap(), bytes);
         }
+    }
+
+    #[tokio::test]
+    async fn readiness_observes_valid_owned_operation_without_mutating_it() {
+        let (directory, live) = fixture("live-before").await;
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation = prepare_fixed(directory.path(), &live, &guard, FIXED_ID);
+        let state_before = fs::read(&operation.state).unwrap();
+        let staging_before = fs::read(&operation.staging).unwrap();
+
+        let snapshot = inspect_readiness_filesystem(directory.path(), &live).unwrap();
+
+        assert!(snapshot.database_exists);
+        assert_eq!(snapshot.operation_evidence, ReadinessOperationEvidence::Present);
+        assert!(!snapshot.wal_present);
+        assert_eq!(fs::read(&operation.state).unwrap(), state_before);
+        assert_eq!(fs::read(&operation.staging).unwrap(), staging_before);
     }
 }
