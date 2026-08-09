@@ -1273,21 +1273,35 @@ async fn correct_pending(
     if current.review_state != "pending"
         || current.lifecycle_state != "active"
         || current.eligibility_state != "ineligible"
-        || !matches!(current.authorship.as_str(), "ai" | "local_mock" | "user")
-        || current.serialization_version != "canonical-json-v1"
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "user" | "legacy_unknown"
+        )
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
     {
         return Err(write_error("evidence_pending_correction_not_allowed"));
+    }
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_review_candidate(&current, source_id, artifact_id)?;
     }
     if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
         return Err(write_error(
             "evidence_inbound_dependency_requires_later_slice",
         ));
     }
+    let current_text = current
+        .payload
+        .get("text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("evidence_current_text_missing"))?;
     let original_text = current
         .payload
         .get("originalText")
         .and_then(Value::as_str)
-        .ok_or_else(|| write_error("evidence_original_text_missing"))?;
+        .unwrap_or(current_text);
     let kind = current
         .payload
         .get("kind")
@@ -2489,12 +2503,19 @@ mod tests {
     struct InjectedCommitAdapter {
         outcome: CommitAttemptOutcome,
         commit_first: bool,
+        mutate_after_commit: bool,
     }
 
     impl CommitOutcomeAdapter for InjectedCommitAdapter {
         async fn commit(&self, connection: &mut SqliteConnection) -> CommitAttemptOutcome {
             if self.commit_first {
-                raw_sql("COMMIT").execute(connection).await.unwrap();
+                raw_sql("COMMIT").execute(&mut *connection).await.unwrap();
+                if self.mutate_after_commit {
+                    raw_sql("PRAGMA user_version = 6")
+                        .execute(&mut *connection)
+                        .await
+                        .unwrap();
+                }
             }
             self.outcome.clone()
         }
@@ -2513,8 +2534,7 @@ mod tests {
     async fn migrated_legacy_review_ambiguous_commit_classifies_exact_pre_and_post_state() {
         for commit_first in [false, true] {
             let id = format!("legacy-evidence-ambiguous-{commit_first}");
-            let (_directory, path, raw) =
-                exact_v5_legacy_evidence_fixture(&id, true, false).await;
+            let (_directory, path, raw) = exact_v5_legacy_evidence_fixture(&id, true, false).await;
             let revision = legacy_revision(&path, &id).await;
             let result = execute_with_adapter(
                 &path,
@@ -2534,6 +2554,7 @@ mod tests {
                         error_class: "injected_legacy_review_commit_ambiguity".into(),
                     },
                     commit_first,
+                    mutate_after_commit: false,
                 },
             )
             .await;
@@ -2560,6 +2581,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn migrated_legacy_correction_ambiguous_commit_classifies_pre_post_and_third_state() {
+        for (commit_first, mutate_after_commit, expected) in [
+            (false, false, "pre"),
+            (true, false, "post"),
+            (true, true, "third"),
+        ] {
+            let id = format!("legacy-evidence-correction-ambiguous-{expected}");
+            let (_directory, path, raw) = exact_v5_legacy_evidence_fixture(&id, true, false).await;
+            let predecessor = legacy_revision(&path, &id).await;
+            let result = execute_with_adapter(
+                &path,
+                EvidenceWriteCommand::CorrectPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id,
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: predecessor.clone(),
+                    text: "Ambiguous explicit correction.".into(),
+                },
+                context(
+                    "2026-08-09T01:08:00.000Z",
+                    "guard-legacy-evidence-correction-ambiguous-01",
+                    EvidenceWriteFailurePoint::None,
+                ),
+                &InjectedCommitAdapter {
+                    outcome: CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_legacy_correction_commit_ambiguity".into(),
+                    },
+                    commit_first,
+                    mutate_after_commit,
+                },
+            )
+            .await;
+            match expected {
+                "pre" => {
+                    let error = result.unwrap_err();
+                    assert!(error
+                        .code
+                        .contains("evidence_commit_outcome_unknown_unchanged"));
+                    let mut connection = connect(&path, true).await.unwrap();
+                    assert_eq!(
+                        sqlx::query_scalar::<_, String>(
+                            "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                        )
+                        .bind(predecessor)
+                        .fetch_one(&mut connection)
+                        .await
+                        .unwrap(),
+                        raw
+                    );
+                }
+                "post" => assert_eq!(result.unwrap().status, EvidenceWriteStatus::Committed),
+                "third" => {
+                    let error = result.unwrap_err();
+                    assert!(error.recovery_required);
+                    assert!(error.code.contains("evidence_commit_outcome_unknown"));
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn ambiguous_commit_classifies_exact_post_or_pre_state_without_retry() {
         let (_directory, committed_path) = exact_v5_fixture().await;
         let committed_source = source_revision(&committed_path).await;
@@ -2579,6 +2662,7 @@ mod tests {
                     error_class: "injected_after_commit".into(),
                 },
                 commit_first: true,
+                mutate_after_commit: false,
             },
         )
         .await
@@ -2603,6 +2687,7 @@ mod tests {
                     error_class: "injected_without_commit".into(),
                 },
                 commit_first: false,
+                mutate_after_commit: false,
             },
         )
         .await
@@ -2904,6 +2989,175 @@ mod tests {
                     raw
                 );
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_candidate_correction_appends_canonical_user_revision_and_requires_reconfirmation(
+    ) {
+        let id = "legacy-evidence-correct";
+        let (_directory, path, raw) = exact_v5_legacy_evidence_fixture(id, true, false).await;
+        let predecessor = legacy_revision(&path, id).await;
+        let predecessor_digest: String = {
+            let mut connection = connect(&path, true).await.unwrap();
+            sqlx::query_scalar("SELECT content_digest FROM artifact_revisions WHERE id=?")
+                .bind(&predecessor)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+        };
+        let source = source_revision(&path).await;
+        let corrected = execute_disposable(
+            &path,
+            EvidenceWriteCommand::CorrectPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: predecessor.clone(),
+                text: "User corrected the migrated observation.".into(),
+            },
+            context(
+                "2026-08-09T01:05:00.000Z",
+                "guard-legacy-evidence-correct-000001",
+                EvidenceWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+
+        let mut connection = connect(&path, true).await.unwrap();
+        let predecessor_after: (String, String, String) = sqlx::query_as(
+            "SELECT c.payload, r.content_digest, r.serialization_version \
+             FROM artifact_revisions r JOIN artifact_revision_content c ON c.revision_id=r.id \
+             WHERE r.id=?",
+        )
+        .bind(&predecessor)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            predecessor_after,
+            (raw, predecessor_digest, "legacy-v4-raw".into())
+        );
+        let successor: (i64, Option<String>, String, String, String, String, String) =
+            sqlx::query_as(
+                "SELECT r.revision_number, r.predecessor_revision_id, r.authorship, \
+                        r.revision_reason, r.serialization_version, h.review_state, \
+                        h.eligibility_state \
+                 FROM artifact_revisions r JOIN artifact_heads h ON h.current_revision_id=r.id \
+                 WHERE r.id=? AND h.id=?",
+            )
+            .bind(&corrected.revision_id)
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(
+            successor,
+            (
+                2,
+                Some(predecessor),
+                "user".into(),
+                "corrected".into(),
+                "canonical-json-v1".into(),
+                "pending".into(),
+                "ineligible".into(),
+            )
+        );
+        let corrected_payload: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&corrected.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            corrected_payload["text"],
+            "User corrected the migrated observation."
+        );
+        assert_eq!(corrected_payload["originalText"], "Legacy observation");
+        drop(connection);
+
+        execute_disposable(
+            &path,
+            EvidenceWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: corrected.revision_id,
+            },
+            context(
+                "2026-08-09T01:06:00.000Z",
+                "guard-legacy-evidence-reconfirm-0001",
+                EvidenceWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        let head: (String, String) =
+            sqlx::query_as("SELECT review_state, eligibility_state FROM artifact_heads WHERE id=?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap();
+        assert_eq!(head, ("confirmed".into(), "eligible".into()));
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_candidate_correction_rolls_back_every_successor_write_boundary() {
+        let points = [
+            EvidenceWriteFailurePoint::AfterGuard,
+            EvidenceWriteFailurePoint::AfterProvenance,
+            EvidenceWriteFailurePoint::AfterRevision,
+            EvidenceWriteFailurePoint::AfterContent,
+            EvidenceWriteFailurePoint::AfterDependency,
+            EvidenceWriteFailurePoint::AfterLifecycle,
+            EvidenceWriteFailurePoint::AfterHead,
+            EvidenceWriteFailurePoint::AfterProjection,
+            EvidenceWriteFailurePoint::AfterReconciliation,
+            EvidenceWriteFailurePoint::AfterGuardRemoval,
+        ];
+        for (index, point) in points.into_iter().enumerate() {
+            let id = format!("legacy-evidence-correct-rollback-{index}");
+            let (_directory, path, raw) = exact_v5_legacy_evidence_fixture(&id, true, false).await;
+            let predecessor = legacy_revision(&path, &id).await;
+            let before = {
+                let mut connection = connect(&path, true).await.unwrap();
+                operation_manifest(&mut connection).await.unwrap()
+            };
+            let error = execute_disposable(
+                &path,
+                EvidenceWriteCommand::CorrectPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: predecessor.clone(),
+                    text: "A correction that must roll back.".into(),
+                },
+                EvidenceWriteContext {
+                    occurred_at: "2026-08-09T01:07:00.000Z",
+                    guard_token: "guard-legacy-evidence-correct-rollback-01",
+                    failure_point: point,
+                },
+            )
+            .await;
+            assert!(error.is_err());
+            let mut connection = connect(&path, true).await.unwrap();
+            assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+            assert_eq!(
+                sqlx::query_scalar::<_, String>(
+                    "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                )
+                .bind(predecessor)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap(),
+                raw
+            );
         }
     }
 

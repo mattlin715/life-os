@@ -106,6 +106,15 @@ type RecoveryRevisionRow = (
     Option<String>,
 );
 type RecoveryDependencyRow = (String, Option<String>, Option<String>, Option<String>);
+type LegacyRecoveryMetadataRow = (
+    String,
+    Option<String>,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
 
 fn write_error(code: impl Into<String>) -> MigrationError {
     MigrationError::fail_closed(code)
@@ -137,6 +146,247 @@ fn validate_text(value: &str, field: &str) -> Result<(), MigrationError> {
     } else {
         Ok(())
     }
+}
+
+fn validate_legacy_prompt_provenance(
+    raw: Option<&Value>,
+    normalized: &Value,
+    source_id: &str,
+) -> Result<(), MigrationError> {
+    let allowed = [
+        "origin",
+        "sourceEntryId",
+        "sourceArtifactIds",
+        "provider",
+        "model",
+        "harnessVersion",
+        "promptVersion",
+        "generatedAt",
+    ];
+    if let Some(raw) = raw {
+        let object = raw
+            .as_object()
+            .ok_or_else(|| write_error("context_recovery_legacy_prompt_provenance_not_object"))?;
+        if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+            return Err(write_error(
+                "context_recovery_legacy_prompt_provenance_unknown_field",
+            ));
+        }
+        if object.get("sourceEntryId").and_then(Value::as_str) != Some(source_id) {
+            return Err(recovery_error(
+                "context_recovery_legacy_prompt_provenance_source_mismatch",
+            ));
+        }
+        let sources = object
+            .get("sourceArtifactIds")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                write_error("context_recovery_legacy_prompt_provenance_sources_missing")
+            })?;
+        if !sources.is_empty() {
+            return Err(write_error(
+                "context_recovery_legacy_prompt_provenance_sources_unexpected",
+            ));
+        }
+        if normalized_provenance(Some(raw), source_id, "legacy_unknown") != *normalized {
+            return Err(recovery_error(
+                "context_recovery_legacy_prompt_provenance_normalization_mismatch",
+            ));
+        }
+    } else if normalized_provenance(None, source_id, "legacy_unknown") != *normalized {
+        return Err(recovery_error(
+            "context_recovery_legacy_unknown_prompt_provenance_mismatch",
+        ));
+    }
+    if !matches!(
+        normalized.get("origin").and_then(Value::as_str),
+        Some("ai" | "local_mock" | "legacy_unknown")
+    ) {
+        return Err(write_error(
+            "context_recovery_legacy_prompt_origin_unsupported",
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_terminal_projection(
+    payload: &Value,
+    status: &str,
+    occurred_at: &str,
+) -> Result<Value, MigrationError> {
+    let mut projected = payload.clone();
+    let object = projected
+        .as_object_mut()
+        .ok_or_else(|| write_error("context_recovery_legacy_payload_not_object"))?;
+    object.insert("status".into(), Value::String(status.into()));
+    object.insert("updatedAt".into(), Value::String(occurred_at.into()));
+    Ok(projected)
+}
+
+async fn validate_legacy_suggested_recovery(
+    connection: &mut SqliteConnection,
+    current: &CurrentRecovery,
+    expected_source_revision_id: &str,
+) -> Result<String, MigrationError> {
+    if current.serialization_version != "legacy-v4-raw" || current.revision_number != 1 {
+        return Err(write_error(
+            "context_recovery_legacy_baseline_contract_mismatch",
+        ));
+    }
+    let metadata: Option<LegacyRecoveryMetadataRow> = sqlx::query_as(
+        "SELECT r.revision_reason, r.predecessor_revision_id, r.content_digest, \
+                    c.payload, pa.payload, pa.updated_at, h.eligibility_reason \
+             FROM artifact_revisions r \
+             JOIN artifact_revision_content c ON c.revision_id = r.id \
+             JOIN artifact_heads h ON h.id = r.artifact_id AND h.current_revision_id = r.id \
+             JOIN persisted_artifacts pa ON pa.id = h.id AND pa.source_entry_id = h.source_id \
+               AND pa.artifact_kind = 'recovery_turn' \
+             WHERE r.id = ? AND r.artifact_id = ? AND r.source_id = ?",
+    )
+    .bind(&current.revision_id)
+    .bind(&current.artifact_id)
+    .bind(&current.source_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|error| migration_error("context_recovery_legacy_metadata_unreadable", error))?;
+    let (reason, predecessor, digest, raw, projection, updated_at, eligibility_reason) =
+        metadata.ok_or_else(|| recovery_error("context_recovery_legacy_metadata_missing"))?;
+    if reason != "legacy_v4_baseline"
+        || predecessor.is_some()
+        || digest != sha256_hex(raw.as_bytes())
+        || raw.as_bytes() != projection.as_bytes()
+        || updated_at
+            != current
+                .payload
+                .get("updatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+    {
+        return Err(recovery_error("context_recovery_legacy_authority_mismatch"));
+    }
+    let object = current
+        .payload
+        .as_object()
+        .ok_or_else(|| write_error("context_recovery_legacy_payload_not_object"))?;
+    let allowed = [
+        "id",
+        "sourceEntryId",
+        "question",
+        "response",
+        "status",
+        "locale",
+        "promptProvenance",
+        "provenance",
+        "responseProvenance",
+        "createdAt",
+        "updatedAt",
+    ];
+    let required = [
+        "id",
+        "sourceEntryId",
+        "question",
+        "status",
+        "locale",
+        "createdAt",
+        "updatedAt",
+    ];
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(write_error("context_recovery_legacy_payload_unknown_field"));
+    }
+    if required.iter().any(|key| !object.contains_key(*key)) {
+        return Err(write_error("context_recovery_legacy_payload_field_missing"));
+    }
+    if object.get("id").and_then(Value::as_str) != Some(&current.artifact_id)
+        || object.get("sourceEntryId").and_then(Value::as_str) != Some(&current.source_id)
+        || object.get("status").and_then(Value::as_str) != Some("suggested")
+        || current.review_state != "pending"
+        || current.lifecycle_state != "active"
+        || current.eligibility_state != "ineligible"
+        || eligibility_reason != "legacy_v4_pending"
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "legacy_unknown"
+        )
+        || object.get("response").is_some_and(|value| !value.is_null())
+        || object.get("responseProvenance").is_some()
+        || current.response_provenance.is_some()
+    {
+        return Err(write_error(
+            "context_recovery_legacy_suggested_contract_mismatch",
+        ));
+    }
+    validate_text(
+        object
+            .get("question")
+            .and_then(Value::as_str)
+            .ok_or_else(|| write_error("context_recovery_legacy_question_missing"))?,
+        "legacy_question",
+    )?;
+    let locale = object
+        .get("locale")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("context_recovery_legacy_locale_missing"))?;
+    if !matches!(locale, "en" | "zh-TW" | "ja") {
+        return Err(write_error("context_recovery_legacy_locale_unsupported"));
+    }
+    let created_at = object
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("context_recovery_legacy_created_at_missing"))?;
+    let raw_updated_at = object
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("context_recovery_legacy_updated_at_missing"))?;
+    validate_timestamp(created_at, "legacy_created_at")?;
+    validate_timestamp(raw_updated_at, "legacy_updated_at")?;
+    if created_at != current.created_at || raw_updated_at != updated_at {
+        return Err(recovery_error("context_recovery_legacy_timestamp_mismatch"));
+    }
+    validate_legacy_prompt_provenance(
+        object
+            .get("promptProvenance")
+            .or_else(|| object.get("provenance")),
+        &current.prompt_provenance,
+        &current.source_id,
+    )?;
+    let source_edges: Vec<String> = sqlx::query_scalar(
+        "SELECT source_revision_id FROM artifact_dependencies \
+         WHERE dependent_artifact_id = ? AND dependent_revision_id = ? \
+           AND relationship_type = 'derived_from_experience' \
+           AND source_artifact_id IS NULL AND source_artifact_revision_id IS NULL",
+    )
+    .bind(&current.artifact_id)
+    .bind(&current.revision_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| {
+        migration_error(
+            "context_recovery_legacy_source_dependency_unreadable",
+            error,
+        )
+    })?;
+    if source_edges != [expected_source_revision_id.to_string()]
+        || inbound_dependency_count(connection, &current.artifact_id, &current.revision_id).await?
+            != 0
+    {
+        return Err(recovery_error(
+            "context_recovery_legacy_dependency_mismatch",
+        ));
+    }
+    let lifecycle_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM artifact_lifecycle_events WHERE artifact_id = ? \
+           AND subject_revision_id = ? AND event_type = 'baseline_imported' \
+           AND actor = 'legacy_import' AND reason_code = 'legacy_v4_baseline'",
+    )
+    .bind(&current.artifact_id)
+    .bind(&current.revision_id)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| migration_error("context_recovery_legacy_lifecycle_unreadable", error))?;
+    if lifecycle_count != 1 {
+        return Err(recovery_error("context_recovery_legacy_lifecycle_mismatch"));
+    }
+    Ok(current.revision_id.clone())
 }
 
 fn validate_prompt(prompt: &SuggestedPromptInput) -> Result<(), MigrationError> {
@@ -868,8 +1118,14 @@ async fn save_first_response(
     if current.review_state != "pending"
         || current.lifecycle_state != "active"
         || current.eligibility_state != "ineligible"
-        || current.serialization_version != "canonical-json-v1"
-        || !matches!(current.authorship.as_str(), "ai" | "local_mock")
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "legacy_unknown"
+        )
         || current
             .payload
             .get("response")
@@ -883,7 +1139,12 @@ async fn save_first_response(
             "context_recovery_inbound_dependency_requires_later_slice",
         ));
     }
-    let prompt_revision = validate_prompt_lineage(connection, &current).await?;
+    let prompt_revision = if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_suggested_recovery(connection, &current, expected_source_revision_id)
+            .await?
+    } else {
+        validate_prompt_lineage(connection, &current).await?
+    };
     let question = current
         .payload
         .get("question")
@@ -1024,8 +1285,14 @@ async fn skip_suggested(
     if current.review_state != "pending"
         || current.lifecycle_state != "active"
         || current.eligibility_state != "ineligible"
-        || current.serialization_version != "canonical-json-v1"
-        || !matches!(current.authorship.as_str(), "ai" | "local_mock")
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "legacy_unknown"
+        )
         || current
             .payload
             .get("response")
@@ -1039,7 +1306,12 @@ async fn skip_suggested(
             "context_recovery_inbound_dependency_requires_later_slice",
         ));
     }
-    validate_prompt_lineage(connection, &current).await?;
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_suggested_recovery(connection, &current, expected_source_revision_id)
+            .await?;
+    } else {
+        validate_prompt_lineage(connection, &current).await?;
+    }
     insert_skip_event(
         connection,
         artifact_id,
@@ -1060,13 +1332,17 @@ async fn skip_suggested(
         return Err(write_error("context_recovery_artifact_revision_stale"));
     }
     inject(context, ContextRecoveryWriteFailurePoint::AfterHead)?;
-    let projection = v4_projection_value(
-        &current.payload,
-        "skipped",
-        context.occurred_at,
-        &current.prompt_provenance,
-        None,
-    )?;
+    let projection = if current.serialization_version == "legacy-v4-raw" {
+        legacy_terminal_projection(&current.payload, "skipped", context.occurred_at)?
+    } else {
+        v4_projection_value(
+            &current.payload,
+            "skipped",
+            context.occurred_at,
+            &current.prompt_provenance,
+            None,
+        )?
+    };
     write_projection(
         connection,
         artifact_id,
@@ -1529,9 +1805,42 @@ async fn verify_context_recovery_projection(
             ));
         }
         if serialization == "legacy-v4-raw" {
-            if content.as_bytes() != projection.as_bytes() {
+            if content.as_bytes() == projection.as_bytes() {
+                continue;
+            }
+            if review_state != "skipped" || eligibility_state != "ineligible" {
                 return Err(recovery_error(
                     "context_recovery_legacy_projection_mismatch",
+                ));
+            }
+            let content_value: Value = serde_json::from_str(&content).map_err(|error| {
+                migration_error("context_recovery_legacy_content_malformed", error)
+            })?;
+            let projection_value: Value = serde_json::from_str(&projection).map_err(|error| {
+                migration_error("context_recovery_legacy_projection_malformed", error)
+            })?;
+            let expected =
+                legacy_terminal_projection(&content_value, "skipped", &head.get::<String, _>(8))?;
+            if projection_value != expected {
+                return Err(recovery_error(
+                    "context_recovery_legacy_skip_projection_mismatch",
+                ));
+            }
+            let exact_skip: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM artifact_review_events WHERE artifact_id = ? \
+                   AND subject_revision_id = ? AND decision = 'skipped' AND actor = 'user' \
+                   AND event_origin = 'explicit_user_action' AND occurred_at = ? \
+                   AND timestamp_quality = 'exact_action_time'",
+            )
+            .bind(&artifact_id)
+            .bind(&revision_id)
+            .bind(head.get::<String, _>(8))
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("context_recovery_legacy_skip_unreadable", error))?;
+            if exact_skip != 1 {
+                return Err(recovery_error(
+                    "context_recovery_legacy_skip_event_mismatch",
                 ));
             }
             continue;
@@ -1973,6 +2282,90 @@ mod tests {
         .await
         .unwrap();
         (directory, path)
+    }
+
+    fn legacy_recovery_payload(id: &str, extra_field: bool) -> String {
+        let mut payload = json!({
+            "createdAt": "2026-01-01T00:00:03.000Z",
+            "id": id,
+            "locale": "en",
+            "promptProvenance": {
+                "generatedAt": "2026-01-01T00:00:03.000Z",
+                "harnessVersion": "harness-v1",
+                "model": null,
+                "origin": "local_mock",
+                "promptVersion": "context-recovery-v1",
+                "provider": "mock",
+                "sourceArtifactIds": [],
+                "sourceEntryId": SOURCE_ID
+            },
+            "question": "What would help clarify this Experience?",
+            "sourceEntryId": SOURCE_ID,
+            "status": "suggested",
+            "updatedAt": "2026-01-01T00:00:03.000Z"
+        });
+        if extra_field {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("futureField".into(), Value::String("unsupported".into()));
+        }
+        serde_json::to_string_pretty(&payload).unwrap()
+    }
+
+    async fn exact_v5_legacy_recovery_fixture(
+        id: &str,
+        extra_field: bool,
+    ) -> (TempDir, std::path::PathBuf, String) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("life-os.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        raw_sql(V4_FIXTURE).execute(&mut connection).await.unwrap();
+        let raw = legacy_recovery_payload(id, extra_field);
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES (?, ?, 'recovery_turn', ?, '2026-01-01T00:00:03.000Z', \
+                     '2026-01-01T00:00:03.000Z')",
+        )
+        .bind(id)
+        .bind(SOURCE_ID)
+        .bind(&raw)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let expected_source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+            .await
+            .unwrap();
+        drop(connection);
+        migrate_disposable_v4(MigrationRequest {
+            path: &path,
+            expected_source_manifest_digest,
+            started_at: STARTED_AT,
+            committed_at: COMMITTED_AT,
+            backup_id: Some("slice4c6b-context-recovery-fixture-backup"),
+            failure_point: FailurePoint::None,
+        })
+        .await
+        .unwrap();
+        let mut read_only = connect(&path, true).await.unwrap();
+        verify_exact_context_recovery_v5(&mut read_only)
+            .await
+            .unwrap();
+        (directory, path, raw)
+    }
+
+    async fn artifact_revision(path: &Path, id: &str) -> String {
+        let mut connection = connect(path, true).await.unwrap();
+        sqlx::query_scalar("SELECT current_revision_id FROM artifact_heads WHERE id=?")
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
     }
 
     async fn source_revision(path: &Path) -> String {
@@ -2688,11 +3081,227 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn migrated_legacy_context_recovery_answer_appends_user_successor_and_stays_historically_ineligible(
+    ) {
+        let id = "legacy-recovery-answer";
+        let (_directory, path, raw) = exact_v5_legacy_recovery_fixture(id, false).await;
+        let predecessor = artifact_revision(&path, id).await;
+        let predecessor_digest: String = {
+            let mut connection = connect(&path, true).await.unwrap();
+            sqlx::query_scalar("SELECT content_digest FROM artifact_revisions WHERE id=?")
+                .bind(&predecessor)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+        };
+        let source = source_revision(&path).await;
+        let outcome = execute_disposable(
+            &path,
+            ContextRecoveryWriteCommand::SaveFirstResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: predecessor.clone(),
+                response: "An explicit task-scoped response.".into(),
+            },
+            context(
+                "2026-08-09T03:00:00.000Z",
+                "guard-legacy-context-recovery-answer-01",
+                ContextRecoveryWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        let predecessor_after: (String, String, String) = sqlx::query_as(
+            "SELECT c.payload, r.content_digest, r.serialization_version \
+             FROM artifact_revisions r JOIN artifact_revision_content c ON c.revision_id=r.id \
+             WHERE r.id=?",
+        )
+        .bind(&predecessor)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            predecessor_after,
+            (raw, predecessor_digest, "legacy-v4-raw".into())
+        );
+        let successor: (i64, Option<String>, String, String, String, String) = sqlx::query_as(
+            "SELECT r.revision_number, r.predecessor_revision_id, r.authorship, \
+                    r.serialization_version, h.review_state, h.eligibility_reason \
+             FROM artifact_revisions r JOIN artifact_heads h ON h.current_revision_id=r.id \
+             WHERE r.id=? AND h.id=?",
+        )
+        .bind(&outcome.revision_id)
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            successor,
+            (
+                2,
+                Some(predecessor.clone()),
+                "mixed".into(),
+                "canonical-json-v1".into(),
+                "not_applicable".into(),
+                "context_recovery_answered_current_experience_task_only".into(),
+            )
+        );
+        let edges: Vec<RecoveryDependencyRow> = sqlx::query_as(
+            "SELECT relationship_type, source_revision_id, source_artifact_id, \
+                        source_artifact_revision_id FROM artifact_dependencies \
+                 WHERE dependent_artifact_id=? AND dependent_revision_id=? \
+                 ORDER BY relationship_type",
+        )
+        .bind(id)
+        .bind(&outcome.revision_id)
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert!(edges.iter().any(|edge| {
+            edge.0 == "derived_from_experience" && edge.1.as_deref() == Some(source.as_str())
+        }));
+        assert!(edges.iter().any(|edge| {
+            edge.0 == "answers_prompt"
+                && edge.2.as_deref() == Some(id)
+                && edge.3.as_deref() == Some(predecessor.as_str())
+        }));
+        assert!(!edges.iter().any(|edge| edge.0 == "historical_packet_item"));
+        let origins: Vec<String> = sqlx::query_scalar(
+            "SELECT json_extract(p.canonical_payload, '$.origin') \
+             FROM artifact_revision_provenance rp JOIN provenance_records p ON p.id=rp.provenance_id \
+             WHERE rp.artifact_revision_id=? ORDER BY rp.role",
+        )
+        .bind(&outcome.revision_id)
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(origins, vec!["local_mock".to_string(), "user".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_context_recovery_skip_is_terminal_without_response_revision() {
+        let id = "legacy-recovery-skip";
+        let (_directory, path, raw) = exact_v5_legacy_recovery_fixture(id, false).await;
+        let predecessor = artifact_revision(&path, id).await;
+        let outcome = execute_disposable(
+            &path,
+            ContextRecoveryWriteCommand::SkipSuggested {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: predecessor.clone(),
+            },
+            context(
+                "2026-08-09T03:01:00.000Z",
+                "guard-legacy-context-recovery-skip-001",
+                ContextRecoveryWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(outcome.revision_id, predecessor);
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&outcome.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            raw
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id=?",
+            )
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            1
+        );
+        let projection: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>("SELECT payload FROM persisted_artifacts WHERE id=?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(projection["status"], "skipped");
+        assert!(projection.get("response").is_none());
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_context_recovery_unknown_shape_and_stale_source_fail_closed() {
+        let id = "legacy-recovery-malformed";
+        let (_directory, path, _) = exact_v5_legacy_recovery_fixture(id, true).await;
+        let revision = artifact_revision(&path, id).await;
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &path,
+            ContextRecoveryWriteCommand::SaveFirstResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: revision,
+                response: "Must not persist.".into(),
+            },
+            context(
+                "2026-08-09T03:02:00.000Z",
+                "guard-legacy-context-recovery-malformed-01",
+                ContextRecoveryWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error
+            .code
+            .contains("context_recovery_legacy_payload_unknown_field"));
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        drop(connection);
+
+        let id = "legacy-recovery-stale";
+        let (_directory, path, _) = exact_v5_legacy_recovery_fixture(id, false).await;
+        let revision = artifact_revision(&path, id).await;
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        assert!(execute_disposable(
+            &path,
+            ContextRecoveryWriteCommand::SkipSuggested {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: "stale-source-revision".into(),
+                expected_artifact_revision_id: revision,
+            },
+            context(
+                "2026-08-09T03:03:00.000Z",
+                "guard-legacy-context-recovery-stale-001",
+                ContextRecoveryWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .is_err());
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+    }
+
     #[derive(Clone, Copy)]
     enum InjectedCommit {
         DefinitelyNotCommitted,
         UnknownWithoutCommit,
         UnknownAfterCommit,
+        UnknownAfterCommitWithThirdState,
     }
     struct InjectedCommitAdapter {
         mode: InjectedCommit,
@@ -2712,9 +3321,19 @@ mod tests {
                     error_class: "injected_unknown_without_commit".into(),
                 },
                 InjectedCommit::UnknownAfterCommit => {
-                    raw_sql("COMMIT").execute(connection).await.unwrap();
+                    raw_sql("COMMIT").execute(&mut *connection).await.unwrap();
                     CommitAttemptOutcome::OutcomeUnknown {
                         error_class: "injected_unknown_after_commit".into(),
+                    }
+                }
+                InjectedCommit::UnknownAfterCommitWithThirdState => {
+                    raw_sql("COMMIT").execute(&mut *connection).await.unwrap();
+                    raw_sql("PRAGMA user_version = 6")
+                        .execute(&mut *connection)
+                        .await
+                        .unwrap();
+                    CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_unknown_third_state".into(),
                     }
                 }
             }
@@ -2732,6 +3351,7 @@ mod tests {
             (InjectedCommit::DefinitelyNotCommitted, false, 1),
             (InjectedCommit::UnknownWithoutCommit, false, 0),
             (InjectedCommit::UnknownAfterCommit, true, 0),
+            (InjectedCommit::UnknownAfterCommitWithThirdState, false, 0),
         ] {
             let (_directory, path) = exact_v5_fixture().await;
             let source = source_revision(&path).await;
@@ -2755,10 +3375,79 @@ mod tests {
             )
             .await;
             assert_eq!(result.is_ok(), succeeds);
+            if matches!(mode, InjectedCommit::UnknownAfterCommitWithThirdState) {
+                let error = result.unwrap_err();
+                assert!(error.recovery_required);
+                assert!(error
+                    .code
+                    .contains("context_recovery_commit_outcome_unknown"));
+            }
             assert_eq!(adapter.commits.get(), 1);
             assert_eq!(adapter.rollbacks.get(), rollbacks);
             let mut c = connect(&path, true).await.unwrap();
-            verify_exact_context_recovery_v5(&mut c).await.unwrap();
+            if matches!(mode, InjectedCommit::UnknownAfterCommitWithThirdState) {
+                assert_eq!(
+                    sqlx::query_scalar::<_, i64>("PRAGMA user_version")
+                        .fetch_one(&mut c)
+                        .await
+                        .unwrap(),
+                    6
+                );
+            } else {
+                verify_exact_context_recovery_v5(&mut c).await.unwrap();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_recovery_answer_commit_classifies_pre_post_and_third_state() {
+        for (mode, expected) in [
+            (InjectedCommit::UnknownWithoutCommit, "pre"),
+            (InjectedCommit::UnknownAfterCommit, "post"),
+            (InjectedCommit::UnknownAfterCommitWithThirdState, "third"),
+        ] {
+            let id = format!("legacy-recovery-commit-{expected}");
+            let (_directory, path, _) = exact_v5_legacy_recovery_fixture(&id, false).await;
+            let adapter = InjectedCommitAdapter {
+                mode,
+                commits: Cell::new(0),
+                rollbacks: Cell::new(0),
+            };
+            let result = execute_with_adapter(
+                &path,
+                ContextRecoveryWriteCommand::SaveFirstResponse {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: artifact_revision(&path, &id).await,
+                    response: "Explicit answer under commit ambiguity.".into(),
+                },
+                context(
+                    "2026-08-09T03:04:00.000Z",
+                    "guard-legacy-context-recovery-commit-01",
+                    ContextRecoveryWriteFailurePoint::None,
+                ),
+                &adapter,
+            )
+            .await;
+            match expected {
+                "pre" => assert!(result
+                    .unwrap_err()
+                    .code
+                    .contains("context_recovery_commit_outcome_unknown_unchanged")),
+                "post" => {
+                    result.unwrap();
+                }
+                "third" => {
+                    let error = result.unwrap_err();
+                    assert!(error.recovery_required);
+                    assert!(error
+                        .code
+                        .contains("context_recovery_commit_outcome_unknown"));
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(adapter.commits.get(), 1);
         }
     }
 

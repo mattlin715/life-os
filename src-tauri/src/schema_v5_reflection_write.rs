@@ -142,6 +142,11 @@ struct CurrentReflection {
     projection_updated_at: String,
 }
 
+#[derive(Clone, Debug)]
+struct LegacyReflectionContract {
+    prompt_revision_id: String,
+}
+
 fn write_error(code: impl Into<String>) -> MigrationError {
     MigrationError::fail_closed(code)
 }
@@ -172,6 +177,103 @@ fn validate_text(value: &str, field: &str) -> Result<(), MigrationError> {
     } else {
         Ok(())
     }
+}
+
+fn validate_legacy_provenance(
+    raw: Option<&Value>,
+    normalized: &Value,
+    source_id: &str,
+    expected_source_artifact_ids: &BTreeSet<String>,
+    role: &str,
+) -> Result<(), MigrationError> {
+    let allowed = [
+        "origin",
+        "sourceEntryId",
+        "sourceArtifactIds",
+        "provider",
+        "model",
+        "harnessVersion",
+        "promptVersion",
+        "generatedAt",
+    ];
+    if let Some(raw) = raw {
+        let object = raw.as_object().ok_or_else(|| {
+            write_error(format!("reflection_legacy_{role}_provenance_not_object"))
+        })?;
+        if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+            return Err(write_error(format!(
+                "reflection_legacy_{role}_provenance_unknown_field"
+            )));
+        }
+        if object.get("sourceEntryId").and_then(Value::as_str) != Some(source_id) {
+            return Err(recovery_error(format!(
+                "reflection_legacy_{role}_provenance_source_mismatch"
+            )));
+        }
+        let raw_ids = object
+            .get("sourceArtifactIds")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                write_error(format!(
+                    "reflection_legacy_{role}_provenance_sources_missing"
+                ))
+            })?;
+        let raw_ids = raw_ids
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .ok_or_else(|| {
+                        write_error(format!(
+                            "reflection_legacy_{role}_provenance_source_malformed"
+                        ))
+                    })
+                    .and_then(|value| {
+                        validate_identifier(value, "legacy_provenance_source_id")?;
+                        Ok(value.to_string())
+                    })
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        if raw_ids.len()
+            != object
+                .get("sourceArtifactIds")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len)
+            || &raw_ids != expected_source_artifact_ids
+        {
+            return Err(write_error(format!(
+                "reflection_legacy_{role}_provenance_sources_mismatch"
+            )));
+        }
+        let expected = normalized_provenance(Some(raw), source_id, "legacy_unknown");
+        if &expected != normalized {
+            return Err(recovery_error(format!(
+                "reflection_legacy_{role}_provenance_normalization_mismatch"
+            )));
+        }
+    } else {
+        let expected = normalized_provenance(None, source_id, "legacy_unknown");
+        if &expected != normalized {
+            return Err(recovery_error(format!(
+                "reflection_legacy_{role}_unknown_provenance_mismatch"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn legacy_terminal_projection(
+    payload: &Value,
+    status: &str,
+    occurred_at: &str,
+) -> Result<Value, MigrationError> {
+    let mut projected = payload.clone();
+    let object = projected
+        .as_object_mut()
+        .ok_or_else(|| write_error("reflection_legacy_payload_not_object"))?;
+    object.insert("status".into(), Value::String(status.into()));
+    object.insert("updatedAt".into(), Value::String(occurred_at.into()));
+    Ok(projected)
 }
 
 fn normalize_evidence(
@@ -894,6 +996,235 @@ async fn ensure_expected_evidence(
     Ok(expected)
 }
 
+async fn validate_legacy_reflection(
+    connection: &mut SqliteConnection,
+    current: &CurrentReflection,
+    expected_source_revision_id: &str,
+    expected_evidence: &[EvidenceRevisionRef],
+    expected_status: &str,
+) -> Result<LegacyReflectionContract, MigrationError> {
+    if current.serialization_version != "legacy-v4-raw" || current.revision_number != 1 {
+        return Err(write_error("reflection_legacy_baseline_contract_mismatch"));
+    }
+    let metadata: Option<(String, Option<String>, String, String, String, String)> =
+        sqlx::query_as(
+            "SELECT r.revision_reason, r.predecessor_revision_id, r.content_digest, \
+                    c.payload, pa.payload, h.eligibility_reason \
+             FROM artifact_revisions r \
+             JOIN artifact_revision_content c ON c.revision_id = r.id \
+             JOIN artifact_heads h ON h.id = r.artifact_id AND h.current_revision_id = r.id \
+             JOIN persisted_artifacts pa ON pa.id = h.id AND pa.source_entry_id = h.source_id \
+               AND pa.artifact_kind = 'reflection' \
+             WHERE r.id = ? AND r.artifact_id = ? AND r.source_id = ?",
+        )
+        .bind(&current.revision_id)
+        .bind(&current.artifact_id)
+        .bind(&current.source_id)
+        .fetch_optional(&mut *connection)
+        .await
+        .map_err(|error| migration_error("reflection_legacy_metadata_unreadable", error))?;
+    let (reason, predecessor, digest, raw, projection, eligibility_reason) =
+        metadata.ok_or_else(|| recovery_error("reflection_legacy_metadata_missing"))?;
+    if reason != "legacy_v4_baseline"
+        || predecessor.is_some()
+        || digest != sha256_hex(raw.as_bytes())
+        || raw.as_bytes() != projection.as_bytes()
+    {
+        return Err(recovery_error("reflection_legacy_authority_mismatch"));
+    }
+    let object = current
+        .payload
+        .as_object()
+        .ok_or_else(|| write_error("reflection_legacy_payload_not_object"))?;
+    let allowed = [
+        "id",
+        "sourceEntryId",
+        "sourceEvidenceIds",
+        "question",
+        "status",
+        "response",
+        "promptProvenance",
+        "provenance",
+        "responseProvenance",
+        "createdAt",
+        "updatedAt",
+    ];
+    let required = [
+        "id",
+        "sourceEntryId",
+        "sourceEvidenceIds",
+        "question",
+        "status",
+        "createdAt",
+        "updatedAt",
+    ];
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(write_error("reflection_legacy_payload_unknown_field"));
+    }
+    if required.iter().any(|key| !object.contains_key(*key)) {
+        return Err(write_error("reflection_legacy_payload_field_missing"));
+    }
+    if object.get("id").and_then(Value::as_str) != Some(&current.artifact_id)
+        || object.get("sourceEntryId").and_then(Value::as_str) != Some(&current.source_id)
+        || object.get("status").and_then(Value::as_str) != Some(expected_status)
+    {
+        return Err(write_error("reflection_legacy_identity_or_state_mismatch"));
+    }
+    let question = object
+        .get("question")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("reflection_legacy_question_missing"))?;
+    validate_text(question, "legacy_question")?;
+    let created_at = object
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("reflection_legacy_created_at_missing"))?;
+    let updated_at = object
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("reflection_legacy_updated_at_missing"))?;
+    validate_timestamp(created_at, "legacy_created_at")?;
+    validate_timestamp(updated_at, "legacy_updated_at")?;
+    if created_at != current.created_at || updated_at != current.projection_updated_at {
+        return Err(recovery_error("reflection_legacy_timestamp_mismatch"));
+    }
+
+    let raw_ids = object
+        .get("sourceEvidenceIds")
+        .and_then(Value::as_array)
+        .ok_or_else(|| write_error("reflection_legacy_evidence_sources_missing"))?;
+    let parsed_ids = raw_ids
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .ok_or_else(|| write_error("reflection_legacy_evidence_source_malformed"))
+                .and_then(|value| {
+                    validate_identifier(value, "legacy_evidence_id")?;
+                    Ok(value.to_string())
+                })
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let expected_ids = expected_evidence
+        .iter()
+        .map(|value| value.artifact_id.clone())
+        .collect::<BTreeSet<_>>();
+    if parsed_ids.len() != raw_ids.len() || parsed_ids != expected_ids {
+        return Err(write_error("reflection_legacy_evidence_sources_mismatch"));
+    }
+
+    let source_edges: Vec<String> = sqlx::query_scalar(
+        "SELECT source_revision_id FROM artifact_dependencies \
+         WHERE dependent_artifact_id = ? AND dependent_revision_id = ? \
+           AND relationship_type = 'derived_from_experience' \
+           AND source_artifact_id IS NULL AND source_artifact_revision_id IS NULL",
+    )
+    .bind(&current.artifact_id)
+    .bind(&current.revision_id)
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_legacy_source_dependency_unreadable", error))?;
+    if source_edges != [expected_source_revision_id.to_string()] {
+        return Err(recovery_error(
+            "reflection_legacy_source_dependency_mismatch",
+        ));
+    }
+
+    let prompt_raw = object
+        .get("promptProvenance")
+        .or_else(|| object.get("provenance"));
+    validate_legacy_provenance(
+        prompt_raw,
+        &current.prompt_provenance,
+        &current.source_id,
+        &expected_ids,
+        "prompt",
+    )?;
+    let prompt_origin = current
+        .prompt_provenance
+        .get("origin")
+        .and_then(Value::as_str)
+        .ok_or_else(|| recovery_error("reflection_legacy_prompt_origin_missing"))?;
+    if !matches!(prompt_origin, "ai" | "local_mock" | "legacy_unknown") {
+        return Err(write_error("reflection_legacy_prompt_origin_unsupported"));
+    }
+
+    match expected_status {
+        "suggested" => {
+            if current.review_state != "pending"
+                || current.eligibility_state != "ineligible"
+                || eligibility_reason != "legacy_v4_pending"
+                || object.get("response").is_some_and(|value| !value.is_null())
+                || object.get("responseProvenance").is_some()
+                || current.response_provenance.is_some()
+                || !matches!(
+                    current.authorship.as_str(),
+                    "ai" | "local_mock" | "legacy_unknown"
+                )
+            {
+                return Err(write_error("reflection_legacy_suggested_contract_mismatch"));
+            }
+        }
+        "answered" => {
+            validate_text(
+                object
+                    .get("response")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| write_error("reflection_legacy_response_missing"))?,
+                "legacy_response",
+            )?;
+            if current.review_state != "not_applicable"
+                || !matches!(
+                    (
+                        current.eligibility_state.as_str(),
+                        eligibility_reason.as_str()
+                    ),
+                    ("eligible", "legacy_v4_user_response")
+                        | ("ineligible", "legacy_v4_response_authorship_unknown")
+                )
+                || !matches!(current.authorship.as_str(), "mixed" | "legacy_unknown")
+            {
+                return Err(write_error("reflection_legacy_answered_contract_mismatch"));
+            }
+            if let Some(normalized) = current.response_provenance.as_ref() {
+                let response_ids = BTreeSet::from([current.artifact_id.clone()]);
+                validate_legacy_provenance(
+                    object.get("responseProvenance"),
+                    normalized,
+                    &current.source_id,
+                    &response_ids,
+                    "response",
+                )?;
+                if normalized.get("origin").and_then(Value::as_str) != Some("user") {
+                    return Err(write_error("reflection_legacy_response_origin_unsupported"));
+                }
+            } else if object.get("responseProvenance").is_some() {
+                return Err(recovery_error(
+                    "reflection_legacy_response_provenance_mismatch",
+                ));
+            }
+        }
+        _ => return Err(write_error("reflection_legacy_status_unsupported")),
+    }
+
+    let lifecycle_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM artifact_lifecycle_events WHERE artifact_id = ? \
+           AND subject_revision_id = ? AND event_type = 'baseline_imported' \
+           AND actor = 'legacy_import' AND reason_code = 'legacy_v4_baseline'",
+    )
+    .bind(&current.artifact_id)
+    .bind(&current.revision_id)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(|error| migration_error("reflection_legacy_lifecycle_unreadable", error))?;
+    if lifecycle_count != 1 {
+        return Err(recovery_error("reflection_legacy_lifecycle_mismatch"));
+    }
+    Ok(LegacyReflectionContract {
+        prompt_revision_id: current.revision_id.clone(),
+    })
+}
+
 async fn collect_dependent_closure(
     connection: &mut SqliteConnection,
     current: &CurrentReflection,
@@ -965,7 +1296,10 @@ async fn collect_dependent_closure(
                 lifecycle_state: row.get(8),
                 eligibility_state: row.get(9),
             };
-            match (edge.lifecycle_state.as_str(), edge.eligibility_state.as_str()) {
+            match (
+                edge.lifecycle_state.as_str(),
+                edge.eligibility_state.as_str(),
+            ) {
                 ("active", _) if source_artifact_revision_id == current.revision_id => {}
                 ("invalidated", "ineligible") => {}
                 _ => {
@@ -992,14 +1326,8 @@ async fn collect_dependent_closure(
                     "reflection_lifecycle_pattern_inbound_unsupported",
                 ));
             }
-            if closure
-                .pattern_edges
-                .insert(dependency_id, edge)
-                .is_some()
-            {
-                return Err(write_error(
-                    "reflection_lifecycle_dependency_id_duplicate",
-                ));
+            if closure.pattern_edges.insert(dependency_id, edge).is_some() {
+                return Err(write_error("reflection_lifecycle_dependency_id_duplicate"));
             }
             continue;
         }
@@ -1110,7 +1438,10 @@ async fn append_pattern_invalidation_event(
     .fetch_one(&mut *connection)
     .await
     .map_err(|error| {
-        migration_error("reflection_lifecycle_pattern_invalidation_unreadable", error)
+        migration_error(
+            "reflection_lifecycle_pattern_invalidation_unreadable",
+            error,
+        )
     })?;
     if existing == 1 {
         return Ok(());
@@ -1138,9 +1469,7 @@ async fn append_pattern_invalidation_event(
     .bind(occurred_at)
     .execute(&mut *connection)
     .await
-    .map_err(|error| {
-        migration_error("reflection_lifecycle_pattern_invalidation_failed", error)
-    })?;
+    .map_err(|error| migration_error("reflection_lifecycle_pattern_invalidation_failed", error))?;
     Ok(())
 }
 
@@ -1152,12 +1481,13 @@ async fn invalidate_pattern_dependents(
     let mut affected = BTreeSet::new();
     for edge in closure.pattern_edges.values() {
         append_pattern_invalidation_event(connection, edge, context.occurred_at).await?;
-        match (edge.lifecycle_state.as_str(), edge.eligibility_state.as_str()) {
+        match (
+            edge.lifecycle_state.as_str(),
+            edge.eligibility_state.as_str(),
+        ) {
             ("active", _) => {
                 if edge.current_revision_id.as_deref() != Some(edge.revision_id.as_str()) {
-                    return Err(write_error(
-                        "reflection_lifecycle_pattern_revision_stale",
-                    ));
+                    return Err(write_error("reflection_lifecycle_pattern_revision_stale"));
                 }
                 let updated = sqlx::query(
                     "UPDATE artifact_heads SET lifecycle_state = 'invalidated', \
@@ -1175,9 +1505,7 @@ async fn invalidate_pattern_dependents(
                     migration_error("reflection_lifecycle_pattern_head_update_failed", error)
                 })?;
                 if updated.rows_affected() != 1 {
-                    return Err(write_error(
-                        "reflection_lifecycle_pattern_revision_stale",
-                    ));
+                    return Err(write_error("reflection_lifecycle_pattern_revision_stale"));
                 }
                 let deleted = sqlx::query(
                     "DELETE FROM persisted_artifacts WHERE id = ? \
@@ -1207,10 +1535,7 @@ async fn invalidate_pattern_dependents(
                 .fetch_one(&mut *connection)
                 .await
                 .map_err(|error| {
-                    migration_error(
-                        "reflection_lifecycle_pattern_projection_unreadable",
-                        error,
-                    )
+                    migration_error("reflection_lifecycle_pattern_projection_unreadable", error)
                 })?;
                 if projection != 0 {
                     return Err(recovery_error(
@@ -1288,7 +1613,10 @@ async fn cascade_historical_questions(
         .fetch_one(&mut *connection)
         .await
         .map_err(|error| {
-            migration_error("reflection_lifecycle_historical_delete_reconcile_failed", error)
+            migration_error(
+                "reflection_lifecycle_historical_delete_reconcile_failed",
+                error,
+            )
         })?;
         if remaining != (0, 0, 0, 0, 0, 0) {
             return Err(recovery_error(
@@ -1296,10 +1624,7 @@ async fn cascade_historical_questions(
             ));
         }
     }
-    inject(
-        context,
-        ReflectionWriteFailurePoint::AfterHistoricalCascade,
-    )?;
+    inject(context, ReflectionWriteFailurePoint::AfterHistoricalCascade)?;
     Ok(closure.historical_ids.iter().cloned().collect())
 }
 
@@ -1318,9 +1643,7 @@ async fn verify_historical_link_integrity(
     )
     .fetch_one(&mut *connection)
     .await
-    .map_err(|error| {
-        migration_error("reflection_lifecycle_historical_links_unreadable", error)
-    })?;
+    .map_err(|error| migration_error("reflection_lifecycle_historical_links_unreadable", error))?;
     if counts.0 != counts.1 || counts.1 != counts.2 || counts.2 != counts.3 {
         return Err(recovery_error(
             "reflection_lifecycle_historical_links_inconsistent",
@@ -1470,8 +1793,14 @@ async fn save_response(
     if current.review_state != "pending"
         || current.lifecycle_state != "active"
         || current.eligibility_state != "ineligible"
-        || current.serialization_version != "canonical-json-v1"
-        || !matches!(current.authorship.as_str(), "ai" | "local_mock")
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "legacy_unknown"
+        )
         || current
             .payload
             .get("response")
@@ -1481,6 +1810,25 @@ async fn save_response(
         return Err(write_error("reflection_first_response_not_allowed"));
     }
     let evidence = ensure_expected_evidence(connection, &current, expected_evidence).await?;
+    let prompt_revision = if current.serialization_version == "legacy-v4-raw" {
+        let closure = collect_dependent_closure(connection, &current).await?;
+        if !closure.pattern_edges.is_empty() || !closure.historical_ids.is_empty() {
+            return Err(write_error(
+                "reflection_legacy_suggested_inbound_dependency_unsupported",
+            ));
+        }
+        validate_legacy_reflection(
+            connection,
+            &current,
+            expected_source_revision_id,
+            &evidence,
+            "suggested",
+        )
+        .await?
+        .prompt_revision_id
+    } else {
+        validate_prompt_lineage(connection, &current).await?
+    };
     let question = current
         .payload
         .get("question")
@@ -1513,7 +1861,7 @@ async fn save_response(
         source_id,
         &revision_id,
         current.revision_number + 1,
-        Some(&current.revision_id),
+        Some(&prompt_revision),
         "mixed",
         "answered",
         &payload,
@@ -1544,7 +1892,7 @@ async fn save_response(
         source_id,
         expected_source_revision_id,
         &evidence,
-        Some(&current.revision_id),
+        Some(&prompt_revision),
         context.occurred_at,
     )
     .await?;
@@ -1623,12 +1971,19 @@ async fn correct_response(
         expected_artifact_revision_id,
     )
     .await?;
+    let canonical_allowed = current.serialization_version == "canonical-json-v1"
+        && current.eligibility_state == "eligible"
+        && current.authorship == "mixed"
+        && current.response_provenance.is_some();
+    let legacy_allowed = current.serialization_version == "legacy-v4-raw"
+        && matches!(
+            current.eligibility_state.as_str(),
+            "eligible" | "ineligible"
+        )
+        && matches!(current.authorship.as_str(), "mixed" | "legacy_unknown");
     if current.review_state != "not_applicable"
         || current.lifecycle_state != "active"
-        || current.eligibility_state != "eligible"
-        || current.serialization_version != "canonical-json-v1"
-        || current.authorship != "mixed"
-        || current.response_provenance.is_none()
+        || !(canonical_allowed || legacy_allowed)
     {
         return Err(write_error("reflection_response_correction_not_allowed"));
     }
@@ -1651,7 +2006,19 @@ async fn correct_response(
         .get("createdAt")
         .and_then(Value::as_str)
         .ok_or_else(|| write_error("reflection_created_at_missing"))?;
-    let prompt_revision = validate_prompt_lineage(connection, &current).await?;
+    let prompt_revision = if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_reflection(
+            connection,
+            &current,
+            expected_source_revision_id,
+            &evidence,
+            "answered",
+        )
+        .await?
+        .prompt_revision_id
+    } else {
+        validate_prompt_lineage(connection, &current).await?
+    };
     let closure = collect_dependent_closure(connection, &current).await?;
     let content = content_value(
         artifact_id,
@@ -1736,8 +2103,7 @@ async fn correct_response(
     )
     .await?;
     inject(context, ReflectionWriteFailurePoint::AfterLifecycle)?;
-    let invalidated_patterns =
-        invalidate_pattern_dependents(connection, &closure, context).await?;
+    let invalidated_patterns = invalidate_pattern_dependents(connection, &closure, context).await?;
     let deleted_historical = cascade_historical_questions(connection, &closure, context).await?;
     let updated = sqlx::query(
         "UPDATE artifact_heads SET current_revision_id = ?, review_state = 'not_applicable', \
@@ -1829,13 +2195,12 @@ async fn delete_answered(
     .fetch_all(&mut *connection)
     .await
     .map_err(|error| migration_error("reflection_deletion_content_scan_failed", error))?;
-    let revision_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?",
-    )
-    .bind(artifact_id)
-    .fetch_one(&mut *connection)
-    .await
-    .map_err(|error| migration_error("reflection_deletion_revision_count_failed", error))?;
+    let revision_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = ?")
+            .bind(artifact_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_deletion_revision_count_failed", error))?;
     if content_revisions.is_empty() || content_revisions.len() as i64 != revision_count {
         return Err(recovery_error("reflection_deletion_content_incomplete"));
     }
@@ -1868,8 +2233,7 @@ async fn delete_answered(
     }
     inject(context, ReflectionWriteFailurePoint::AfterLifecycle)?;
 
-    let invalidated_patterns =
-        invalidate_pattern_dependents(connection, &closure, context).await?;
+    let invalidated_patterns = invalidate_pattern_dependents(connection, &closure, context).await?;
     let deleted_historical = cascade_historical_questions(connection, &closure, context).await?;
 
     let updated = sqlx::query(
@@ -1923,9 +2287,7 @@ async fn delete_answered(
     .await
     .map_err(|error| migration_error("reflection_content_purge_failed", error))?;
     if purged.rows_affected() != content_revisions.len() as u64 {
-        return Err(recovery_error(
-            "reflection_content_purge_identity_mismatch",
-        ));
+        return Err(recovery_error("reflection_content_purge_identity_mismatch"));
     }
     inject(context, ReflectionWriteFailurePoint::AfterPurge)?;
 
@@ -1971,13 +2333,35 @@ async fn skip_suggested(
     if current.review_state != "pending"
         || current.lifecycle_state != "active"
         || current.eligibility_state != "ineligible"
-        || current.serialization_version != "canonical-json-v1"
-        || !matches!(current.authorship.as_str(), "ai" | "local_mock")
+        || !matches!(
+            current.serialization_version.as_str(),
+            "canonical-json-v1" | "legacy-v4-raw"
+        )
+        || !matches!(
+            current.authorship.as_str(),
+            "ai" | "local_mock" | "legacy_unknown"
+        )
         || current.response_provenance.is_some()
     {
         return Err(write_error("reflection_skip_not_allowed"));
     }
-    ensure_expected_evidence(connection, &current, expected_evidence).await?;
+    let evidence = ensure_expected_evidence(connection, &current, expected_evidence).await?;
+    if current.serialization_version == "legacy-v4-raw" {
+        let closure = collect_dependent_closure(connection, &current).await?;
+        if !closure.pattern_edges.is_empty() || !closure.historical_ids.is_empty() {
+            return Err(write_error(
+                "reflection_legacy_suggested_inbound_dependency_unsupported",
+            ));
+        }
+        validate_legacy_reflection(
+            connection,
+            &current,
+            expected_source_revision_id,
+            &evidence,
+            "suggested",
+        )
+        .await?;
+    }
     insert_skip_event(
         connection,
         artifact_id,
@@ -2004,13 +2388,17 @@ async fn skip_suggested(
         return Err(write_error("reflection_artifact_revision_stale"));
     }
     inject(context, ReflectionWriteFailurePoint::AfterHead)?;
-    let projection = v4_projection_value(
-        &current.payload,
-        "skipped",
-        context.occurred_at,
-        &current.prompt_provenance,
-        None,
-    )?;
+    let projection = if current.serialization_version == "legacy-v4-raw" {
+        legacy_terminal_projection(&current.payload, "skipped", context.occurred_at)?
+    } else {
+        v4_projection_value(
+            &current.payload,
+            "skipped",
+            context.occurred_at,
+            &current.prompt_provenance,
+            None,
+        )?
+    };
     write_projection(
         connection,
         artifact_id,
@@ -2044,20 +2432,18 @@ async fn apply_command(
             expected_artifact_revision_id,
             expected_evidence,
             response,
-        } => {
-            save_response(
-                connection,
-                &source_id,
-                &artifact_id,
-                &expected_source_revision_id,
-                &expected_artifact_revision_id,
-                &expected_evidence,
-                &response,
-                context,
-            )
-            .await
-            .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new()))
-        }
+        } => save_response(
+            connection,
+            &source_id,
+            &artifact_id,
+            &expected_source_revision_id,
+            &expected_artifact_revision_id,
+            &expected_evidence,
+            &response,
+            context,
+        )
+        .await
+        .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new())),
         ReflectionWriteCommand::CorrectResponse {
             source_id,
             artifact_id,
@@ -2102,19 +2488,17 @@ async fn apply_command(
             expected_source_revision_id,
             expected_artifact_revision_id,
             expected_evidence,
-        } => {
-            skip_suggested(
-                connection,
-                &source_id,
-                &artifact_id,
-                &expected_source_revision_id,
-                &expected_artifact_revision_id,
-                &expected_evidence,
-                context,
-            )
-            .await
-            .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new()))
-        }
+        } => skip_suggested(
+            connection,
+            &source_id,
+            &artifact_id,
+            &expected_source_revision_id,
+            &expected_artifact_revision_id,
+            &expected_evidence,
+            context,
+        )
+        .await
+        .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new())),
     }
 }
 
@@ -2247,35 +2631,30 @@ async fn verify_reflection_projection(
             .fetch_one(&mut *connection)
             .await
             .map_err(|error| migration_error("reflection_invalidated_facts_unreadable", error))?;
-            let eligibility_reason: String = sqlx::query_scalar(
-                "SELECT eligibility_reason FROM artifact_heads WHERE id = ?",
-            )
-            .bind(&artifact_id)
-            .fetch_one(&mut *connection)
-            .await
-            .map_err(|error| {
-                migration_error("reflection_invalidated_reason_unreadable", error)
-            })?;
-            let source_invalidated = if eligibility_reason
-                == "source_experience_revision_superseded"
-            {
-                super::experience_write::verify_source_caused_invalidation(
-                    connection,
-                    &artifact_id,
-                    &revision_id,
-                    &source_id,
-                    &head.get::<String, _>(7),
-                )
-                .await?
-            } else {
-                false
-            };
-            let evidence_invalidated = eligibility_reason == "exact_dependency_invalidated"
-                && facts.2 > 0;
-            if facts.0 != 0
-                || facts.1 == 0
-                || source_invalidated == evidence_invalidated
-            {
+            let eligibility_reason: String =
+                sqlx::query_scalar("SELECT eligibility_reason FROM artifact_heads WHERE id = ?")
+                    .bind(&artifact_id)
+                    .fetch_one(&mut *connection)
+                    .await
+                    .map_err(|error| {
+                        migration_error("reflection_invalidated_reason_unreadable", error)
+                    })?;
+            let source_invalidated =
+                if eligibility_reason == "source_experience_revision_superseded" {
+                    super::experience_write::verify_source_caused_invalidation(
+                        connection,
+                        &artifact_id,
+                        &revision_id,
+                        &source_id,
+                        &head.get::<String, _>(7),
+                    )
+                    .await?
+                } else {
+                    false
+                };
+            let evidence_invalidated =
+                eligibility_reason == "exact_dependency_invalidated" && facts.2 > 0;
+            if facts.0 != 0 || facts.1 == 0 || source_invalidated == evidence_invalidated {
                 return Err(recovery_error("reflection_invalidated_facts_mismatch"));
             }
             continue;
@@ -2316,8 +2695,36 @@ async fn verify_reflection_projection(
             return Err(recovery_error("reflection_projection_timestamp_mismatch"));
         }
         if serialization == "legacy-v4-raw" {
-            if content.as_bytes() != projection.as_bytes() {
+            if content.as_bytes() == projection.as_bytes() {
+                continue;
+            }
+            if review_state != "skipped" || eligibility_state != "ineligible" {
                 return Err(recovery_error("reflection_legacy_projection_mismatch"));
+            }
+            let content_value: Value = serde_json::from_str(&content)
+                .map_err(|error| migration_error("reflection_legacy_content_malformed", error))?;
+            let projected_value: Value = serde_json::from_str(&projection).map_err(|error| {
+                migration_error("reflection_legacy_projection_malformed", error)
+            })?;
+            let expected =
+                legacy_terminal_projection(&content_value, "skipped", &head.get::<String, _>(7))?;
+            if projected_value != expected {
+                return Err(recovery_error("reflection_legacy_skip_projection_mismatch"));
+            }
+            let exact_skip: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM artifact_review_events WHERE artifact_id = ? \
+                   AND subject_revision_id = ? AND decision = 'skipped' AND actor = 'user' \
+                   AND event_origin = 'explicit_user_action' AND occurred_at = ? \
+                   AND timestamp_quality = 'exact_action_time'",
+            )
+            .bind(&artifact_id)
+            .bind(&revision_id)
+            .bind(head.get::<String, _>(7))
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("reflection_legacy_skip_unreadable", error))?;
+            if exact_skip != 1 {
+                return Err(recovery_error("reflection_legacy_skip_event_mismatch"));
             }
             continue;
         }
@@ -2444,8 +2851,8 @@ async fn verify_reflection_projection(
                 if prompt_targets.len() != 1 {
                     return Err(recovery_error("reflection_answers_prompt_mismatch"));
                 }
-                let initial: Option<(String, String)> = sqlx::query_as(
-                    "SELECT c.payload, rp.provenance_id FROM artifact_revisions r \
+                let initial: Option<(String, String, String)> = sqlx::query_as(
+                    "SELECT c.payload, rp.provenance_id, r.serialization_version FROM artifact_revisions r \
                      JOIN artifact_revision_content c ON c.revision_id = r.id \
                      JOIN artifact_revision_provenance rp ON rp.artifact_revision_id = r.id \
                        AND rp.role = 'prompt' \
@@ -2458,7 +2865,7 @@ async fn verify_reflection_projection(
                 .map_err(|error| {
                     migration_error("reflection_initial_prompt_verification_failed", error)
                 })?;
-                let (initial_payload, initial_provenance_id) =
+                let (initial_payload, initial_provenance_id, initial_serialization) =
                     initial.ok_or_else(|| recovery_error("reflection_initial_prompt_missing"))?;
                 let initial_payload: Value =
                     serde_json::from_str(&initial_payload).map_err(|error| {
@@ -2487,9 +2894,10 @@ async fn verify_reflection_projection(
                         )));
                     }
                 }
-                if initial_payload
-                    .get("response")
-                    .is_some_and(|value| !value.is_null())
+                if (initial_serialization != "legacy-v4-raw"
+                    && initial_payload
+                        .get("response")
+                        .is_some_and(|value| !value.is_null()))
                     || initial_provenance_id != current_prompt_provenance_id
                 {
                     return Err(recovery_error("reflection_prompt_lineage_mismatch"));
@@ -2681,6 +3089,7 @@ mod tests {
     const EVIDENCE_ID: &str = "fixture-v4-evidence";
     const STARTED_AT: &str = "2026-07-31T01:00:00.000Z";
     const COMMITTED_AT: &str = "2026-07-31T01:00:01.000Z";
+    type TestDependencyRow = (String, Option<String>, Option<String>, Option<String>);
 
     async fn exact_v5_fixture() -> (TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();
@@ -2706,6 +3115,107 @@ mod tests {
         .await
         .unwrap();
         (directory, path)
+    }
+
+    fn legacy_reflection_payload(id: &str, status: &str, extra_field: bool) -> String {
+        let answered = status == "answered";
+        let mut payload = json!({
+            "createdAt": "2026-01-01T00:00:03.000Z",
+            "id": id,
+            "promptProvenance": {
+                "generatedAt": "2026-01-01T00:00:03.000Z",
+                "harnessVersion": "harness-v1",
+                "model": null,
+                "origin": "local_mock",
+                "promptVersion": "reflection-v1",
+                "provider": "mock",
+                "sourceArtifactIds": [EVIDENCE_ID],
+                "sourceEntryId": SOURCE_ID
+            },
+            "question": "What stayed with you?",
+            "sourceEntryId": SOURCE_ID,
+            "sourceEvidenceIds": [EVIDENCE_ID],
+            "status": status,
+            "updatedAt": if answered {
+                "2026-01-01T00:00:04.000Z"
+            } else {
+                "2026-01-01T00:00:03.000Z"
+            }
+        });
+        if answered {
+            payload["response"] = Value::String("Legacy user response.".into());
+            payload["responseProvenance"] = json!({
+                "generatedAt": "2026-01-01T00:00:04.000Z",
+                "origin": "user",
+                "sourceArtifactIds": [id],
+                "sourceEntryId": SOURCE_ID
+            });
+        }
+        if extra_field {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("futureField".into(), Value::String("unsupported".into()));
+        }
+        serde_json::to_string_pretty(&payload).unwrap()
+    }
+
+    async fn exact_v5_legacy_reflection_fixture(
+        id: &str,
+        status: &str,
+        extra_field: bool,
+    ) -> (TempDir, std::path::PathBuf, String) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("life-os.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        raw_sql(V4_FIXTURE).execute(&mut connection).await.unwrap();
+        let raw = legacy_reflection_payload(id, status, extra_field);
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES (?, ?, 'reflection', ?, '2026-01-01T00:00:03.000Z', ?)",
+        )
+        .bind(id)
+        .bind(SOURCE_ID)
+        .bind(&raw)
+        .bind(if status == "answered" {
+            "2026-01-01T00:00:04.000Z"
+        } else {
+            "2026-01-01T00:00:03.000Z"
+        })
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let expected_source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+            .await
+            .unwrap();
+        drop(connection);
+        migrate_disposable_v4(MigrationRequest {
+            path: &path,
+            expected_source_manifest_digest,
+            started_at: STARTED_AT,
+            committed_at: COMMITTED_AT,
+            backup_id: Some("slice4c6b-reflection-fixture-backup"),
+            failure_point: FailurePoint::None,
+        })
+        .await
+        .unwrap();
+        let mut read_only = connect(&path, true).await.unwrap();
+        verify_exact_reflection_v5(&mut read_only).await.unwrap();
+        (directory, path, raw)
+    }
+
+    async fn artifact_revision(path: &Path, id: &str) -> String {
+        let mut connection = connect(path, true).await.unwrap();
+        sqlx::query_scalar("SELECT current_revision_id FROM artifact_heads WHERE id=?")
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
     }
 
     async fn source_revision(path: &Path) -> String {
@@ -2873,14 +3383,14 @@ mod tests {
             .execute(&mut connection)
             .await
             .unwrap();
-        sqlx::query(
-            "INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)",
-        )
-        .bind(format!("guard-pattern-fixture-{pattern_id}-0000000000000001"))
-        .bind(created_at)
-        .execute(&mut connection)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)")
+            .bind(format!(
+                "guard-pattern-fixture-{pattern_id}-0000000000000001"
+            ))
+            .bind(created_at)
+            .execute(&mut connection)
+            .await
+            .unwrap();
         let provenance_id = insert_provenance(&mut connection, &provenance, created_at)
             .await
             .unwrap();
@@ -3584,7 +4094,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(reflection.0, corrected.revision_id);
-        assert_eq!((reflection.1.as_str(), reflection.2.as_str()), ("active", "eligible"));
+        assert_eq!(
+            (reflection.1.as_str(), reflection.2.as_str()),
+            ("active", "eligible")
+        );
         assert!(reflection.3.contains("My corrected response remains mine."));
         let old_content: String = sqlx::query_scalar(
             "SELECT payload FROM artifact_revision_content WHERE revision_id = ?",
@@ -3695,9 +4208,8 @@ mod tests {
             vec!["fixture-v4-question"]
         );
         let mut connection = connect(&path, true).await.unwrap();
-        let facts: (Option<String>, String, String, i64, i64, i64, i64, i64) =
-            sqlx::query_as(
-                "SELECT h.current_revision_id, h.lifecycle_state, h.eligibility_state, \
+        let facts: (Option<String>, String, String, i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT h.current_revision_id, h.lifecycle_state, h.eligibility_state, \
                    (SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id = h.id), \
                    (SELECT COUNT(*) FROM artifact_revision_content c JOIN artifact_revisions r \
                       ON r.id=c.revision_id WHERE r.artifact_id=h.id), \
@@ -3708,13 +4220,16 @@ mod tests {
                       AND content_digest IS NULL AND reason_code='user_deleted_artifact'), \
                    (SELECT COUNT(*) FROM persisted_artifacts WHERE id=h.id) \
                  FROM artifact_heads h WHERE h.id = ?",
-            )
-            .bind(id)
-            .fetch_one(&mut connection)
-            .await
-            .unwrap();
+        )
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
         assert_eq!(facts.0, None);
-        assert_eq!((facts.1.as_str(), facts.2.as_str()), ("deleted", "ineligible"));
+        assert_eq!(
+            (facts.1.as_str(), facts.2.as_str()),
+            ("deleted", "ineligible")
+        );
         assert_eq!((facts.3, facts.4, facts.6, facts.7), (3, 0, 1, 0));
         assert!(facts.5 >= 5);
         let reusable_text: i64 = sqlx::query_scalar(
@@ -4089,6 +4604,319 @@ mod tests {
         assert_eq!(state, ("pending".into(), created.revision_id, 0));
     }
 
+    #[tokio::test]
+    async fn migrated_legacy_suggested_reflection_answer_appends_canonical_mixed_successor() {
+        let id = "legacy-reflection-answer";
+        let (_directory, path, raw) =
+            exact_v5_legacy_reflection_fixture(id, "suggested", false).await;
+        let predecessor = artifact_revision(&path, id).await;
+        let predecessor_digest: String = {
+            let mut connection = connect(&path, true).await.unwrap();
+            sqlx::query_scalar("SELECT content_digest FROM artifact_revisions WHERE id=?")
+                .bind(&predecessor)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+        };
+        let source = source_revision(&path).await;
+        let evidence = evidence_ref(&path).await;
+        let outcome = execute_disposable(
+            &path,
+            ReflectionWriteCommand::SaveResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source.clone(),
+                expected_artifact_revision_id: predecessor.clone(),
+                expected_evidence: vec![evidence.clone()],
+                response: "A newly saved user response.".into(),
+            },
+            context(
+                "2026-08-09T02:00:00.000Z",
+                "guard-legacy-reflection-answer-000001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        let predecessor_after: (String, String, String) = sqlx::query_as(
+            "SELECT c.payload, r.content_digest, r.serialization_version \
+             FROM artifact_revisions r JOIN artifact_revision_content c ON c.revision_id=r.id \
+             WHERE r.id=?",
+        )
+        .bind(&predecessor)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            predecessor_after,
+            (raw, predecessor_digest, "legacy-v4-raw".into())
+        );
+        let successor: (i64, Option<String>, String, String, String, String) = sqlx::query_as(
+            "SELECT r.revision_number, r.predecessor_revision_id, r.authorship, \
+                    r.serialization_version, h.review_state, h.eligibility_state \
+             FROM artifact_revisions r JOIN artifact_heads h ON h.current_revision_id=r.id \
+             WHERE r.id=? AND h.id=?",
+        )
+        .bind(&outcome.revision_id)
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            successor,
+            (
+                2,
+                Some(predecessor.clone()),
+                "mixed".into(),
+                "canonical-json-v1".into(),
+                "not_applicable".into(),
+                "eligible".into(),
+            )
+        );
+        let dependencies: Vec<TestDependencyRow> = sqlx::query_as(
+            "SELECT relationship_type, source_revision_id, source_artifact_id, \
+                        source_artifact_revision_id FROM artifact_dependencies \
+                 WHERE dependent_artifact_id=? AND dependent_revision_id=? \
+                 ORDER BY relationship_type",
+        )
+        .bind(id)
+        .bind(&outcome.revision_id)
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert!(dependencies.iter().any(|edge| {
+            edge.0 == "derived_from_experience" && edge.1.as_deref() == Some(source.as_str())
+        }));
+        assert!(dependencies.iter().any(|edge| {
+            edge.0 == "uses_evidence"
+                && edge.2.as_deref() == Some(EVIDENCE_ID)
+                && edge.3.as_deref() == Some(evidence.revision_id.as_str())
+        }));
+        assert!(dependencies.iter().any(|edge| {
+            edge.0 == "answers_prompt"
+                && edge.2.as_deref() == Some(id)
+                && edge.3.as_deref() == Some(predecessor.as_str())
+        }));
+        let content: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&outcome.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(content["response"], "A newly saved user response.");
+        let origins: Vec<String> = sqlx::query_scalar(
+            "SELECT json_extract(p.canonical_payload, '$.origin') \
+             FROM artifact_revision_provenance rp JOIN provenance_records p ON p.id=rp.provenance_id \
+             WHERE rp.artifact_revision_id=? ORDER BY rp.role",
+        )
+        .bind(&outcome.revision_id)
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(origins, vec!["local_mock".to_string(), "user".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_suggested_reflection_skip_preserves_prompt_revision_and_adds_no_response(
+    ) {
+        let id = "legacy-reflection-skip";
+        let (_directory, path, raw) =
+            exact_v5_legacy_reflection_fixture(id, "suggested", false).await;
+        let predecessor = artifact_revision(&path, id).await;
+        let source = source_revision(&path).await;
+        let evidence = evidence_ref(&path).await;
+        let outcome = execute_disposable(
+            &path,
+            ReflectionWriteCommand::SkipSuggested {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: predecessor.clone(),
+                expected_evidence: vec![evidence],
+            },
+            context(
+                "2026-08-09T02:01:00.000Z",
+                "guard-legacy-reflection-skip-0000001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(outcome.revision_id, predecessor);
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&outcome.revision_id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            raw
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id=?",
+            )
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            1
+        );
+        let projection: Value = serde_json::from_str(
+            &sqlx::query_scalar::<_, String>("SELECT payload FROM persisted_artifacts WHERE id=?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(projection["status"], "skipped");
+        assert!(projection.get("response").is_none());
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_answered_reflection_correction_preserves_prompt_and_appends_user_response(
+    ) {
+        let id = "legacy-reflection-correct";
+        let (_directory, path, raw) =
+            exact_v5_legacy_reflection_fixture(id, "answered", false).await;
+        let predecessor = artifact_revision(&path, id).await;
+        let source = source_revision(&path).await;
+        let evidence = evidence_ref(&path).await;
+        let outcome = execute_disposable(
+            &path,
+            ReflectionWriteCommand::CorrectResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source,
+                expected_artifact_revision_id: predecessor.clone(),
+                expected_evidence: vec![evidence],
+                response: "A corrected explicit user response.".into(),
+            },
+            context(
+                "2026-08-09T02:02:00.000Z",
+                "guard-legacy-reflection-correct-00001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&predecessor)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            raw
+        );
+        let successor: (String, String, String, String) = sqlx::query_as(
+            "SELECT r.authorship, r.revision_reason, r.serialization_version, h.eligibility_state \
+             FROM artifact_revisions r JOIN artifact_heads h ON h.current_revision_id=r.id \
+             WHERE r.id=?",
+        )
+        .bind(&outcome.revision_id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(
+            successor,
+            (
+                "mixed".into(),
+                "corrected".into(),
+                "canonical-json-v1".into(),
+                "eligible".into(),
+            )
+        );
+        let prompt_target: String = sqlx::query_scalar(
+            "SELECT source_artifact_revision_id FROM artifact_dependencies \
+             WHERE dependent_artifact_id=? AND dependent_revision_id=? \
+               AND relationship_type='answers_prompt'",
+        )
+        .bind(id)
+        .bind(&outcome.revision_id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(prompt_target, predecessor);
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_reflection_unknown_shape_and_stale_source_fail_closed_without_mutation(
+    ) {
+        let id = "legacy-reflection-malformed";
+        let (_directory, path, _) = exact_v5_legacy_reflection_fixture(id, "suggested", true).await;
+        let revision = artifact_revision(&path, id).await;
+        let evidence = evidence_ref(&path).await;
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &path,
+            ReflectionWriteCommand::SaveResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: revision,
+                expected_evidence: vec![evidence],
+                response: "Must not persist.".into(),
+            },
+            context(
+                "2026-08-09T02:03:00.000Z",
+                "guard-legacy-reflection-malformed-001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error
+            .code
+            .contains("reflection_legacy_payload_unknown_field"));
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        drop(connection);
+
+        let id = "legacy-reflection-stale";
+        let (_directory, path, _) =
+            exact_v5_legacy_reflection_fixture(id, "suggested", false).await;
+        let revision = artifact_revision(&path, id).await;
+        let evidence = evidence_ref(&path).await;
+        let before = {
+            let mut connection = connect(&path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        assert!(execute_disposable(
+            &path,
+            ReflectionWriteCommand::SaveResponse {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: "stale-source-revision".into(),
+                expected_artifact_revision_id: revision,
+                expected_evidence: vec![evidence],
+                response: "Must not persist.".into(),
+            },
+            context(
+                "2026-08-09T02:04:00.000Z",
+                "guard-legacy-reflection-stale-000001",
+                ReflectionWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .is_err());
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+    }
+
     #[derive(Clone, Copy)]
     enum InjectedCommit {
         DefinitelyNotCommitted,
@@ -4122,10 +4950,7 @@ mod tests {
                     }
                 }
                 InjectedCommit::UnknownAfterCommitWithThirdState => {
-                    raw_sql("COMMIT")
-                        .execute(&mut *connection)
-                        .await
-                        .unwrap();
+                    raw_sql("COMMIT").execute(&mut *connection).await.unwrap();
                     raw_sql("PRAGMA user_version = 6")
                         .execute(&mut *connection)
                         .await
@@ -4192,6 +5017,58 @@ mod tests {
             } else {
                 verify_exact_reflection_v5(&mut connection).await.unwrap();
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_reflection_answer_commit_classifies_pre_post_and_third_state() {
+        for (mode, expected) in [
+            (InjectedCommit::UnknownWithoutCommit, "pre"),
+            (InjectedCommit::UnknownAfterCommit, "post"),
+            (InjectedCommit::UnknownAfterCommitWithThirdState, "third"),
+        ] {
+            let id = format!("legacy-reflection-commit-{expected}");
+            let (_directory, path, _) =
+                exact_v5_legacy_reflection_fixture(&id, "suggested", false).await;
+            let adapter = InjectedCommitAdapter {
+                mode,
+                commits: Cell::new(0),
+                rollbacks: Cell::new(0),
+            };
+            let result = execute_with_adapter(
+                &path,
+                ReflectionWriteCommand::SaveResponse {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: artifact_revision(&path, &id).await,
+                    expected_evidence: vec![evidence_ref(&path).await],
+                    response: "Explicit user response under commit ambiguity.".into(),
+                },
+                context(
+                    "2026-08-09T02:05:00.000Z",
+                    "guard-legacy-reflection-commit-ambiguous-01",
+                    ReflectionWriteFailurePoint::None,
+                ),
+                &adapter,
+            )
+            .await;
+            match expected {
+                "pre" => assert!(result
+                    .unwrap_err()
+                    .code
+                    .contains("reflection_commit_outcome_unknown_unchanged")),
+                "post" => {
+                    result.unwrap();
+                }
+                "third" => {
+                    let error = result.unwrap_err();
+                    assert!(error.recovery_required);
+                    assert!(error.code.contains("reflection_commit_outcome_unknown"));
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(adapter.commits.get(), 1);
         }
     }
 
