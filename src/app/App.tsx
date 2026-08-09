@@ -109,6 +109,11 @@ import type {
   ReflectionPrompt,
 } from "../types/domain";
 import { HistoricalSavedDateRangeFilter } from "./HistoricalSavedDateRangeFilter";
+import {
+  inspectDatabaseReadiness,
+  type DatabaseReadinessResult,
+} from "../shared/storage/sqlite/databaseReadiness";
+import { DatabaseReadinessPanel } from "./DatabaseReadinessPanel";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -587,6 +592,30 @@ export function App() {
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  const [databaseReadinessOpen, setDatabaseReadinessOpen] = useState(false);
+  const [databaseReadinessResult, setDatabaseReadinessResult] =
+    useState<DatabaseReadinessResult | null>(null);
+  const [databaseReadinessChecking, setDatabaseReadinessChecking] = useState(false);
+  const databaseReadinessRequest = useRef(0);
+
+  const checkDatabaseReadiness = useCallback(async () => {
+    databaseReadinessRequest.current += 1;
+    const request = databaseReadinessRequest.current;
+    setDatabaseReadinessChecking(true);
+    setDatabaseReadinessResult(null);
+    const result = await inspectDatabaseReadiness();
+    if (request === databaseReadinessRequest.current) {
+      setDatabaseReadinessResult(result);
+      setDatabaseReadinessChecking(false);
+    }
+  }, []);
+
+  const closeDatabaseReadiness = useCallback(() => {
+    databaseReadinessRequest.current += 1;
+    setDatabaseReadinessOpen(false);
+    setDatabaseReadinessChecking(false);
+    setDatabaseReadinessResult(null);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1346,6 +1375,13 @@ export function App() {
             <p className="top-bar-title">{copy.motto}</p>
           </div>
           <div className="top-bar-controls">
+            <button
+              type="button"
+              className="ghost-button compact"
+              onClick={() => setDatabaseReadinessOpen(true)}
+            >
+              {copy.databaseReadinessOpen}
+            </button>
             <label className="language-switcher">
               <span>{copy.languageLabel}</span>
               <select
@@ -1367,6 +1403,16 @@ export function App() {
             </div>
           </div>
         </header>
+
+        {databaseReadinessOpen ? (
+          <DatabaseReadinessPanel
+            copy={copy}
+            result={databaseReadinessResult}
+            checking={databaseReadinessChecking}
+            onCheck={checkDatabaseReadiness}
+            onClose={closeDatabaseReadiness}
+          />
+        ) : null}
 
         <section className="welcome-card">
           <div className="welcome-copy">

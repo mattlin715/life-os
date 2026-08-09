@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 4.7
+version: 4.8
 owner: product-and-engineering
 last_updated: 2026/08/10
 depends:
@@ -1514,6 +1514,21 @@ substantially implemented and promoted. The original Slice 5 production
 read/write routing, user-facing lifecycle controls, real-user evidence, and
 Founder-manual production gates have not started. This clarification neither
 renames the accepted sequence nor grants production authority.
+
+The separately Founder-authorized Database Readiness Inspector R1 adds only an
+explicit-open, session-only, read-only production-path metadata disclosure. It
+does not execute Slice 5 lifecycle reads or writes, create schema-v5 authority,
+or implement migration, backup, restore, retention, recovery, or routing. Its
+bounded command and three-language UI are evidence for one production
+disclosure boundary while `SCHEMA_VERSION`, startup support, and user databases
+remain schema v4. The original Slice 5 production integration and manual gates
+therefore remain open.
+
+The R1 implementation is canonically verified with 28 Vitest files / 227 tests,
+189 Rust library tests, 12 backup/restore integration tests, and 8
+schema-contract integration tests. This verification remains evidence for the
+bounded read-only inspector only; Founder manual UI review and any later
+production activation decision remain separate gates.
 
 ### Slice 6 — Inspector and export v2
 

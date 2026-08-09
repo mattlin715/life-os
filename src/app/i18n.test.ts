@@ -38,6 +38,18 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].databaseBlockedAction).toContain("不會自動修復、降版或寫入");
     expect(uiText.ja.databaseBlockedAction).toContain("自動修復、ダウングレード、書き込みは行いません");
   });
+  it("keeps the database readiness inspector explicit, read-only, and unavailable for migration in every language", () => {
+    expect(uiText.en.databaseReadinessIntro).toContain("Check now");
+    expect(uiText["zh-TW"].databaseReadinessIntro).toContain("立即檢查");
+    expect(uiText.ja.databaseReadinessIntro).toContain("今すぐ確認");
+    expect(uiText.en.databaseReadinessNoAction).toContain("does not create, migrate, back up, restore, repair, clean up, or change");
+    expect(uiText["zh-TW"].databaseReadinessNoAction).toContain("不會建立、遷移、備份、還原、修復、清理或變更");
+    expect(uiText.ja.databaseReadinessNoAction).toContain("作成、移行、バックアップ、復元、修復、クリーンアップ、変更を行いません");
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      expect(uiText[locale].databaseReadinessRecoveryRequired).toBeTruthy();
+      expect(uiText[locale].databaseReadinessQuiescenceUnknown).toBeTruthy();
+    }
+  });
   it("keeps saved-date retrieval explicit, inclusive, and fail-closed in every language", () => {
     expect(uiText.en.historicalSavedDateFilterLabel).toContain("saved date");
     expect(uiText["zh-TW"].historicalSavedDateFilterLabel).toContain("儲存日期");
