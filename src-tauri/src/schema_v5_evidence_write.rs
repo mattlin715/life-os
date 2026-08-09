@@ -112,11 +112,241 @@ struct CurrentEvidence {
     eligibility_state: String,
     serialization_version: String,
     authorship: String,
+    revision_reason: String,
+    predecessor_revision_id: Option<String>,
     content_digest: String,
     payload: Value,
     created_at: String,
     projection_payload: Value,
     generated_provenance: Value,
+}
+
+fn validate_legacy_provenance(
+    raw: Option<&Value>,
+    normalized: &Value,
+    source_id: &str,
+) -> Result<(), MigrationError> {
+    let normalized = normalized
+        .as_object()
+        .ok_or_else(|| recovery_error("evidence_legacy_provenance_not_object"))?;
+    let normalized_keys = [
+        "origin",
+        "sourceEntryId",
+        "sourceArtifactIds",
+        "provider",
+        "model",
+        "harnessVersion",
+        "promptVersion",
+        "generatedAt",
+    ];
+    if normalized.len() != normalized_keys.len()
+        || normalized
+            .keys()
+            .any(|key| !normalized_keys.contains(&key.as_str()))
+    {
+        return Err(recovery_error("evidence_legacy_provenance_shape_mismatch"));
+    }
+    if normalized.get("sourceEntryId").and_then(Value::as_str) != Some(source_id) {
+        return Err(recovery_error("evidence_legacy_provenance_source_mismatch"));
+    }
+    let normalized_sources = normalized
+        .get("sourceArtifactIds")
+        .and_then(Value::as_array)
+        .ok_or_else(|| recovery_error("evidence_legacy_provenance_sources_missing"))?;
+    if !normalized_sources.is_empty() {
+        return Err(recovery_error(
+            "evidence_legacy_provenance_sources_unexpected",
+        ));
+    }
+
+    let normalized_origin = normalized
+        .get("origin")
+        .and_then(Value::as_str)
+        .ok_or_else(|| recovery_error("evidence_legacy_provenance_origin_missing"))?;
+    match normalized_origin {
+        "ai" | "local_mock" | "user" | "legacy_unknown" => {}
+        _ => return Err(write_error("evidence_legacy_provenance_origin_unsupported")),
+    }
+
+    if let Some(raw) = raw {
+        let raw = raw
+            .as_object()
+            .ok_or_else(|| write_error("evidence_legacy_provenance_not_object"))?;
+        if raw
+            .keys()
+            .any(|key| !normalized_keys.contains(&key.as_str()))
+        {
+            return Err(write_error("evidence_legacy_provenance_unknown_field"));
+        }
+        if raw.get("origin").and_then(Value::as_str) != Some(normalized_origin)
+            || raw.get("sourceEntryId").and_then(Value::as_str) != Some(source_id)
+        {
+            return Err(recovery_error(
+                "evidence_legacy_provenance_projection_mismatch",
+            ));
+        }
+        let raw_sources = raw
+            .get("sourceArtifactIds")
+            .and_then(Value::as_array)
+            .ok_or_else(|| write_error("evidence_legacy_provenance_sources_missing"))?;
+        if !raw_sources.is_empty() {
+            return Err(write_error("evidence_legacy_provenance_sources_unexpected"));
+        }
+        for key in [
+            "provider",
+            "model",
+            "harnessVersion",
+            "promptVersion",
+            "generatedAt",
+        ] {
+            if raw.get(key).unwrap_or(&Value::Null) != normalized.get(key).unwrap_or(&Value::Null) {
+                return Err(recovery_error(format!(
+                    "evidence_legacy_provenance_field_mismatch:{key}"
+                )));
+            }
+        }
+    } else if normalized_origin != "legacy_unknown"
+        || [
+            "provider",
+            "model",
+            "harnessVersion",
+            "promptVersion",
+            "generatedAt",
+        ]
+        .iter()
+        .any(|key| normalized.get(*key) != Some(&Value::Null))
+    {
+        return Err(recovery_error(
+            "evidence_legacy_unknown_provenance_mismatch",
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_legacy_review_candidate(
+    current: &CurrentEvidence,
+    source_id: &str,
+    artifact_id: &str,
+) -> Result<(), MigrationError> {
+    if current.serialization_version != "legacy-v4-raw"
+        || current.revision_reason != "legacy_v4_baseline"
+        || current.revision_number != 1
+        || current.predecessor_revision_id.is_some()
+    {
+        return Err(write_error("evidence_legacy_baseline_contract_mismatch"));
+    }
+    let object = current
+        .payload
+        .as_object()
+        .ok_or_else(|| write_error("evidence_legacy_payload_not_object"))?;
+    let allowed = [
+        "id",
+        "sourceEntryId",
+        "text",
+        "originalText",
+        "kind",
+        "status",
+        "userEditable",
+        "provenance",
+        "createdAt",
+        "updatedAt",
+    ];
+    let required = [
+        "id",
+        "sourceEntryId",
+        "text",
+        "kind",
+        "status",
+        "userEditable",
+        "createdAt",
+        "updatedAt",
+    ];
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(write_error("evidence_legacy_payload_unknown_field"));
+    }
+    if required.iter().any(|key| !object.contains_key(*key)) {
+        return Err(write_error("evidence_legacy_payload_field_missing"));
+    }
+    if object.get("id").and_then(Value::as_str) != Some(artifact_id)
+        || object.get("sourceEntryId").and_then(Value::as_str) != Some(source_id)
+        || object.get("status").and_then(Value::as_str) != Some("candidate")
+        || object.get("userEditable").and_then(Value::as_bool) != Some(true)
+    {
+        return Err(write_error(
+            "evidence_legacy_payload_identity_or_state_mismatch",
+        ));
+    }
+    let text = object
+        .get("text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("evidence_legacy_text_missing"))?;
+    validate_text(text)?;
+    if let Some(original) = object.get("originalText") {
+        validate_text(
+            original
+                .as_str()
+                .ok_or_else(|| write_error("evidence_legacy_original_text_malformed"))?,
+        )?;
+    }
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("evidence_legacy_kind_missing"))?;
+    if !ALLOWED_EVIDENCE_KINDS.contains(&kind) {
+        return Err(write_error("evidence_legacy_kind_unsupported"));
+    }
+    let created_at = object
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("evidence_legacy_created_at_missing"))?;
+    let updated_at = object
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("evidence_legacy_updated_at_missing"))?;
+    validate_timestamp(created_at, "legacy_created_at")?;
+    validate_timestamp(updated_at, "legacy_updated_at")?;
+    if created_at != current.created_at || current.source_id != source_id {
+        return Err(recovery_error(
+            "evidence_legacy_timestamp_or_source_mismatch",
+        ));
+    }
+    validate_legacy_provenance(
+        object.get("provenance"),
+        &current.generated_provenance,
+        source_id,
+    )?;
+    let origin = current
+        .generated_provenance
+        .get("origin")
+        .and_then(Value::as_str)
+        .ok_or_else(|| recovery_error("evidence_legacy_provenance_origin_missing"))?;
+    let expected_authorship = match origin {
+        "ai" => "ai",
+        "local_mock" => "local_mock",
+        "user" => "user",
+        _ => "legacy_unknown",
+    };
+    if current.authorship != expected_authorship || current.projection_payload != current.payload {
+        return Err(recovery_error(
+            "evidence_legacy_authority_projection_mismatch",
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_review_projection(
+    payload: &Value,
+    status: &str,
+    occurred_at: &str,
+) -> Result<Value, MigrationError> {
+    let mut projected = payload.clone();
+    let object = projected
+        .as_object_mut()
+        .ok_or_else(|| write_error("evidence_legacy_payload_not_object"))?;
+    object.insert("status".into(), Value::String(status.into()));
+    object.insert("updatedAt".into(), Value::String(occurred_at.into()));
+    Ok(projected)
 }
 
 fn write_error(code: impl Into<String>) -> MigrationError {
@@ -393,7 +623,8 @@ async fn current_evidence(
         "SELECT h.source_id, h.current_revision_id, h.review_state,  \
                 h.lifecycle_state, h.eligibility_state, h.created_at,  \
                 r.revision_number, r.serialization_version, r.authorship,  \
-                r.content_digest, c.payload, p.canonical_payload, pa.payload  \
+                r.revision_reason, r.predecessor_revision_id, r.content_digest, \
+                c.payload, p.canonical_payload, pa.payload  \
          FROM artifact_heads h  \
          JOIN artifact_revisions r ON r.id = h.current_revision_id  \
            AND r.artifact_id = h.id  \
@@ -416,16 +647,16 @@ async fn current_evidence(
     if actual_source != source_id || revision_id != expected_revision_id {
         return Err(write_error("evidence_artifact_revision_stale"));
     }
-    let raw_payload: String = row.get(10);
+    let raw_payload: String = row.get(12);
     let payload: Value = serde_json::from_str(&raw_payload)
         .map_err(|error| migration_error("evidence_current_payload_malformed", error))?;
-    let provenance_raw: String = row.get(11);
+    let provenance_raw: String = row.get(13);
     let generated_provenance: Value = serde_json::from_str(&provenance_raw)
         .map_err(|error| migration_error("evidence_current_provenance_malformed", error))?;
-    let projection_raw: String = row.get(12);
+    let projection_raw: String = row.get(14);
     let projection_payload: Value = serde_json::from_str(&projection_raw)
         .map_err(|error| migration_error("evidence_projection_payload_malformed", error))?;
-    let content_digest: String = row.get(9);
+    let content_digest: String = row.get(11);
     if content_digest != sha256_hex(raw_payload.as_bytes()) {
         return Err(recovery_error("evidence_current_digest_mismatch"));
     }
@@ -438,6 +669,8 @@ async fn current_evidence(
         eligibility_state: row.get(4),
         serialization_version: row.get(7),
         authorship: row.get(8),
+        revision_reason: row.get(9),
+        predecessor_revision_id: row.get(10),
         content_digest,
         payload,
         created_at: row.get(5),
@@ -707,7 +940,41 @@ async fn verify_evidence_projection(
                 }
                 if serialization == "legacy-v4-raw" {
                     if projection_payload.as_bytes() != content.as_bytes() {
-                        return Err(recovery_error("evidence_legacy_projection_mismatch"));
+                        if review_state != "confirmed" || eligibility_state != "eligible" {
+                            return Err(recovery_error("evidence_legacy_projection_mismatch"));
+                        }
+                        let content_value: Value =
+                            serde_json::from_str(&content).map_err(|error| {
+                                migration_error("evidence_legacy_content_malformed", error)
+                            })?;
+                        let expected = legacy_review_projection(
+                            &content_value,
+                            "confirmed",
+                            &head.get::<String, _>(7),
+                        )?;
+                        if projected_value != expected {
+                            return Err(recovery_error(
+                                "evidence_legacy_review_projection_mismatch",
+                            ));
+                        }
+                        let explicit_review: i64 = sqlx::query_scalar(
+                            "SELECT COUNT(*) FROM artifact_review_events \
+                             WHERE artifact_id = ? AND subject_revision_id = ? \
+                               AND decision = 'confirmed' AND actor = 'user' \
+                               AND event_origin = 'explicit_user_action' AND occurred_at = ? \
+                               AND timestamp_quality = 'exact_action_time'",
+                        )
+                        .bind(&artifact_id)
+                        .bind(&revision_id)
+                        .bind(head.get::<String, _>(7))
+                        .fetch_one(&mut *connection)
+                        .await
+                        .map_err(|error| {
+                            migration_error("evidence_legacy_review_event_unreadable", error)
+                        })?;
+                        if explicit_review != 1 {
+                            return Err(recovery_error("evidence_legacy_review_event_mismatch"));
+                        }
                     }
                 } else if serialization == "canonical-json-v1" {
                     let content_value: Value = serde_json::from_str(&content)
@@ -1174,6 +1441,11 @@ async fn confirm_pending(
     {
         return Err(write_error("evidence_pending_review_not_allowed"));
     }
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_review_candidate(&current, source_id, artifact_id)?;
+    } else if current.serialization_version != "canonical-json-v1" {
+        return Err(write_error("evidence_review_serialization_unsupported"));
+    }
     if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
         return Err(write_error(
             "evidence_inbound_dependency_requires_later_slice",
@@ -1207,12 +1479,16 @@ async fn confirm_pending(
         return Err(write_error("evidence_artifact_revision_stale"));
     }
     inject(context, EvidenceWriteFailurePoint::AfterHead)?;
-    let projection = v4_projection_value(
-        &current.payload,
-        "confirmed",
-        context.occurred_at,
-        &current.generated_provenance,
-    )?;
+    let projection = if current.serialization_version == "legacy-v4-raw" {
+        legacy_review_projection(&current.payload, "confirmed", context.occurred_at)?
+    } else {
+        v4_projection_value(
+            &current.payload,
+            "confirmed",
+            context.occurred_at,
+            &current.generated_provenance,
+        )?
+    };
     write_projection(
         connection,
         artifact_id,
@@ -1248,6 +1524,11 @@ async fn reject_pending(
         || current.eligibility_state != "ineligible"
     {
         return Err(write_error("evidence_pending_review_not_allowed"));
+    }
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_review_candidate(&current, source_id, artifact_id)?;
+    } else if current.serialization_version != "canonical-json-v1" {
+        return Err(write_error("evidence_review_serialization_unsupported"));
     }
     if inbound_dependency_count(connection, artifact_id, &current.revision_id).await? != 0 {
         return Err(write_error(
@@ -1558,6 +1839,119 @@ mod tests {
         .await
         .unwrap();
         (directory, path)
+    }
+
+    fn legacy_evidence_payload(id: &str, include_provenance: bool, extra_field: bool) -> String {
+        let mut payload = json!({
+            "createdAt": "2026-01-01T00:00:02.000Z",
+            "id": id,
+            "kind": "observation",
+            "originalText": "Legacy observation",
+            "sourceEntryId": SOURCE_ID,
+            "status": "candidate",
+            "text": "Legacy observation",
+            "updatedAt": "2026-01-01T00:00:02.000Z",
+            "userEditable": true
+        });
+        if include_provenance {
+            payload.as_object_mut().unwrap().insert(
+                "provenance".into(),
+                json!({
+                    "generatedAt": "2026-01-01T00:00:02.000Z",
+                    "harnessVersion": "harness-v1",
+                    "model": null,
+                    "origin": "local_mock",
+                    "promptVersion": "evidence-v1",
+                    "provider": "mock",
+                    "sourceArtifactIds": [],
+                    "sourceEntryId": SOURCE_ID
+                }),
+            );
+        }
+        if extra_field {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("futureField".into(), Value::String("unsupported".into()));
+        }
+        serde_json::to_string_pretty(&payload).unwrap()
+    }
+
+    async fn exact_v5_legacy_evidence_fixture(
+        id: &str,
+        include_provenance: bool,
+        extra_field: bool,
+    ) -> (TempDir, std::path::PathBuf, String) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("life-os.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        raw_sql(V4_FIXTURE).execute(&mut connection).await.unwrap();
+        raw_sql("DELETE FROM historical_question_artifacts; DELETE FROM persisted_artifacts;")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        let raw = legacy_evidence_payload(id, include_provenance, extra_field);
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES (?, ?, 'evidence', ?, '2026-01-01T00:00:02.000Z', \
+               '2026-01-01T00:00:02.000Z')",
+        )
+        .bind(id)
+        .bind(SOURCE_ID)
+        .bind(&raw)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let mut imported_review_payload: Value = serde_json::from_str(&legacy_evidence_payload(
+            "legacy-imported-review-evidence",
+            true,
+            false,
+        ))
+        .unwrap();
+        imported_review_payload["status"] = Value::String("confirmed".into());
+        let imported_review_raw = serde_json::to_string_pretty(&imported_review_payload).unwrap();
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES ('legacy-imported-review-evidence', ?, 'evidence', ?, \
+               '2026-01-01T00:00:02.000Z', '2026-01-01T00:00:02.000Z')",
+        )
+        .bind(SOURCE_ID)
+        .bind(imported_review_raw)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        let expected_source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+            .await
+            .unwrap();
+        drop(connection);
+        migrate_disposable_v4(MigrationRequest {
+            path: &path,
+            expected_source_manifest_digest,
+            started_at: STARTED_AT,
+            committed_at: COMMITTED_AT,
+            backup_id: Some("slice4c6a-evidence-fixture-backup"),
+            failure_point: FailurePoint::None,
+        })
+        .await
+        .unwrap();
+        let mut read_only = connect(&path, true).await.unwrap();
+        verify_exact_evidence_v5(&mut read_only).await.unwrap();
+        (directory, path, raw)
+    }
+
+    async fn legacy_revision(path: &Path, id: &str) -> String {
+        let mut connection = connect(path, true).await.unwrap();
+        sqlx::query_scalar("SELECT current_revision_id FROM artifact_heads WHERE id = ?")
+            .bind(id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
     }
 
     fn provenance(origin: &str) -> EvidenceProvenanceInput {
@@ -2116,6 +2510,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn migrated_legacy_review_ambiguous_commit_classifies_exact_pre_and_post_state() {
+        for commit_first in [false, true] {
+            let id = format!("legacy-evidence-ambiguous-{commit_first}");
+            let (_directory, path, raw) =
+                exact_v5_legacy_evidence_fixture(&id, true, false).await;
+            let revision = legacy_revision(&path, &id).await;
+            let result = execute_with_adapter(
+                &path,
+                EvidenceWriteCommand::ConfirmPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id,
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: revision.clone(),
+                },
+                context(
+                    "2026-08-09T01:04:00.000Z",
+                    "guard-legacy-evidence-ambiguous-001",
+                    EvidenceWriteFailurePoint::None,
+                ),
+                &InjectedCommitAdapter {
+                    outcome: CommitAttemptOutcome::OutcomeUnknown {
+                        error_class: "injected_legacy_review_commit_ambiguity".into(),
+                    },
+                    commit_first,
+                },
+            )
+            .await;
+            if commit_first {
+                assert_eq!(result.unwrap().status, EvidenceWriteStatus::Committed);
+            } else {
+                assert!(result
+                    .unwrap_err()
+                    .code
+                    .contains("evidence_commit_outcome_unknown_unchanged"));
+                let mut connection = connect(&path, true).await.unwrap();
+                assert_eq!(
+                    sqlx::query_scalar::<_, String>(
+                        "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                    )
+                    .bind(&revision)
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap(),
+                    raw
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn ambiguous_commit_classifies_exact_post_or_pre_state_without_retry() {
         let (_directory, committed_path) = exact_v5_fixture().await;
         let committed_source = source_revision(&committed_path).await;
@@ -2174,6 +2618,293 @@ mod tests {
             .await,
             0
         );
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_candidate_confirmation_preserves_raw_history_and_unknown_provenance() {
+        for (index, include_provenance) in [true, false].into_iter().enumerate() {
+            let id = format!("legacy-evidence-confirm-{index}");
+            let (_directory, path, raw) =
+                exact_v5_legacy_evidence_fixture(&id, include_provenance, false).await;
+            let revision = legacy_revision(&path, &id).await;
+            let imported_review_before: (String, String, String, String) = {
+                let mut connection = connect(&path, true).await.unwrap();
+                sqlx::query_as(
+                    "SELECT decision, actor, event_origin, timestamp_quality \
+                     FROM artifact_review_events \
+                     WHERE artifact_id='legacy-imported-review-evidence'",
+                )
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+            };
+            let before: (String, String, String) = {
+                let mut connection = connect(&path, true).await.unwrap();
+                sqlx::query_as(
+                    "SELECT c.payload, r.content_digest, p.canonical_payload \
+                     FROM artifact_revision_content c \
+                     JOIN artifact_revisions r ON r.id=c.revision_id \
+                     JOIN artifact_revision_provenance rp \
+                       ON rp.artifact_revision_id=r.id AND rp.role='content' \
+                     JOIN provenance_records p ON p.id=rp.provenance_id \
+                     WHERE r.id=?",
+                )
+                .bind(&revision)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+            };
+            assert_eq!(before.0, raw);
+            execute_disposable(
+                &path,
+                EvidenceWriteCommand::ConfirmPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: revision.clone(),
+                },
+                context(
+                    "2026-08-09T01:00:00.000Z",
+                    "guard-legacy-evidence-confirm-0000001",
+                    EvidenceWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .unwrap();
+            let mut connection = connect(&path, true).await.unwrap();
+            let after: (String, String, String) = sqlx::query_as(
+                "SELECT c.payload, r.content_digest, p.canonical_payload \
+                 FROM artifact_revision_content c \
+                 JOIN artifact_revisions r ON r.id=c.revision_id \
+                 JOIN artifact_revision_provenance rp \
+                   ON rp.artifact_revision_id=r.id AND rp.role='content' \
+                 JOIN provenance_records p ON p.id=rp.provenance_id \
+                 WHERE r.id=?",
+            )
+            .bind(&revision)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(after, before);
+            let review: (String, String, String, String, String) = sqlx::query_as(
+                "SELECT subject_revision_id, decision, actor, event_origin, occurred_at \
+                 FROM artifact_review_events WHERE artifact_id=?",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(
+                review,
+                (
+                    revision,
+                    "confirmed".into(),
+                    "user".into(),
+                    "explicit_user_action".into(),
+                    "2026-08-09T01:00:00.000Z".into(),
+                )
+            );
+            let head: (String, String) = sqlx::query_as(
+                "SELECT review_state, eligibility_state FROM artifact_heads WHERE id=?",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(head, ("confirmed".into(), "eligible".into()));
+            let imported_review_after: (String, String, String, String) = sqlx::query_as(
+                "SELECT decision, actor, event_origin, timestamp_quality \
+                 FROM artifact_review_events \
+                 WHERE artifact_id='legacy-imported-review-evidence'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(imported_review_after, imported_review_before);
+            if !include_provenance {
+                let projection: Value = serde_json::from_str(
+                    &sqlx::query_scalar::<_, String>(
+                        "SELECT payload FROM persisted_artifacts WHERE id=?",
+                    )
+                    .bind(&id)
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap(),
+                )
+                .unwrap();
+                assert!(projection.get("provenance").is_none());
+                assert_eq!(
+                    after.2.parse::<Value>().unwrap()["origin"],
+                    "legacy_unknown"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_candidate_rejection_purges_content_and_projection() {
+        let id = "legacy-evidence-reject";
+        let (_directory, path, raw) = exact_v5_legacy_evidence_fixture(id, true, false).await;
+        let revision = legacy_revision(&path, id).await;
+        execute_disposable(
+            &path,
+            EvidenceWriteCommand::RejectPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: revision.clone(),
+            },
+            context(
+                "2026-08-09T01:01:00.000Z",
+                "guard-legacy-evidence-reject-00000001",
+                EvidenceWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&revision)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM persisted_artifacts WHERE id=?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap(),
+            0
+        );
+        let facts: (String, String, i64) = sqlx::query_as(
+            "SELECT h.review_state, h.lifecycle_state, \
+                    (SELECT COUNT(*) FROM content_tombstones WHERE artifact_id=h.id) \
+             FROM artifact_heads h WHERE h.id=?",
+        )
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(facts, ("rejected".into(), "content_purged".into(), 1));
+        let retained_payloads: Vec<String> = sqlx::query_scalar(
+            "SELECT payload FROM artifact_revision_content UNION ALL \
+             SELECT payload FROM persisted_artifacts",
+        )
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert!(!retained_payloads.iter().any(|payload| payload == &raw));
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_review_rejects_unknown_shape_and_rolls_back_every_boundary() {
+        let (_directory, malformed_path, _) =
+            exact_v5_legacy_evidence_fixture("legacy-evidence-unknown", true, true).await;
+        let malformed_revision = legacy_revision(&malformed_path, "legacy-evidence-unknown").await;
+        let before = {
+            let mut connection = connect(&malformed_path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &malformed_path,
+            EvidenceWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "legacy-evidence-unknown".into(),
+                expected_source_revision_id: source_revision(&malformed_path).await,
+                expected_artifact_revision_id: malformed_revision,
+            },
+            context(
+                "2026-08-09T01:02:00.000Z",
+                "guard-legacy-evidence-unknown-0000001",
+                EvidenceWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.code.contains("evidence_legacy_payload_unknown_field"));
+        let mut connection = connect(&malformed_path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        drop(connection);
+
+        for (reject, points) in [
+            (
+                false,
+                vec![
+                    EvidenceWriteFailurePoint::AfterReview,
+                    EvidenceWriteFailurePoint::AfterHead,
+                    EvidenceWriteFailurePoint::AfterProjection,
+                    EvidenceWriteFailurePoint::AfterReconciliation,
+                    EvidenceWriteFailurePoint::AfterGuardRemoval,
+                ],
+            ),
+            (
+                true,
+                vec![
+                    EvidenceWriteFailurePoint::AfterReview,
+                    EvidenceWriteFailurePoint::AfterHead,
+                    EvidenceWriteFailurePoint::AfterLifecycle,
+                    EvidenceWriteFailurePoint::AfterTombstone,
+                    EvidenceWriteFailurePoint::AfterPurge,
+                    EvidenceWriteFailurePoint::AfterProjection,
+                    EvidenceWriteFailurePoint::AfterReconciliation,
+                    EvidenceWriteFailurePoint::AfterGuardRemoval,
+                ],
+            ),
+        ] {
+            for (index, point) in points.into_iter().enumerate() {
+                let id = format!("legacy-evidence-rollback-{reject}-{index}");
+                let (_directory, path, raw) =
+                    exact_v5_legacy_evidence_fixture(&id, true, false).await;
+                let revision = legacy_revision(&path, &id).await;
+                let before = {
+                    let mut connection = connect(&path, true).await.unwrap();
+                    operation_manifest(&mut connection).await.unwrap()
+                };
+                let command = if reject {
+                    EvidenceWriteCommand::RejectPending {
+                        source_id: SOURCE_ID.into(),
+                        artifact_id: id.clone(),
+                        expected_source_revision_id: source_revision(&path).await,
+                        expected_artifact_revision_id: revision.clone(),
+                    }
+                } else {
+                    EvidenceWriteCommand::ConfirmPending {
+                        source_id: SOURCE_ID.into(),
+                        artifact_id: id.clone(),
+                        expected_source_revision_id: source_revision(&path).await,
+                        expected_artifact_revision_id: revision.clone(),
+                    }
+                };
+                assert!(execute_disposable(
+                    &path,
+                    command,
+                    EvidenceWriteContext {
+                        occurred_at: "2026-08-09T01:03:00.000Z",
+                        guard_token: "guard-legacy-evidence-rollback-0000001",
+                        failure_point: point,
+                    },
+                )
+                .await
+                .is_err());
+                let mut connection = connect(&path, true).await.unwrap();
+                assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+                assert_eq!(
+                    sqlx::query_scalar::<_, String>(
+                        "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                    )
+                    .bind(&revision)
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap(),
+                    raw
+                );
+            }
+        }
     }
 
     #[tokio::test]

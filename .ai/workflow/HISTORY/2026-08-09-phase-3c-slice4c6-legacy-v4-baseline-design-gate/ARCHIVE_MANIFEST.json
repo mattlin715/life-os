@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-09-phase-3c-slice4c6-legacy-v4-baseline-design-gate",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-08T21:36:59.101Z",
+  "repository_head": "a9bbf7cc687f0d8dcc4bda9e1d402bf309fac590",
+  "working_branch": "codex/phase-3c-slice4c6-legacy-v4-baseline-current-action-design-gate",
+  "working_tree_digest": "750b3e109086cc0841fd9c2d5a5089ba25962efd271893b0dbfbc6694ffdd943",
+  "last_event_id": "2026-08-09-phase-3c-slice4c6-legacy-v4-baseline-design-gate:0019",
+  "last_event_hash": "f4b352924315e658c446d01677872f701ba8faa821840147753404ac289c6856",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
