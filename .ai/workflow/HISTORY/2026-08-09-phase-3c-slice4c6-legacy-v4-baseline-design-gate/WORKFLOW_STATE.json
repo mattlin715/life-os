@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 19,
+  "last_event_id": "2026-08-09-phase-3c-slice4c6-legacy-v4-baseline-design-gate:0019",
+  "last_event_hash": "f4b352924315e658c446d01677872f701ba8faa821840147753404ac289c6856",
+  "sprint_id": "2026-08-09-phase-3c-slice4c6-legacy-v4-baseline-design-gate",
+  "mission_title": "Define migrated legacy-v4 baseline current-action parity and prepare the Slice 4C-6 Founder gate",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve PHASE3C-SLICE4C6-001 by selecting Option B. I authorize Phase 3C Slice 4C-6A only: exact-v5 disposable fixtures produced through the promoted exact-v4 migration core; extension only of the existing private, unregistered, path/connection-injected Rust Evidence and Pattern boundaries for exact legacy-v4-raw pending/candidate confirmation and rejection; strict artifact-specific parsing of the supported schema-v4 shape for validation without rewriting, recanonicalizing, replacing, or relabeling the byte-exact legacy predecessor; exact raw-byte, digest, projection, source, revision, unique-ID, dependency, provenance-representation, review-state and lifecycle revalidation; confirmation that changes only exact review/head eligibility, appends one explicit user decision at the actual injected action time, preserves imported review evidence and legacy_unknown provenance, makes confirmed Evidence eligible, and keeps confirmed Pattern a revisable useful-for-reflection hypothesis; rejection that synchronously purges all retained artifact content, removes the guarded v4 projection, records exact review/lifecycle facts, retains only ADR-0011-authorized content-free metadata, and applies only exact legal dependent consequences and ADR-0009 cascade behavior; malformed, unknown-field, unsupported-shape, stale, duplicate, missing, orphaned, cross-source, projection-mismatch, digest-mismatch, contradictory, or unsupported inbound evidence failing closed without repair or rebinding; deterministic failure injection, exact logical rollback, conservative ambiguous-COMMIT exact pre-state/post-state/third-state classification, and read-only reconciliation; changes limited to src-tauri/src/schema_v5_evidence_write.rs, src-tauri/src/schema_v5_pattern_write.rs, docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md, and repository-required workflow artifacts; focused synthetic/disposable tests; factual documentation; Clippy with warnings denied; canonical verification; Product and Theory Alignment Review; archive/reset; and stop at Founder diff review. I accept that Slice 4C-6A does not complete migrated current-action parity and that one separately authorized Slice 4C-6B remains required for legacy Evidence candidate correction, Reflection answer/skip/correction, and Context Recovery answer/skip before any production migration/recovery gate. I do not authorize Slice 4C-6B, production SCHEMA_VERSION 5, production user_version 5, migration or fresh-v5 initialization, real user databases or app-data, startup/Tauri/renderer/UI activation, new product actions, DDL changes, generic legacy mutation infrastructure, standalone Context Recovery correction/deletion, provider or ContextPacket changes, consent or retention changes, export v2, production backup/restore/recovery, automatic retry/replay/rollback/repair/cleanup/candidate selection, Phase 4, identity or sensitive inference, Harness expansion, staging, commit, push, merge, PR, deployment, or release.",
+    "selected_option": "B",
+    "authorized_scope": "Phase 3C Slice 4C-6A only under the exact three-path product/document allowlist and all exclusions in the Founder response",
+    "decided_at": "2026-08-08T20:54:04.238Z",
+    "evidence_reference": "founder-message-2026-08-09-PHASE3C-SLICE4C6-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice4c6-legacy-v4-baseline-current-action-design-gate",
+  "repository_head": "a9bbf7cc687f0d8dcc4bda9e1d402bf309fac590",
+  "working_tree_digest": "750b3e109086cc0841fd9c2d5a5089ba25962efd271893b0dbfbc6694ffdd943",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-08T21:32:17.009Z",
+      "repository_head": "a9bbf7cc687f0d8dcc4bda9e1d402bf309fac590",
+      "working_tree_digest": "750b3e109086cc0841fd9c2d5a5089ba25962efd271893b0dbfbc6694ffdd943"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-08T20:04:15.669Z",
+  "updated_at": "2026-08-08T21:36:40.193Z"
+}

@@ -123,10 +123,214 @@ struct CurrentPattern {
     serialization_version: String,
     authorship: String,
     revision_reason: String,
+    predecessor_revision_id: Option<String>,
     content_digest: String,
     payload: Value,
+    projection_payload: Value,
     created_at: String,
     generated_provenance: Value,
+}
+
+fn validate_legacy_pattern_provenance(
+    raw: Option<&Value>,
+    normalized: &Value,
+    source_id: &str,
+    exact_sources: &BTreeSet<String>,
+) -> Result<&'static str, MigrationError> {
+    let normalized = normalized
+        .as_object()
+        .ok_or_else(|| recovery_error("pattern_legacy_provenance_not_object"))?;
+    let keys = [
+        "origin",
+        "sourceEntryId",
+        "sourceArtifactIds",
+        "provider",
+        "model",
+        "harnessVersion",
+        "promptVersion",
+        "generatedAt",
+    ];
+    if normalized.len() != keys.len()
+        || normalized.keys().any(|key| !keys.contains(&key.as_str()))
+        || normalized.get("sourceEntryId").and_then(Value::as_str) != Some(source_id)
+    {
+        return Err(recovery_error("pattern_legacy_provenance_shape_mismatch"));
+    }
+    let origin = normalized
+        .get("origin")
+        .and_then(Value::as_str)
+        .ok_or_else(|| recovery_error("pattern_legacy_provenance_origin_missing"))?;
+    let authorship = match origin {
+        "ai" => "ai",
+        "local_mock" => "local_mock",
+        "user" => "user",
+        "legacy_unknown" => "legacy_unknown",
+        _ => return Err(write_error("pattern_legacy_provenance_origin_unsupported")),
+    };
+    let normalized_sources = exact_id_set(
+        normalized.get("sourceArtifactIds"),
+        "legacy_provenance_sources",
+        false,
+    )?;
+
+    if let Some(raw) = raw {
+        let raw = raw
+            .as_object()
+            .ok_or_else(|| write_error("pattern_legacy_provenance_not_object"))?;
+        if raw.keys().any(|key| !keys.contains(&key.as_str())) {
+            return Err(write_error("pattern_legacy_provenance_unknown_field"));
+        }
+        if raw.get("origin").and_then(Value::as_str) != Some(origin)
+            || raw.get("sourceEntryId").and_then(Value::as_str) != Some(source_id)
+        {
+            return Err(recovery_error(
+                "pattern_legacy_provenance_projection_mismatch",
+            ));
+        }
+        let raw_sources = exact_id_set(
+            raw.get("sourceArtifactIds"),
+            "legacy_raw_provenance_sources",
+            false,
+        )?;
+        if raw_sources != normalized_sources || raw_sources != *exact_sources {
+            return Err(recovery_error("pattern_legacy_provenance_sources_mismatch"));
+        }
+        for key in [
+            "provider",
+            "model",
+            "harnessVersion",
+            "promptVersion",
+            "generatedAt",
+        ] {
+            if raw.get(key).unwrap_or(&Value::Null) != normalized.get(key).unwrap_or(&Value::Null) {
+                return Err(recovery_error(format!(
+                    "pattern_legacy_provenance_field_mismatch:{key}"
+                )));
+            }
+        }
+    } else if origin != "legacy_unknown"
+        || !normalized_sources.is_empty()
+        || [
+            "provider",
+            "model",
+            "harnessVersion",
+            "promptVersion",
+            "generatedAt",
+        ]
+        .iter()
+        .any(|key| normalized.get(*key) != Some(&Value::Null))
+    {
+        return Err(recovery_error("pattern_legacy_unknown_provenance_mismatch"));
+    }
+    Ok(authorship)
+}
+
+fn validate_legacy_pattern_candidate(
+    current: &CurrentPattern,
+    source_id: &str,
+    artifact_id: &str,
+) -> Result<(), MigrationError> {
+    if current.serialization_version != "legacy-v4-raw"
+        || current.revision_reason != "legacy_v4_baseline"
+        || current.revision_number != 1
+        || current.predecessor_revision_id.is_some()
+    {
+        return Err(write_error("pattern_legacy_baseline_contract_mismatch"));
+    }
+    let object = current
+        .payload
+        .as_object()
+        .ok_or_else(|| write_error("pattern_legacy_payload_not_object"))?;
+    let allowed = [
+        "id",
+        "sourceEntryId",
+        "sourceEvidenceIds",
+        "sourceReflectionPromptIds",
+        "text",
+        "status",
+        "provenance",
+        "createdAt",
+        "updatedAt",
+    ];
+    let required = [
+        "id",
+        "sourceEntryId",
+        "sourceEvidenceIds",
+        "sourceReflectionPromptIds",
+        "text",
+        "status",
+        "createdAt",
+        "updatedAt",
+    ];
+    if object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(write_error("pattern_legacy_payload_unknown_field"));
+    }
+    if required.iter().any(|key| !object.contains_key(*key)) {
+        return Err(write_error("pattern_legacy_payload_field_missing"));
+    }
+    if object.get("id").and_then(Value::as_str) != Some(artifact_id)
+        || object.get("sourceEntryId").and_then(Value::as_str) != Some(source_id)
+        || object.get("status").and_then(Value::as_str) != Some("candidate")
+    {
+        return Err(write_error(
+            "pattern_legacy_payload_identity_or_state_mismatch",
+        ));
+    }
+    validate_text(
+        object
+            .get("text")
+            .and_then(Value::as_str)
+            .ok_or_else(|| write_error("pattern_legacy_text_missing"))?,
+    )?;
+    let created_at = object
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("pattern_legacy_created_at_missing"))?;
+    let updated_at = object
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .ok_or_else(|| write_error("pattern_legacy_updated_at_missing"))?;
+    validate_timestamp(created_at, "legacy_created_at")?;
+    validate_timestamp(updated_at, "legacy_updated_at")?;
+    if created_at != current.created_at || current.projection_payload != current.payload {
+        return Err(recovery_error(
+            "pattern_legacy_authority_projection_mismatch",
+        ));
+    }
+    let evidence = exact_id_set(object.get("sourceEvidenceIds"), "legacy_evidence_ids", true)?;
+    let reflections = exact_id_set(
+        object.get("sourceReflectionPromptIds"),
+        "legacy_reflection_ids",
+        false,
+    )?;
+    let exact_sources = evidence
+        .union(&reflections)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let expected_authorship = validate_legacy_pattern_provenance(
+        object.get("provenance"),
+        &current.generated_provenance,
+        source_id,
+        &exact_sources,
+    )?;
+    if current.authorship != expected_authorship {
+        return Err(recovery_error("pattern_legacy_authorship_mismatch"));
+    }
+    Ok(())
+}
+
+fn legacy_review_projection(
+    payload: &Value,
+    status: &str,
+    occurred_at: &str,
+) -> Result<Value, MigrationError> {
+    let mut projected = payload.clone();
+    let object = projected
+        .as_object_mut()
+        .ok_or_else(|| write_error("pattern_legacy_payload_not_object"))?;
+    object.insert("status".into(), Value::String(status.into()));
+    object.insert("updatedAt".into(), Value::String(occurred_at.into()));
+    Ok(projected)
 }
 
 type ActivePatternRevisionRow = (String, String, String, i64, String, String, Option<String>);
@@ -581,8 +785,8 @@ async fn current_pattern(
         "SELECT h.source_id, h.current_revision_id, h.review_state,  \
                 h.lifecycle_state, h.eligibility_state, h.created_at,  \
                 r.revision_number, r.serialization_version, r.authorship,  \
-                r.revision_reason, r.content_digest, c.payload,  \
-                p.canonical_payload  \
+                r.revision_reason, r.predecessor_revision_id, r.content_digest, \
+                c.payload, p.canonical_payload, pa.payload  \
          FROM artifact_heads h  \
          JOIN artifact_revisions r ON r.id = h.current_revision_id  \
            AND r.artifact_id = h.id  \
@@ -605,13 +809,16 @@ async fn current_pattern(
     if actual_source != source_id || revision_id != expected_revision_id {
         return Err(write_error("pattern_artifact_revision_stale"));
     }
-    let raw_payload: String = row.get(11);
+    let raw_payload: String = row.get(12);
     let payload: Value = serde_json::from_str(&raw_payload)
         .map_err(|error| migration_error("pattern_current_payload_malformed", error))?;
-    let provenance_raw: String = row.get(12);
+    let provenance_raw: String = row.get(13);
     let generated_provenance: Value = serde_json::from_str(&provenance_raw)
         .map_err(|error| migration_error("pattern_current_provenance_malformed", error))?;
-    let content_digest: String = row.get(10);
+    let projection_raw: String = row.get(14);
+    let projection_payload: Value = serde_json::from_str(&projection_raw)
+        .map_err(|error| migration_error("pattern_projection_payload_malformed", error))?;
+    let content_digest: String = row.get(11);
     if content_digest != sha256_hex(raw_payload.as_bytes()) {
         return Err(recovery_error("pattern_current_digest_mismatch"));
     }
@@ -624,8 +831,10 @@ async fn current_pattern(
         serialization_version: row.get(7),
         authorship: row.get(8),
         revision_reason: row.get(9),
+        predecessor_revision_id: row.get(10),
         content_digest,
         payload,
+        projection_payload,
         created_at: row.get(5),
         generated_provenance,
     })
@@ -939,7 +1148,40 @@ async fn verify_pattern_projection(
                 }
                 if serialization == "legacy-v4-raw" {
                     if projection_payload.as_bytes() != content.as_bytes() {
-                        return Err(recovery_error("pattern_legacy_projection_mismatch"));
+                        if review_state != "confirmed" || eligibility_state != "eligible" {
+                            return Err(recovery_error("pattern_legacy_projection_mismatch"));
+                        }
+                        let content_value: Value =
+                            serde_json::from_str(&content).map_err(|error| {
+                                migration_error("pattern_legacy_content_malformed", error)
+                            })?;
+                        let expected_projection = legacy_review_projection(
+                            &content_value,
+                            "confirmed",
+                            &head.get::<String, _>(7),
+                        )?;
+                        if projected_value != expected_projection {
+                            return Err(recovery_error("pattern_legacy_projection_mismatch"));
+                        }
+                        let exact_decision_count: i64 = sqlx::query_scalar(
+                            "SELECT COUNT(*) FROM artifact_review_events \
+                             WHERE artifact_id = ? AND subject_revision_id = ? \
+                               AND decision = 'confirmed' AND actor = 'user' \
+                               AND event_origin = 'explicit_user_action' \
+                               AND timestamp_quality = 'exact_action_time' \
+                               AND occurred_at = ?",
+                        )
+                        .bind(&artifact_id)
+                        .bind(&revision_id)
+                        .bind(head.get::<String, _>(7))
+                        .fetch_one(&mut *connection)
+                        .await
+                        .map_err(|error| {
+                            migration_error("pattern_legacy_review_event_unreadable", error)
+                        })?;
+                        if exact_decision_count != 1 {
+                            return Err(recovery_error("pattern_legacy_review_event_mismatch"));
+                        }
                     }
                 } else if serialization == "canonical-json-v1" {
                     let content_value: Value = serde_json::from_str(&content)
@@ -1057,14 +1299,79 @@ async fn verify_pattern_projection(
                     .union(&expected_reflections)
                     .cloned()
                     .collect::<BTreeSet<_>>();
+                let provenance_payloads: Vec<String> = sqlx::query_scalar(
+                    "SELECT p.canonical_payload FROM artifact_revision_provenance rp \
+                     JOIN provenance_records p ON p.id = rp.provenance_id \
+                     WHERE rp.artifact_revision_id = ? AND rp.role = 'content'",
+                )
+                .bind(&revision_id)
+                .fetch_all(&mut *connection)
+                .await
+                .map_err(|error| migration_error("pattern_provenance_unreadable", error))?;
+                if provenance_payloads.len() != 1 {
+                    return Err(recovery_error("pattern_provenance_count_mismatch"));
+                }
+                let provenance_value: Value = serde_json::from_str(&provenance_payloads[0])
+                    .map_err(|error| migration_error("pattern_provenance_malformed", error))?;
                 let provenance_sources = exact_id_set(
-                    projected_value
-                        .get("provenance")
-                        .and_then(|value| value.get("sourceArtifactIds")),
+                    provenance_value.get("sourceArtifactIds"),
                     "provenance_sources",
-                    true,
+                    false,
                 )?;
-                if declared_sources != provenance_sources {
+                let legacy_unknown_without_raw = serialization == "legacy-v4-raw"
+                    && projected_value.get("provenance").is_none();
+                if legacy_unknown_without_raw {
+                    if provenance_value.get("origin").and_then(Value::as_str)
+                        != Some("legacy_unknown")
+                        || provenance_value.get("sourceEntryId").and_then(Value::as_str)
+                            != Some(source_id.as_str())
+                        || !provenance_sources.is_empty()
+                        || [
+                            "provider",
+                            "model",
+                            "harnessVersion",
+                            "promptVersion",
+                            "generatedAt",
+                        ]
+                        .iter()
+                        .any(|key| provenance_value.get(*key) != Some(&Value::Null))
+                    {
+                        return Err(recovery_error(
+                            "pattern_legacy_unknown_provenance_mismatch",
+                        ));
+                    }
+                } else if serialization == "legacy-v4-raw" {
+                    let raw_provenance = projected_value
+                        .get("provenance")
+                        .ok_or_else(|| recovery_error("pattern_legacy_provenance_missing"))?;
+                    let raw_sources = exact_id_set(
+                        raw_provenance.get("sourceArtifactIds"),
+                        "legacy_raw_provenance_sources",
+                        false,
+                    )?;
+                    if declared_sources != provenance_sources
+                        || declared_sources != raw_sources
+                        || raw_provenance.get("origin") != provenance_value.get("origin")
+                        || raw_provenance.get("sourceEntryId")
+                            != provenance_value.get("sourceEntryId")
+                        || [
+                            "provider",
+                            "model",
+                            "harnessVersion",
+                            "promptVersion",
+                            "generatedAt",
+                        ]
+                        .iter()
+                        .any(|key| {
+                            raw_provenance.get(*key).unwrap_or(&Value::Null)
+                                != provenance_value.get(*key).unwrap_or(&Value::Null)
+                        })
+                    {
+                        return Err(recovery_error("pattern_provenance_sources_mismatch"));
+                    }
+                } else if declared_sources != provenance_sources
+                    || projected_value.get("provenance") != Some(&provenance_value)
+                {
                     return Err(recovery_error("pattern_provenance_sources_mismatch"));
                 }
                 if revision_reason == "corrected" {
@@ -1853,8 +2160,10 @@ async fn confirm_pending(
     {
         return Err(write_error("pattern_pending_review_not_allowed"));
     }
-    if current.serialization_version != "canonical-json-v1" {
-        return Err(write_error("pattern_legacy_review_requires_later_slice"));
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_pattern_candidate(&current, source_id, artifact_id)?;
+    } else if current.serialization_version != "canonical-json-v1" {
+        return Err(write_error("pattern_review_serialization_unsupported"));
     }
     ensure_expected_dependencies(
         connection,
@@ -1896,12 +2205,16 @@ async fn confirm_pending(
         return Err(write_error("pattern_artifact_revision_stale"));
     }
     inject(context, PatternWriteFailurePoint::AfterHead)?;
-    let projection = v4_projection_value(
-        &current.payload,
-        "confirmed",
-        context.occurred_at,
-        &current.generated_provenance,
-    )?;
+    let projection = if current.serialization_version == "legacy-v4-raw" {
+        legacy_review_projection(&current.payload, "confirmed", context.occurred_at)?
+    } else {
+        v4_projection_value(
+            &current.payload,
+            "confirmed",
+            context.occurred_at,
+            &current.generated_provenance,
+        )?
+    };
     write_projection(
         connection,
         artifact_id,
@@ -1941,8 +2254,10 @@ async fn reject_pending(
     {
         return Err(write_error("pattern_pending_review_not_allowed"));
     }
-    if current.serialization_version != "canonical-json-v1" {
-        return Err(write_error("pattern_legacy_review_requires_later_slice"));
+    if current.serialization_version == "legacy-v4-raw" {
+        validate_legacy_pattern_candidate(&current, source_id, artifact_id)?;
+    } else if current.serialization_version != "canonical-json-v1" {
+        return Err(write_error("pattern_review_serialization_unsupported"));
     }
     ensure_expected_dependencies(
         connection,
@@ -2376,6 +2691,170 @@ mod tests {
         let mut read_only = connect(&path, true).await.unwrap();
         verify_exact_reflection_v5(&mut read_only).await.unwrap();
         (directory, path)
+    }
+
+    fn legacy_pattern_payload(id: &str, include_provenance: bool, extra_field: bool) -> String {
+        let mut payload = json!({
+            "createdAt": "2026-01-01T00:00:03.000Z",
+            "id": id,
+            "sourceEntryId": SOURCE_ID,
+            "sourceEvidenceIds": ["legacy-pattern-evidence"],
+            "sourceReflectionPromptIds": [],
+            "status": "candidate",
+            "text": "Legacy tentative hypothesis",
+            "updatedAt": "2026-01-01T00:00:03.000Z"
+        });
+        if include_provenance {
+            payload.as_object_mut().unwrap().insert(
+                "provenance".into(),
+                json!({
+                    "generatedAt": "2026-01-01T00:00:03.000Z",
+                    "harnessVersion": "harness-v1",
+                    "model": null,
+                    "origin": "local_mock",
+                    "promptVersion": "single-experience-pattern-v1",
+                    "provider": "mock",
+                    "sourceArtifactIds": ["legacy-pattern-evidence"],
+                    "sourceEntryId": SOURCE_ID
+                }),
+            );
+        }
+        if extra_field {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("futureField".into(), Value::String("unsupported".into()));
+        }
+        serde_json::to_string_pretty(&payload).unwrap()
+    }
+
+    async fn exact_v5_legacy_pattern_fixture(
+        id: &str,
+        include_provenance: bool,
+        extra_field: bool,
+    ) -> (TempDir, std::path::PathBuf, String) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("life-os.db");
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        raw_sql(V4_FIXTURE).execute(&mut connection).await.unwrap();
+        raw_sql("DELETE FROM historical_question_artifacts; DELETE FROM persisted_artifacts;")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+
+        let evidence = serde_json::to_string_pretty(&json!({
+            "createdAt": "2026-01-01T00:00:02.000Z",
+            "id": "legacy-pattern-evidence",
+            "kind": "observation",
+            "originalText": "Legacy observation",
+            "provenance": {
+                "generatedAt": "2026-01-01T00:00:02.000Z",
+                "harnessVersion": "harness-v1",
+                "model": null,
+                "origin": "local_mock",
+                "promptVersion": "evidence-v1",
+                "provider": "mock",
+                "sourceArtifactIds": [],
+                "sourceEntryId": SOURCE_ID
+            },
+            "sourceEntryId": SOURCE_ID,
+            "status": "confirmed",
+            "text": "Legacy observation",
+            "updatedAt": "2026-01-01T00:00:02.000Z",
+            "userEditable": true
+        }))
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES ('legacy-pattern-evidence', ?, 'evidence', ?, \
+               '2026-01-01T00:00:02.000Z', '2026-01-01T00:00:02.000Z')",
+        )
+        .bind(SOURCE_ID)
+        .bind(evidence)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+
+        let raw = legacy_pattern_payload(id, include_provenance, extra_field);
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES (?, ?, 'pattern', ?, '2026-01-01T00:00:03.000Z', \
+               '2026-01-01T00:00:03.000Z')",
+        )
+        .bind(id)
+        .bind(SOURCE_ID)
+        .bind(&raw)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+
+        let mut imported_review_payload: Value = serde_json::from_str(&legacy_pattern_payload(
+            "legacy-imported-review-pattern",
+            true,
+            false,
+        ))
+        .unwrap();
+        imported_review_payload["status"] = Value::String("confirmed".into());
+        let imported_review_raw = serde_json::to_string_pretty(&imported_review_payload).unwrap();
+        sqlx::query(
+            "INSERT INTO persisted_artifacts \
+             (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
+             VALUES ('legacy-imported-review-pattern', ?, 'pattern', ?, \
+               '2026-01-01T00:00:03.000Z', '2026-01-01T00:00:03.000Z')",
+        )
+        .bind(SOURCE_ID)
+        .bind(imported_review_raw)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+
+        let expected_source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+            .await
+            .unwrap();
+        drop(connection);
+        migrate_disposable_v4(MigrationRequest {
+            path: &path,
+            expected_source_manifest_digest,
+            started_at: STARTED_AT,
+            committed_at: COMMITTED_AT,
+            backup_id: Some("slice4c6a-pattern-fixture-backup"),
+            failure_point: FailurePoint::None,
+        })
+        .await
+        .unwrap();
+        let mut read_only = connect(&path, true).await.unwrap();
+        verify_exact_pattern_v5(&mut read_only).await.unwrap();
+        (directory, path, raw)
+    }
+
+    async fn legacy_pattern_refs(path: &Path, id: &str) -> (String, ArtifactRevisionRef) {
+        let mut connection = connect(path, true).await.unwrap();
+        let revision_id: String =
+            sqlx::query_scalar("SELECT current_revision_id FROM artifact_heads WHERE id = ?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap();
+        let evidence_revision_id: String = sqlx::query_scalar(
+            "SELECT current_revision_id FROM artifact_heads \
+             WHERE id = 'legacy-pattern-evidence'",
+        )
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        (
+            revision_id,
+            ArtifactRevisionRef {
+                artifact_id: "legacy-pattern-evidence".into(),
+                revision_id: evidence_revision_id,
+            },
+        )
     }
 
     async fn source_revision(path: &Path) -> String {
@@ -3775,6 +4254,322 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn migrated_legacy_pattern_confirmation_preserves_history_dependencies_and_hypothesis_semantics(
+    ) {
+        for (index, include_provenance) in [true, false].into_iter().enumerate() {
+            let id = format!("legacy-pattern-confirm-{index}");
+            let (_directory, path, raw) =
+                exact_v5_legacy_pattern_fixture(&id, include_provenance, false).await;
+            let (revision, evidence) = legacy_pattern_refs(&path, &id).await;
+            let before: (String, String, String, String) = {
+                let mut connection = connect(&path, true).await.unwrap();
+                sqlx::query_as(
+                    "SELECT c.payload, r.content_digest, p.canonical_payload, \
+                            d.source_artifact_revision_id \
+                     FROM artifact_revision_content c \
+                     JOIN artifact_revisions r ON r.id=c.revision_id \
+                     JOIN artifact_revision_provenance rp \
+                       ON rp.artifact_revision_id=r.id AND rp.role='content' \
+                     JOIN provenance_records p ON p.id=rp.provenance_id \
+                     JOIN artifact_dependencies d ON d.dependent_revision_id=r.id \
+                       AND d.relationship_type='uses_evidence' \
+                     WHERE r.id=?",
+                )
+                .bind(&revision)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+            };
+            assert_eq!(before.0, raw);
+            assert_eq!(before.3, evidence.revision_id);
+            let imported_review_before: (String, String, String, String) = {
+                let mut connection = connect(&path, true).await.unwrap();
+                sqlx::query_as(
+                    "SELECT decision, actor, event_origin, timestamp_quality \
+                     FROM artifact_review_events \
+                     WHERE artifact_id='legacy-imported-review-pattern'",
+                )
+                .fetch_one(&mut connection)
+                .await
+                .unwrap()
+            };
+
+            execute_disposable(
+                &path,
+                PatternWriteCommand::ConfirmPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: revision.clone(),
+                    expected_evidence: vec![evidence],
+                    expected_reflections: Vec::new(),
+                },
+                context(
+                    "2026-08-09T02:00:00.000Z",
+                    "guard-legacy-pattern-confirm-00000001",
+                    PatternWriteFailurePoint::None,
+                ),
+            )
+            .await
+            .unwrap();
+
+            let mut connection = connect(&path, true).await.unwrap();
+            let after: (String, String, String, String) = sqlx::query_as(
+                "SELECT c.payload, r.content_digest, p.canonical_payload, \
+                        d.source_artifact_revision_id \
+                 FROM artifact_revision_content c \
+                 JOIN artifact_revisions r ON r.id=c.revision_id \
+                 JOIN artifact_revision_provenance rp \
+                   ON rp.artifact_revision_id=r.id AND rp.role='content' \
+                 JOIN provenance_records p ON p.id=rp.provenance_id \
+                 JOIN artifact_dependencies d ON d.dependent_revision_id=r.id \
+                   AND d.relationship_type='uses_evidence' \
+                 WHERE r.id=?",
+            )
+            .bind(&revision)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(after, before);
+            let review: (String, String, String, String, String) = sqlx::query_as(
+                "SELECT subject_revision_id, decision, actor, event_origin, occurred_at \
+                 FROM artifact_review_events WHERE artifact_id=?",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(
+                review,
+                (
+                    revision,
+                    "confirmed".into(),
+                    "user".into(),
+                    "explicit_user_action".into(),
+                    "2026-08-09T02:00:00.000Z".into(),
+                )
+            );
+            let head: (String, String, String) = sqlx::query_as(
+                "SELECT review_state, eligibility_state, eligibility_reason \
+                 FROM artifact_heads WHERE id=?",
+            )
+            .bind(&id)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(
+                head,
+                (
+                    "confirmed".into(),
+                    "eligible".into(),
+                    "explicitly_confirmed_useful_for_reflection".into(),
+                )
+            );
+            let imported_review_after: (String, String, String, String) = sqlx::query_as(
+                "SELECT decision, actor, event_origin, timestamp_quality \
+                 FROM artifact_review_events \
+                 WHERE artifact_id='legacy-imported-review-pattern'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+            assert_eq!(imported_review_after, imported_review_before);
+            if !include_provenance {
+                let projection: Value = serde_json::from_str(
+                    &sqlx::query_scalar::<_, String>(
+                        "SELECT payload FROM persisted_artifacts WHERE id=?",
+                    )
+                    .bind(&id)
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap(),
+                )
+                .unwrap();
+                assert!(projection.get("provenance").is_none());
+                assert_eq!(
+                    after.2.parse::<Value>().unwrap()["origin"],
+                    "legacy_unknown"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_pattern_rejection_purges_content_and_projection() {
+        let id = "legacy-pattern-reject";
+        let (_directory, path, raw) = exact_v5_legacy_pattern_fixture(id, true, false).await;
+        let (revision, evidence) = legacy_pattern_refs(&path, id).await;
+        execute_disposable(
+            &path,
+            PatternWriteCommand::RejectPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: revision.clone(),
+                expected_evidence: vec![evidence],
+                expected_reflections: Vec::new(),
+            },
+            context(
+                "2026-08-09T02:01:00.000Z",
+                "guard-legacy-pattern-reject-000000001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+        let mut connection = connect(&path, true).await.unwrap();
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM artifact_revision_content WHERE revision_id=?",
+            )
+            .bind(&revision)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap(),
+            0
+        );
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM persisted_artifacts WHERE id=?")
+                .bind(id)
+                .fetch_one(&mut connection)
+                .await
+                .unwrap(),
+            0
+        );
+        let facts: (String, String, i64) = sqlx::query_as(
+            "SELECT h.review_state, h.lifecycle_state, \
+                    (SELECT COUNT(*) FROM content_tombstones WHERE artifact_id=h.id) \
+             FROM artifact_heads h WHERE h.id=?",
+        )
+        .bind(id)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(facts, ("rejected".into(), "content_purged".into(), 1));
+        let retained_payloads: Vec<String> = sqlx::query_scalar(
+            "SELECT payload FROM artifact_revision_content UNION ALL \
+             SELECT payload FROM persisted_artifacts",
+        )
+        .fetch_all(&mut connection)
+        .await
+        .unwrap();
+        assert!(!retained_payloads.iter().any(|payload| payload == &raw));
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_pattern_review_rejects_unknown_shape_and_rolls_back_boundaries() {
+        let (_directory, malformed_path, _) =
+            exact_v5_legacy_pattern_fixture("legacy-pattern-unknown", true, true).await;
+        let (malformed_revision, malformed_evidence) =
+            legacy_pattern_refs(&malformed_path, "legacy-pattern-unknown").await;
+        let before = {
+            let mut connection = connect(&malformed_path, true).await.unwrap();
+            operation_manifest(&mut connection).await.unwrap()
+        };
+        let error = execute_disposable(
+            &malformed_path,
+            PatternWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: "legacy-pattern-unknown".into(),
+                expected_source_revision_id: source_revision(&malformed_path).await,
+                expected_artifact_revision_id: malformed_revision,
+                expected_evidence: vec![malformed_evidence],
+                expected_reflections: Vec::new(),
+            },
+            context(
+                "2026-08-09T02:02:00.000Z",
+                "guard-legacy-pattern-unknown-00000001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.code.contains("pattern_legacy_payload_unknown_field"));
+        let mut connection = connect(&malformed_path, true).await.unwrap();
+        assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+        drop(connection);
+
+        for (reject, points) in [
+            (
+                false,
+                vec![
+                    PatternWriteFailurePoint::AfterReview,
+                    PatternWriteFailurePoint::AfterHead,
+                    PatternWriteFailurePoint::AfterProjection,
+                    PatternWriteFailurePoint::AfterReconciliation,
+                    PatternWriteFailurePoint::AfterGuardRemoval,
+                ],
+            ),
+            (
+                true,
+                vec![
+                    PatternWriteFailurePoint::AfterReview,
+                    PatternWriteFailurePoint::AfterHead,
+                    PatternWriteFailurePoint::AfterLifecycle,
+                    PatternWriteFailurePoint::AfterTombstone,
+                    PatternWriteFailurePoint::AfterPurge,
+                    PatternWriteFailurePoint::AfterProjection,
+                    PatternWriteFailurePoint::AfterReconciliation,
+                    PatternWriteFailurePoint::AfterGuardRemoval,
+                ],
+            ),
+        ] {
+            for (index, point) in points.into_iter().enumerate() {
+                let id = format!("legacy-pattern-rollback-{reject}-{index}");
+                let (_directory, path, raw) =
+                    exact_v5_legacy_pattern_fixture(&id, true, false).await;
+                let (revision, evidence) = legacy_pattern_refs(&path, &id).await;
+                let before = {
+                    let mut connection = connect(&path, true).await.unwrap();
+                    operation_manifest(&mut connection).await.unwrap()
+                };
+                let command = if reject {
+                    PatternWriteCommand::RejectPending {
+                        source_id: SOURCE_ID.into(),
+                        artifact_id: id.clone(),
+                        expected_source_revision_id: source_revision(&path).await,
+                        expected_artifact_revision_id: revision.clone(),
+                        expected_evidence: vec![evidence.clone()],
+                        expected_reflections: Vec::new(),
+                    }
+                } else {
+                    PatternWriteCommand::ConfirmPending {
+                        source_id: SOURCE_ID.into(),
+                        artifact_id: id.clone(),
+                        expected_source_revision_id: source_revision(&path).await,
+                        expected_artifact_revision_id: revision.clone(),
+                        expected_evidence: vec![evidence.clone()],
+                        expected_reflections: Vec::new(),
+                    }
+                };
+                assert!(execute_disposable(
+                    &path,
+                    command,
+                    context(
+                        "2026-08-09T02:03:00.000Z",
+                        "guard-legacy-pattern-rollback-000001",
+                        point,
+                    ),
+                )
+                .await
+                .is_err());
+                let mut connection = connect(&path, true).await.unwrap();
+                assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
+                assert_eq!(
+                    sqlx::query_scalar::<_, String>(
+                        "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                    )
+                    .bind(&revision)
+                    .fetch_one(&mut connection)
+                    .await
+                    .unwrap(),
+                    raw
+                );
+            }
+        }
+    }
+
     struct InjectedCommitAdapter {
         outcome: CommitAttemptOutcome,
         commit_first: bool,
@@ -3806,6 +4601,71 @@ mod tests {
                 Err(error) => RollbackAttemptOutcome::Failed {
                     error_class: error.to_string(),
                 },
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_review_ambiguous_commit_classifies_exact_pre_post_and_third_state() {
+        for (commit_first, third_state) in [(false, false), (true, false), (true, true)] {
+            let id = format!("legacy-pattern-ambiguous-{commit_first}-{third_state}");
+            let (_directory, path, raw) =
+                exact_v5_legacy_pattern_fixture(&id, true, false).await;
+            let (revision, evidence) = legacy_pattern_refs(&path, &id).await;
+            let adapter = InjectedCommitAdapter {
+                outcome: CommitAttemptOutcome::OutcomeUnknown {
+                    error_class: "injected_legacy_review_commit_ambiguity".into(),
+                },
+                commit_first,
+                third_state,
+                calls: Cell::new(0),
+            };
+            let result = execute_with_adapter(
+                &path,
+                PatternWriteCommand::ConfirmPending {
+                    source_id: SOURCE_ID.into(),
+                    artifact_id: id.clone(),
+                    expected_source_revision_id: source_revision(&path).await,
+                    expected_artifact_revision_id: revision.clone(),
+                    expected_evidence: vec![evidence],
+                    expected_reflections: Vec::new(),
+                },
+                context(
+                    "2026-08-09T02:04:00.000Z",
+                    "guard-legacy-pattern-ambiguous-0001",
+                    PatternWriteFailurePoint::None,
+                ),
+                &adapter,
+            )
+            .await;
+            assert_eq!(adapter.calls.get(), 1);
+            match (commit_first, third_state) {
+                (false, false) => {
+                    assert!(result
+                        .unwrap_err()
+                        .code
+                        .contains("pattern_commit_outcome_unknown_unchanged"));
+                    let mut connection = connect(&path, true).await.unwrap();
+                    assert_eq!(
+                        sqlx::query_scalar::<_, String>(
+                            "SELECT payload FROM artifact_revision_content WHERE revision_id=?",
+                        )
+                        .bind(&revision)
+                        .fetch_one(&mut connection)
+                        .await
+                        .unwrap(),
+                        raw
+                    );
+                }
+                (true, false) => {
+                    assert_eq!(result.unwrap().status, PatternWriteStatus::Committed)
+                }
+                (true, true) => {
+                    let error = result.unwrap_err();
+                    assert!(error.recovery_required);
+                    assert!(error.code.contains("pattern_commit_outcome_unknown"));
+                }
+                _ => unreachable!(),
             }
         }
     }
