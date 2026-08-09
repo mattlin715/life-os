@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-09-phase-3c-slice4c6b-legacy-successor-parity:0014",
+  "last_event_hash": "4b629f3a1dc5dd3a76f500f5900a109d193ef7601185e63db9f8e1723ba2b305",
+  "sprint_id": "2026-08-09-phase-3c-slice4c6b-legacy-successor-parity",
+  "mission_title": "Phase 3C Slice 4C-6B Migrated Legacy Successor-Producing Current-Action Parity",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3c-slice4c6b-legacy-successor-current-action-parity",
+  "repository_head": "6f2c64c13a6085e73cc4f4c5dccf6d51a73e543d",
+  "working_tree_digest": "2ef47426a1216a5e6e99eb41c8a521d1f8c8812fa6ae1a811913e3cb83930f68",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-09T11:11:22.707Z",
+      "repository_head": "6f2c64c13a6085e73cc4f4c5dccf6d51a73e543d",
+      "working_tree_digest": "2ef47426a1216a5e6e99eb41c8a521d1f8c8812fa6ae1a811913e3cb83930f68"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-09T10:18:55.662Z",
+  "updated_at": "2026-08-09T11:14:34.680Z"
+}

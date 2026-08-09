@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 4.3
+version: 4.5
 owner: product-and-engineering
 last_updated: 2026/08/09
 depends:
@@ -2545,13 +2545,73 @@ Canonical repository verification and the terminal Product and Theory
 Alignment Reviews are recorded by the repository workflow before Founder diff
 review.
 
-This is an implemented and verified working-tree slice awaiting Founder diff
-review and separate promotion authority. It is not yet promoted or
-production-authorized. Production `SCHEMA_VERSION`, startup maximum, and user
-databases remain schema v4. Slice 4C-6B remains separately required for legacy
+Slice 4C-6A was implemented, canonically verified, Founder-accepted, and
+promoted through feature commit
+`5c8c875522abd8e43e790a359b06fbd8f6adb889` and non-fast-forward merge commit
+`6f2c64c13a6085e73cc4f4c5dccf6d51a73e543d`. The promoted feature contains 14
+files with 3,188 insertions and 45 deletions, measured with
+`git diff --shortstat a9bbf7cc687f0d8dcc4bda9e1d402bf309fac590 5c8c875522abd8e43e790a359b06fbd8f6adb889`.
+It remains private disposable evidence and is not production-authorized.
+Production `SCHEMA_VERSION`, startup maximum, and user databases remain schema
+v4. Before this sprint, Slice 4C-6B remained separately unauthorized and
+required for legacy
 Evidence candidate correction, Reflection answer/skip/correction, and Context
 Recovery answer/skip before any production migration or recovery gate.
 Production/fresh-v5 activation, real-user migration, runtime/Tauri/renderer/UI,
 new product actions, DDL changes, provider/ContextPacket/consent/retention
 changes, export v2, production backup/restore/recovery, Phase 4, identity or
 sensitive inference, deployment, and release remain unauthorized.
+
+## Slice 4C-6B Disposable Legacy Successor Current-Action Parity Evidence
+
+On 2026/08/09, the founder authorized only the private, unregistered,
+path/connection-injected Slice 4C-6B successors that match currently reachable
+schema-v4 product actions. The bounded implementation extends the existing
+Evidence, Reflection, and Context Recovery writers and executes only against
+synthetic/disposable exact-v5 fixtures produced through the promoted exact-v4
+migration core. It adds no Tauri command, renderer path, startup integration,
+DDL, generic lifecycle framework, or production schema-v5 authority.
+
+The reachable actions are pending Evidence correction followed by a separately
+explicit reconfirmation; suggested Reflection answer or skip; answered
+Reflection response correction; and suggested Context Recovery answer or skip.
+Standalone Context Recovery correction/deletion, suggested or skipped
+Reflection deletion, and other actions absent from the current product remain
+intentionally omitted.
+
+Every content-changing action retains the migrated `legacy-v4-raw` predecessor
+revision byte-for-byte with its original digest, source relation, exact revision
+dependencies, normalized honest provenance representation, and imported
+lifecycle evidence. It appends a deterministic `canonical-json-v1` successor
+only after explicit user action. Evidence correction becomes a user-authored
+pending revision and requires exact-revision reconfirmation. Reflection answer
+and correction preserve the immutable legacy prompt and prompt provenance while
+adding exact user response provenance and an `answers_prompt` edge to the
+baseline revision. Context Recovery answer follows the same prompt lineage but
+remains `current_experience_task_only` and categorically excluded from
+historical context. Skip remains terminal, appends no response revision or
+response content, and changes only the guarded schema-v4 projection and exact
+user review fact.
+
+Strict artifact-specific legacy parsing rejects unknown fields, malformed or
+duplicate identifiers, stale source or artifact revisions, ineligible Evidence,
+orphaned or contradictory state, projection/digest drift, and unsupported
+inbound dependencies. No action normalizes, regenerates, retries, repairs, or
+rebinds the predecessor. The existing one-transaction v5-authority and guarded
+v4-projection contracts, deterministic failure points, exact logical rollback,
+and read-only manifest reconciliation remain authoritative. New legacy-path
+COMMIT tests classify exact pre-state, exact post-state, and a third durable
+state as `recovery_required` without retry.
+
+Focused disposable evidence adds twelve Slice 4C-6B regressions across the
+three existing writers. The complete Rust library suite passes 182 tests, and
+Clippy passes for all targets with warnings denied. Canonical repository
+verification and terminal Product and Theory Alignment Reviews are recorded by
+the repository workflow before Founder diff review.
+
+Slice 4C-6B remains an implemented and verified working-tree change pending
+Founder diff acceptance and separate promotion authority. Production
+`SCHEMA_VERSION`, startup maximum, and user databases remain schema v4.
+Production migration/fresh-v5 initialization, real user data, runtime/Tauri/UI,
+provider/ContextPacket/consent changes, export v2, production recovery, Phase 4,
+deployment, and release remain unauthorized.
