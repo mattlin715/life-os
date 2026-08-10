@@ -51,6 +51,7 @@ import {
 import { retrieveCandidatesForOpenHistoricalPanels } from "../historicalContext/panelRetrieval";
 import {
   isHistoricalContextPanelOpen,
+  openHistoricalContextPanel,
   removeHistoricalContextPanelForExperience,
   toggleHistoricalContextPanel,
   type HistoricalContextOpenPanels,
@@ -113,7 +114,20 @@ import {
   inspectDatabaseReadiness,
   type DatabaseReadinessResult,
 } from "../shared/storage/sqlite/databaseReadiness";
-import { DatabaseReadinessPanel } from "./DatabaseReadinessPanel";
+import { DailyReflectionComposer } from "./DailyReflectionComposer";
+import { SecondaryDataTools } from "./SecondaryDataTools";
+import { ExperienceTimelineFilters } from "./ExperienceTimelineFilters";
+import {
+  emptyExperienceTimelineFilters,
+  filterExperienceTimeline,
+} from "./experienceTimeline";
+import { nextDailyReflectionAction } from "./dailyReflectionFlow";
+import {
+  HistoricalConsentPreflight,
+  type EligibleHistoricalArtifactRecord,
+} from "./HistoricalConsentPreflight";
+import { HistoricalContextEntryPoint } from "./HistoricalContextEntryPoint";
+import { focusContextRecovery } from "./contextRecoveryNavigation";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -592,11 +606,22 @@ export function App() {
     useState<EvidenceCandidateEditState | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
+  const [timelineFilters, setTimelineFilters] = useState(
+    emptyExperienceTimelineFilters,
+  );
+  const [entryDisclosureOverrides, setEntryDisclosureOverrides] = useState<
+    Record<string, boolean>
+  >({});
   const [databaseReadinessOpen, setDatabaseReadinessOpen] = useState(false);
   const [databaseReadinessResult, setDatabaseReadinessResult] =
     useState<DatabaseReadinessResult | null>(null);
   const [databaseReadinessChecking, setDatabaseReadinessChecking] = useState(false);
   const databaseReadinessRequest = useRef(0);
+
+  const timelineFilterResult = useMemo(
+    () => filterExperienceTimeline(entries, timelineFilters),
+    [entries, timelineFilters],
+  );
 
   const checkDatabaseReadiness = useCallback(async () => {
     databaseReadinessRequest.current += 1;
@@ -708,7 +733,7 @@ export function App() {
       createdAt,
       updatedAt: createdAt,
     };
-    await runArtifactMutation(
+    const committed = await runArtifactMutation(
       entry.id,
       (current) => ({
         ...current,
@@ -716,6 +741,7 @@ export function App() {
       }),
       copy.recoveryNote,
     );
+    if (committed) focusContextRecovery(entry.id);
   }, [copy.recoveryNote, copy.recoveryQuestion, language, runArtifactMutation]);
 
   useEffect(() => {
@@ -1047,6 +1073,16 @@ export function App() {
   const toggleHistoricalContext = useCallback((entryId: string) => {
     setHistoricalContextOpenPanels((current) => toggleHistoricalContextPanel(current, entryId));
   }, []);
+  const openHistoricalContextFromTop = useCallback((entryId: string) => {
+    setHistoricalContextOpenPanels((current) =>
+      openHistoricalContextPanel(current, entryId),
+    );
+    globalThis.requestAnimationFrame?.(() => {
+      const panel = document.getElementById(`historical-context-${entryId}`);
+      panel?.focus({ preventScroll: true });
+      panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
   const toggleHistoricalSource = useCallback((entryId: string, sourceEntryId: string) => {
     setHistoricalContextSelections((current) => toggleHistoricalContextSelection(current, entryId, sourceEntryId));
     setHistoricalPreflight((current) => current?.entryId === entryId ? null : current);
@@ -1375,13 +1411,6 @@ export function App() {
             <p className="top-bar-title">{copy.motto}</p>
           </div>
           <div className="top-bar-controls">
-            <button
-              type="button"
-              className="ghost-button compact"
-              onClick={() => setDatabaseReadinessOpen(true)}
-            >
-              {copy.databaseReadinessOpen}
-            </button>
             <label className="language-switcher">
               <span>{copy.languageLabel}</span>
               <select
@@ -1404,64 +1433,28 @@ export function App() {
           </div>
         </header>
 
-        {databaseReadinessOpen ? (
-          <DatabaseReadinessPanel
-            copy={copy}
-            result={databaseReadinessResult}
-            checking={databaseReadinessChecking}
-            onCheck={checkDatabaseReadiness}
-            onClose={closeDatabaseReadiness}
-          />
-        ) : null}
+        <DailyReflectionComposer
+          copy={copy}
+          body={body}
+          saving={isSaving}
+          providerDetail={aiProviderDetail}
+          onBodyChange={setBody}
+          onSave={saveExperience}
+        />
 
-        <section className="welcome-card">
-          <div className="welcome-copy">
-            <p className="soft-label">{copy.welcome}</p>
-            <h1>{copy.hero}</h1>
-            <p className="welcome-subtitle">{copy.subtitle}</p>
-          </div>
-          <div className="reflection-composer">
-            <textarea
-              aria-label={copy.experienceAria}
-              placeholder={copy.experiencePlaceholder}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-            />
-            <div className="composer-footer">
-              <p>{aiProviderDetail}</p>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={!body.trim() || isSaving}
-                onClick={saveExperience}
-              >
-                {isSaving ? copy.saving : copy.saveMoment}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="utility-row" aria-label={copy.importExportAria}>
-          <button
-            type="button"
-            className="ghost-button"
-            disabled={entries.length === 0}
-            onClick={() => exportEntries("json")}
-          >
-            {copy.exportJson}
-          </button>
-          <button
-            type="button"
-            className="ghost-button"
-            disabled={entries.length === 0}
-            onClick={() => exportEntries("markdown")}
-          >
-            {copy.exportMarkdown}
-          </button>
-          <button type="button" className="ghost-button" onClick={importEntries}>
-            {copy.importJson}
-          </button>
-        </section>
+        <SecondaryDataTools
+          copy={copy}
+          hasEntries={entries.length > 0}
+          readinessOpen={databaseReadinessOpen}
+          readinessResult={databaseReadinessResult}
+          readinessChecking={databaseReadinessChecking}
+          onExportJson={() => exportEntries("json")}
+          onExportMarkdown={() => exportEntries("markdown")}
+          onImportJson={importEntries}
+          onOpenReadiness={() => setDatabaseReadinessOpen(true)}
+          onCheckReadiness={checkDatabaseReadiness}
+          onCloseReadiness={closeDatabaseReadiness}
+        />
 
         {storageError ? (
           <p className="storage-error" role="alert">
@@ -1496,6 +1489,21 @@ export function App() {
           <p>{copy.summaryNote}</p>
         </section>
 
+        {entries.length > 0 ? (
+          <ExperienceTimelineFilters
+            copy={copy}
+            filters={timelineFilters}
+            resultCount={timelineFilterResult.entries.length}
+            totalCount={entries.length}
+            error={timelineFilterResult.status === "blocked" ? timelineFilterResult.reason : null}
+            rangeTimeZone={timelineFilterResult.status === "valid" ? timelineFilterResult.rangeTimeZone : null}
+            onKeywordChange={(keyword) => setTimelineFilters((current) => ({ ...current, keyword }))}
+            onStartDateChange={(startDate) => setTimelineFilters((current) => ({ ...current, startDate }))}
+            onEndDateChange={(endDate) => setTimelineFilters((current) => ({ ...current, endDate }))}
+            onClear={() => setTimelineFilters(emptyExperienceTimelineFilters)}
+          />
+        ) : null}
+
         {entries.length === 0 ? (
           <section className="empty-state" aria-label={copy.emptyAria}>
             <div className="empty-orb">○</div>
@@ -1504,7 +1512,7 @@ export function App() {
           </section>
         ) : (
           <section className="entry-list" aria-label={copy.savedExperiencesAria}>
-            {entries.map((entry) => {
+            {timelineFilterResult.entries.map((entry) => {
               const evidenceCandidates =
                 evidenceCandidatesByEntryId[entry.id] ?? [];
               const evidenceSummary =
@@ -1575,10 +1583,10 @@ export function App() {
                           ? copy.historicalSavedDateTimezoneUnavailable
                           : copy.historicalSavedDateNotApplied
                   : null;
-              const eligibleHistoricalArtifactRecords = selectedHistoricalCandidates.flatMap((candidate) => {
+              const eligibleHistoricalArtifactRecords: EligibleHistoricalArtifactRecord[] = selectedHistoricalCandidates.flatMap((candidate) => {
                 const eligible = eligibleHistoricalArtifacts(candidate.sourceExperienceId, historicalArtifactsByEntryId[candidate.sourceExperienceId]);
                 const relevanceReason = candidate.reasons.flatMap((reason) => reason.terms).join(", ");
-                return [...eligible.evidence.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "Evidence", content: artifact.text, relevanceReason })), ...eligible.reflections.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "Reflection response", content: artifact.response ?? "", relevanceReason }))];
+                return [...eligible.evidence.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "evidence" as const, content: artifact.text, relevanceReason })), ...eligible.reflections.map((artifact) => ({ id: artifact.id, sourceExperienceId: candidate.sourceExperienceId, revision: artifact.updatedAt, type: "reflection_response" as const, content: artifact.response ?? "", relevanceReason }))];
               });
               const savedHistoricalQuestions = historicalQuestionsByEntryId[entry.id] ?? [];
               const createdAtDateTime = toSafeHtmlDateTime(entry.createdAt);
@@ -1593,9 +1601,51 @@ export function App() {
                 language,
                 copy.dateUnavailable,
               );
+              const isCurrentReflection = entry.id === entries[0]?.id;
+              const entryDisclosureOpen =
+                entryDisclosureOverrides[entry.id] ?? isCurrentReflection;
+              const nextAction = nextDailyReflectionAction({
+                evidenceTotal: evidenceSummary.total,
+                evidencePending: evidenceSummary.pending,
+                evidenceConfirmed: evidenceSummary.confirmed,
+                reflectionTotal: reflectionPrompts.length,
+                reflectionSuggested: reflectionSummary.suggested,
+                reflectionAnswered: reflectionSummary.answered,
+              });
+              const nextActionText = {
+                generate_evidence: copy.nextActionGenerateEvidence,
+                review_evidence: copy.nextActionReviewEvidence,
+                generate_reflection: copy.nextActionGenerateReflection,
+                answer_reflection: copy.nextActionAnswerReflection,
+                reflection_complete: copy.nextActionReflectionComplete,
+              }[nextAction];
 
               return (
-                <article className="entry" key={entry.id}>
+                <details
+                  className={`entry-disclosure ${isCurrentReflection ? "entry-disclosure-current" : "entry-disclosure-older"}`}
+                  open={entryDisclosureOpen}
+                  onToggle={(event) => {
+                    const open = event.currentTarget.open;
+                    if (open === entryDisclosureOpen) return;
+                    setEntryDisclosureOverrides((current) => ({
+                      ...current,
+                      [entry.id]: open,
+                    }));
+                  }}
+                  key={entry.id}
+                >
+                  <summary>
+                    <span className="entry-disclosure-label">
+                      {isCurrentReflection ? copy.currentReflection : copy.olderReflection}
+                    </span>
+                    <span className="entry-disclosure-excerpt">{entry.body}</span>
+                    <span className="entry-disclosure-date">{createdAtPresentation}</span>
+                    <span className="entry-disclosure-next">
+                      <strong>{copy.nextActionLabel}:</strong> {nextActionText}
+                    </span>
+                    <span className="visually-hidden">{copy.entryOpenDetails}</span>
+                  </summary>
+                  <article className="entry">
                   <div className="entry-meta">
                     <div>
                       <p className="entry-kicker">{copy.moment}</p>
@@ -1664,192 +1714,17 @@ export function App() {
                     </>
                   )}
 
-                  <section className="historical-context-panel" aria-label={copy.historicalContextAria}>
-                    <div className="review-card-header">
-                      <div>
-                        <p className="review-step">{copy.historicalContextStep}</p>
-                        <h2>{copy.historicalContextTitle}</h2>
-                      </div>
-                      <button
-                        type="button"
-                        className="ghost-button compact"
-                        onClick={() => toggleHistoricalContext(entry.id)}
-                      >
-                        {isHistoricalContextOpen ? copy.historicalContextClose : copy.historicalContextOpen}
-                      </button>
-                    </div>
-                    {isHistoricalContextOpen ? (
-                      <>
-                        <p className="historical-context-note">{copy.historicalContextLocalOnly}</p>
-                        <p className="historical-context-note">{copy.historicalContextNoConclusion}</p>
-                        <HistoricalSavedDateRangeFilter
-                          control={historicalSavedDateRangeControl}
-                          message={historicalSavedDateRangeMessage}
-                          copy={copy}
-                          onEnabledChange={(enabled) =>
-                            changeHistoricalSavedDateRangeEnabled(
-                              entry.id,
-                              enabled,
-                            )
-                          }
-                          onStartChange={(startDate) =>
-                            changeHistoricalSavedDateRangeStart(
-                              entry.id,
-                              startDate,
-                            )
-                          }
-                          onEndChange={(endDate) =>
-                            changeHistoricalSavedDateRangeEnd(
-                              entry.id,
-                              endDate,
-                            )
-                          }
-                          onApply={() =>
-                            applyHistoricalSavedDateRangeForEntry(entry.id)
-                          }
-                        />
-                        {historicalSavedDateRangeState.status === "blocked" ? null : historicalCandidates.length === 0 ? (
-                          <p className="historical-context-empty">{copy.historicalContextEmpty}</p>
-                        ) : (
-                          <div className="historical-context-list">
-                            {historicalCandidates.map((candidate) => {
-                              const selected = isHistoricalContextSelected(
-                                historicalContextSelections,
-                                entry.id,
-                                candidate.sourceExperienceId,
-                              );
-                              const sourceDateTime = toSafeHtmlDateTime(candidate.sourceCreatedAt);
-                              const sourceDatePresentation = copy.historicalContextSourceDate(
-                                formatHistoricalSourceDate(
-                                  candidate.sourceCreatedAt,
-                                  language,
-                                  copy.dateUnavailable,
-                                ),
-                              );
-                              return (
-                                <article className="historical-context-candidate" key={candidate.sourceExperienceId}>
-                                  {sourceDateTime ? (
-                                    <time dateTime={sourceDateTime}>{sourceDatePresentation}</time>
-                                  ) : (
-                                    <span className="historical-context-source-date">{sourceDatePresentation}</span>
-                                  )}
-                                  <p>{candidate.sourceExcerpt}</p>
-                                  <p className="historical-context-reason">
-                                    {copy.historicalContextReason(candidate.reasons.flatMap((reason) => reason.terms).join(", "))}
-                                  </p>
-                                  {historicalSavedDateRangeState.status ===
-                                  "applied" ? (
-                                    <p className="historical-context-reason">
-                                      {copy.historicalSavedDateReason(
-                                        historicalSavedDateRangeState.range
-                                          .startDate,
-                                        historicalSavedDateRangeState.range
-                                          .endDate,
-                                        historicalSavedDateRangeState.range
-                                          .timeZone,
-                                      )}
-                                    </p>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    className={selected ? "secondary-button compact" : "ghost-button compact"}
-                                    onClick={() => toggleHistoricalSource(entry.id, candidate.sourceExperienceId)}
-                                  >
-                                    {selected ? copy.historicalContextExclude : copy.historicalContextInclude}
-                                  </button>
-                                </article>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {selectedHistoricalCandidates.length > 0 ? (
-                          <div className="historical-context-selected-preview">
-                            <strong>{copy.historicalContextSelectedPreview}</strong>
-                            <ul>
-                              {selectedHistoricalCandidates.map((candidate) => (
-                                <li key={candidate.sourceExperienceId}>{candidate.sourceExcerpt}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                        <div className="entry-actions historical-context-actions">
-                          <p>{copy.historicalContextSelected(selectedHistoricalCount)}</p>
-                          <button
-                            type="button"
-                            className="ghost-button compact"
-                            disabled={selectedHistoricalCount === 0}
-                            onClick={() => clearHistoricalSources(entry.id)}
-                          >
-                            {copy.historicalContextClear}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-button compact"
-                            disabled={selectedHistoricalCount === 0 || isHistoricalPending}
-                            onClick={() => openHistoricalPreflight(entry)}
-                          >
-                            {copy.historicalReviewExactContent}
-                          </button>
-                        </div>
-                        {entryHistoricalPreflight ? (
-                          <section className="historical-preflight" aria-label={copy.historicalPreflightAria}>
-                            <h3>{copy.historicalPreflightTitle}</h3>
-                            <p>{copy.historicalPurpose}</p>
-                            <p className="historical-sensitive-warning">{copy.historicalSensitiveWarning}</p>
-                            <dl className="historical-preflight-meta">
-                              <div><dt>{copy.historicalDestination}</dt><dd>{entryHistoricalPreflight.packet.destination.provider} / {entryHistoricalPreflight.packet.destination.model}</dd></div>
-                              <div><dt>{copy.historicalRetention}</dt><dd>{entryHistoricalPreflight.packet.destination.retentionDisclosure}</dd></div>
-                              <div><dt>{copy.historicalCurrentSource}</dt><dd>{entryHistoricalPreflight.packet.currentExperience.id} @ {entryHistoricalPreflight.packet.currentExperience.revision}</dd></div>
-                            </dl>
-                            <div className="historical-exact-content">
-                              <strong>{copy.historicalExactOutgoingContent}</strong>
-                              <article><code>{entryHistoricalPreflight.packet.currentExperience.id}</code><p>{entryHistoricalPreflight.packet.currentExperience.content}</p></article>
-                              {entryHistoricalPreflight.packet.includedItems.filter((item) => item.itemType === "experience").map((item) => (
-                                <article key={`${item.sourceExperienceId}:experience`}>
-                                  <code>{item.sourceExperienceId} @ {item.revision}</code>
-                                  <p>{item.content}</p><small>{copy.historicalRelevance}: {item.relevanceReason}</small>
-                                  <div><button type="button" className="ghost-button compact" onClick={() => toggleHistoricalSource(entry.id, item.sourceExperienceId)}>{copy.historicalContextExclude}</button></div>
-                                </article>
-                              ))}
-                            </div>
-                            {eligibleHistoricalArtifactRecords.length ? (
-                              <div className="historical-artifact-controls">
-                                <strong>{copy.historicalEligibleArtifacts}</strong>
-                                {eligibleHistoricalArtifactRecords.map((artifact) => {
-                                  const included = entryHistoricalPreflight.includedArtifactIds.has(artifact.id);
-                                  return <article key={artifact.id}>
-                                    <code>{artifact.type} / {artifact.id} / {artifact.sourceExperienceId} @ {artifact.revision}</code>
-                                    <p>{artifact.content}</p>
-                                    <small>{copy.historicalRelevance}: {artifact.relevanceReason}</small>
-                                    <button type="button" className="ghost-button compact" onClick={() => toggleHistoricalPreflightArtifact(entry, artifact.id)}>{included ? copy.historicalExcludeExact : copy.historicalIncludeExact}</button>
-                                  </article>;
-                                })}
-                              </div>
-                            ) : null}
-                            <p>{copy.historicalConsentOneUse}</p>
-                            <div className="entry-actions">
-                              <button type="button" className="primary-button" disabled={isHistoricalPending} onClick={() => sendHistoricalReflectionQuestions(entry)}>{isHistoricalPending ? copy.historicalSending : copy.historicalSendSelected}</button>
-                              <button type="button" className="ghost-button" disabled={isHistoricalPending} onClick={cancelHistoricalPreflight}>{copy.cancel}</button>
-                            </div>
-                          </section>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </section>
-
-                  {savedHistoricalQuestions.length ? (
-                    <section className="historical-question-results" aria-label={copy.historicalQuestionsAria}>
-                      <h2>{copy.historicalQuestionsTitle}</h2>
-                      {savedHistoricalQuestions.map((artifact) => <article key={artifact.id}>
-                        <small>{artifact.packet.destination.provider} / {artifact.packet.destination.model} / {artifact.packet.packetDigest.slice(0, 12)}</small>
-                        {artifact.questions.length ? <ul>{artifact.questions.map((question) => <li key={question.id}>{question.text} <code>{question.sourceExperienceIds.join(", ")}</code></li>)}</ul> : <p>{copy.historicalNoQuestion}</p>}
-                        <HistoricalProvenanceInspector artifact={artifact} copy={copy} />
-                        <button type="button" className="danger-button compact" onClick={() => deleteHistoricalQuestionArtifact(entry.id, artifact.id)}>{copy.delete}</button>
-                      </article>)}
-                    </section>
-                  ) : null}
+                  <HistoricalContextEntryPoint
+                    copy={copy}
+                    controlsId={`historical-context-${entry.id}`}
+                    isOpen={isHistoricalContextOpen}
+                    onOpen={() => openHistoricalContextFromTop(entry.id)}
+                  />
 
                   <section className="review-stack">
+                    <p className="reflection-flow-guide">
+                      {copy.reflectionFlowGuide}
+                    </p>
                     <section className="review-card evidence-review">
                       <div className="review-card-header">
                         <div>
@@ -1867,8 +1742,15 @@ export function App() {
                             : copy.generateEvidence}
                         </button>
                       </div>
+                      <p className="phase-purpose">{copy.evidencePurpose}</p>
                       {(recoveryTurnsByEntryId[entry.id] ?? []).length > 0 ? (
-                        <div className="session-note">
+                        <div
+                          aria-label={copy.recoveryTitle}
+                          className="session-note"
+                          id={`context-recovery-${entry.id}`}
+                          role="region"
+                          tabIndex={-1}
+                        >
                           <strong>{copy.recoveryTitle}</strong>
                           <p>{copy.recoveryNote}</p>
                           {(recoveryTurnsByEntryId[entry.id] ?? []).map((turn) => (
@@ -2057,6 +1939,7 @@ export function App() {
                             : copy.generateReflection}
                         </button>
                       </div>
+                      <p className="phase-purpose">{copy.reflectionPurpose}</p>
                       <p className="reflection-boundary">
                         {copy.reflectionBoundary}
                       </p>
@@ -2190,6 +2073,7 @@ export function App() {
                             : copy.generatePattern}
                         </button>
                       </div>
+                      <p className="phase-purpose">{copy.patternPurpose}</p>
                       <p className="pattern-boundary">
                         {copy.patternBoundary}
                       </p>
@@ -2287,7 +2171,174 @@ export function App() {
                       ) : null}
                     </section>
                   </section>
-                </article>
+
+                  <section
+                    id={`historical-context-${entry.id}`}
+                    className="historical-context-panel"
+                    aria-label={copy.historicalContextAria}
+                    tabIndex={-1}
+                  >
+                    <div className="review-card-header">
+                      <div>
+                        <p className="review-step">{copy.historicalContextStep}</p>
+                        <h2>{copy.historicalContextTitle}</h2>
+                      </div>
+                      <button
+                        type="button"
+                        className="ghost-button compact"
+                        onClick={() => toggleHistoricalContext(entry.id)}
+                      >
+                        {isHistoricalContextOpen ? copy.historicalContextClose : copy.historicalContextOpen}
+                      </button>
+                    </div>
+                    {isHistoricalContextOpen ? (
+                      <>
+                        <p className="historical-context-note">{copy.historicalContextLocalOnly}</p>
+                        <p className="historical-context-note">{copy.historicalContextNoConclusion}</p>
+                        <HistoricalSavedDateRangeFilter
+                          control={historicalSavedDateRangeControl}
+                          message={historicalSavedDateRangeMessage}
+                          copy={copy}
+                          onEnabledChange={(enabled) =>
+                            changeHistoricalSavedDateRangeEnabled(
+                              entry.id,
+                              enabled,
+                            )
+                          }
+                          onStartChange={(startDate) =>
+                            changeHistoricalSavedDateRangeStart(
+                              entry.id,
+                              startDate,
+                            )
+                          }
+                          onEndChange={(endDate) =>
+                            changeHistoricalSavedDateRangeEnd(
+                              entry.id,
+                              endDate,
+                            )
+                          }
+                          onApply={() =>
+                            applyHistoricalSavedDateRangeForEntry(entry.id)
+                          }
+                        />
+                        {historicalSavedDateRangeState.status === "blocked" ? null : historicalCandidates.length === 0 ? (
+                          <p className="historical-context-empty">{copy.historicalContextEmpty}</p>
+                        ) : (
+                          <div className="historical-context-list">
+                            {historicalCandidates.map((candidate) => {
+                              const selected = isHistoricalContextSelected(
+                                historicalContextSelections,
+                                entry.id,
+                                candidate.sourceExperienceId,
+                              );
+                              const sourceDateTime = toSafeHtmlDateTime(candidate.sourceCreatedAt);
+                              const sourceDatePresentation = copy.historicalContextSourceDate(
+                                formatHistoricalSourceDate(
+                                  candidate.sourceCreatedAt,
+                                  language,
+                                  copy.dateUnavailable,
+                                ),
+                              );
+                              return (
+                                <article className="historical-context-candidate" key={candidate.sourceExperienceId}>
+                                  {sourceDateTime ? (
+                                    <time dateTime={sourceDateTime}>{sourceDatePresentation}</time>
+                                  ) : (
+                                    <span className="historical-context-source-date">{sourceDatePresentation}</span>
+                                  )}
+                                  <p>{candidate.sourceExcerpt}</p>
+                                  <p className="historical-context-reason">
+                                    {copy.historicalContextReason(candidate.reasons.flatMap((reason) => reason.terms).join(", "))}
+                                  </p>
+                                  {historicalSavedDateRangeState.status ===
+                                  "applied" ? (
+                                    <p className="historical-context-reason">
+                                      {copy.historicalSavedDateReason(
+                                        historicalSavedDateRangeState.range
+                                          .startDate,
+                                        historicalSavedDateRangeState.range
+                                          .endDate,
+                                        historicalSavedDateRangeState.range
+                                          .timeZone,
+                                      )}
+                                    </p>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    className={selected ? "secondary-button compact" : "ghost-button compact"}
+                                    onClick={() => toggleHistoricalSource(entry.id, candidate.sourceExperienceId)}
+                                  >
+                                    {selected ? copy.historicalContextExclude : copy.historicalContextInclude}
+                                  </button>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {selectedHistoricalCandidates.length > 0 ? (
+                          <div className="historical-context-selected-preview">
+                            <strong>{copy.historicalContextSelectedPreview}</strong>
+                            <ul>
+                              {selectedHistoricalCandidates.map((candidate) => (
+                                <li key={candidate.sourceExperienceId}>{candidate.sourceExcerpt}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        <div className="entry-actions historical-context-actions">
+                          <p>{copy.historicalContextSelected(selectedHistoricalCount)}</p>
+                          <button
+                            type="button"
+                            className="ghost-button compact"
+                            disabled={selectedHistoricalCount === 0}
+                            onClick={() => clearHistoricalSources(entry.id)}
+                          >
+                            {copy.historicalContextClear}
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-button compact"
+                            disabled={selectedHistoricalCount === 0 || isHistoricalPending}
+                            onClick={() => openHistoricalPreflight(entry)}
+                          >
+                            {copy.historicalReviewExactContent}
+                          </button>
+                        </div>
+                        {entryHistoricalPreflight ? (
+                          <HistoricalConsentPreflight
+                            copy={copy}
+                            packet={entryHistoricalPreflight.packet}
+                            eligibleArtifacts={eligibleHistoricalArtifactRecords}
+                            pending={isHistoricalPending}
+                            onToggleSource={(sourceExperienceId) =>
+                              toggleHistoricalSource(entry.id, sourceExperienceId)
+                            }
+                            onToggleArtifact={(artifactId) =>
+                              void toggleHistoricalPreflightArtifact(entry, artifactId)
+                            }
+                            onSend={() => void sendHistoricalReflectionQuestions(entry)}
+                            onCancel={cancelHistoricalPreflight}
+                            onAdjustSources={cancelHistoricalPreflight}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                  </section>
+
+                  {savedHistoricalQuestions.length ? (
+                    <section className="historical-question-results" aria-label={copy.historicalQuestionsAria}>
+                      <h2>{copy.historicalQuestionsTitle}</h2>
+                      {savedHistoricalQuestions.map((artifact) => <article key={artifact.id}>
+                        <small>{artifact.packet.destination.provider} / {artifact.packet.destination.model} / {artifact.packet.packetDigest.slice(0, 12)}</small>
+                        {artifact.questions.length ? <ul>{artifact.questions.map((question) => <li key={question.id}>{question.text} <code>{question.sourceExperienceIds.join(", ")}</code></li>)}</ul> : <p>{copy.historicalNoQuestion}</p>}
+                        <HistoricalProvenanceInspector artifact={artifact} copy={copy} />
+                        <button type="button" className="danger-button compact" onClick={() => deleteHistoricalQuestionArtifact(entry.id, artifact.id)}>{copy.delete}</button>
+                      </article>)}
+                    </section>
+                  ) : null}
+
+                  </article>
+                </details>
               );
             })}
           </section>
@@ -2296,4 +2347,3 @@ export function App() {
     </main>
   );
 }
-

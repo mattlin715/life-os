@@ -84,6 +84,14 @@ The current per-Experience flow is:
 
 Skipping clarification permits observation but does not increase sufficiency or unlock Pattern generation. Rejected Evidence/Patterns are not durable, and dependent Reflection records are removed. Export/import remains Experience-only.
 
+### Daily Reflection Core UX R1 (implemented, not yet promoted or released)
+
+The ordinary screen now leads with recording an Experience. The newest Experience is expanded with one calm next-action summary; older Experiences use progressive disclosure so the Evidence and Reflection loop remains legible without removing any governed capability. Each open Experience places a calm optional local-history shortcut near the top; it opens and brings the existing governed panel into view but does not select a source or imply consent. Optional portability and database-readiness tools are grouped under a secondary Data and diagnostics disclosure. The readiness inspector remains explicit-open, session-only, read-only, and fail-closed.
+
+The locally loaded Experience timeline can be narrowed by a session-only keyword and an optional saved-date range. Keyword and date constraints combine deterministically; dates mean the persisted `createdAt` saved date, not an inferred real-world event date. The range includes both selected days in the device timezone. Incomplete, invalid, inverted, or unresolvable ranges fail closed and show no entries rather than falling back to an unfiltered list. Clearing filters restores the complete bounded loaded list. These controls make no provider call and persist no preference or search history.
+
+When the Pattern gate needs Context Recovery, the UI explicitly acknowledges that confirmed clues and saved Reflection remain valid while explaining that they do not invent missing facts about what happened. The action asks for the specific missing event context rather than presenting an unexplained disabled Pattern control. Local historical suggestions use concrete visible word overlap: Traditional Chinese and Japanese no longer display adjacent-character fragments or generic feeling-report scaffolding as relevance reasons. This is lexical retrieval only, not semantic classification or a cross-experience conclusion.
+
 ## 3. Flow 1: Pattern Review
 
 After multiple entries:
@@ -217,7 +225,7 @@ Candidate selection is ephemeral and local. Selection, panel opening, and silenc
 
 ### Governed Historical Question UX (Phase 3B)
 
-After exact source selection, the user may open a separate preflight that shows source/artifact IDs and revisions, relevance reasons, exact outgoing content, provider/model, purpose, sensitive-content warning, and include/exclude/cancel controls. `Send selected sources` grants consent only for that one immutable packet and the Historical Reflection Question purpose. Changes to source, artifact, task, destination, locale, contract version, or packet digest close or invalidate the preflight and require a new one.
+After exact source selection, the user may open a separate preflight. Its default view gives a concise statement of what will be sent, the provider/model destination, bounded purpose, included-source counts, sensitive-content reminder, single-generation/purpose scope, and explicit send, cancel, and source-adjustment paths. Before consent, a separate disclosure reveals source/artifact IDs and revisions, authorship/review state, relevance reasons, exact outgoing content, provider retention boundary, packet schema and versions, and the immutable packet/digest relationship with include/exclude controls. Opening either disclosure is not consent. Sending grants consent only for that one immutable packet and the Historical Reflection Question purpose. Changes to source, artifact, task, destination, locale, contract version, or packet digest close or invalidate the preflight and require a new one.
 
 The provider may return one to three neutral questions that cite at least one selected historical source, or an honest no-question result. Recurrence, contradiction, change-over-time, summary, Pattern, Awareness, Growth, advice, diagnosis, sensitive identity inference, and identity finalization are rejected and remain deferred to Phase 4 or later.
 

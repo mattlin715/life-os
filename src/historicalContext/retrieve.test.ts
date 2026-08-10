@@ -55,7 +55,7 @@ describe("local historical context retrieval", () => {
     expect(candidates.map((candidate) => candidate.sourceExperienceId)).toEqual(["a", "b"]);
     expect(candidates[0].reasons[0]).toMatchObject({ kind: "shared_visible_terms" });
     expect(candidates[0].reasons[0].terms).toContain("deadline");
-    expect(candidates[0].ranking.algorithmVersion).toBe("local-lexical-v1");
+    expect(candidates[0].ranking.algorithmVersion).toBe("local-lexical-v2");
   });
 
   it("preserves the exact Phase 3A path when no saved-date range is supplied", () => {
@@ -91,7 +91,7 @@ describe("local historical context retrieval", () => {
       "inside-a",
       "inside-b",
     ]);
-    expect(candidates.every((candidate) => candidate.ranking.algorithmVersion === "local-lexical-v1")).toBe(true);
+    expect(candidates.every((candidate) => candidate.ranking.algorithmVersion === "local-lexical-v2")).toBe(true);
   });
 
   it("includes both saved-date boundaries and returns zero results outside them", () => {
@@ -170,9 +170,9 @@ describe("local historical context retrieval", () => {
   });
 
   it.each([
-    ["zh-TW", "\u6df1\u547c", "\u6df1\u547c\u653e\u9b06", "\u6df1\u547c"],
+    ["zh-TW", "失望", "失望之後慢慢平靜", "失望"],
     ["ja", "\u96c6\u4e2d", "\u96c6\u4e2d\u3059\u308b", "\u96c6\u4e2d"],
-  ] as const)("keeps adjacent %s terms visible and explainable", (locale, currentBody, sourceBody, sharedTerm) => {
+  ] as const)("keeps meaningful %s words visible and explainable", (locale, currentBody, sourceBody, sharedTerm) => {
     const current = entry("current", currentBody);
     const candidates = findHistoricalContextCandidates({
       currentExperience: current,
@@ -190,6 +190,62 @@ describe("local historical context retrieval", () => {
     const japanese = entry("current-ja", "会議の後も不安が残った");
     expect(findHistoricalContextCandidates({ currentExperience: chinese, experiences: [chinese, entry("past-zh", "昨天會議後也感到不安", 2)], artifactsByEntryId: {}, locale: "zh-TW" })).toHaveLength(1);
     expect(findHistoricalContextCandidates({ currentExperience: japanese, experiences: [japanese, entry("past-ja", "会議の後に不安だった", 2)], artifactsByEntryId: {}, locale: "ja" })).toHaveLength(1);
+  });
+
+  it("shows meaningful Traditional Chinese words instead of adjacent fragments or generic self-report terms", () => {
+    const current = entry(
+      "current-zh-quality",
+      "我對自己感到失望，覺得女友的期待沒有被滿足，因此很憤怒。",
+    );
+    const [candidate] = findHistoricalContextCandidates({
+      currentExperience: current,
+      experiences: [
+        current,
+        entry(
+          "past-zh-quality",
+          "面對女友的期待，我也感到憤怒與失望，覺得自己沒有滿足她。",
+          2,
+        ),
+      ],
+      artifactsByEntryId: {},
+      locale: "zh-TW",
+    });
+
+    expect(candidate).toBeDefined();
+    const terms = candidate.reasons[0].terms;
+    expect(terms).toEqual(
+      expect.arrayContaining(["失望", "女友", "期待", "滿足", "憤怒", "自己"]),
+    );
+    expect(terms).not.toEqual(
+      expect.arrayContaining(["對自", "的失", "望感", "感到", "覺得", "覺得很", "沒有"]),
+    );
+  });
+
+  it("does not retrieve Traditional Chinese history through generic feeling-report wording alone", () => {
+    const current = entry("current-zh-generic", "我感到有些事情，也覺得需要休息。");
+    expect(findHistoricalContextCandidates({
+      currentExperience: current,
+      experiences: [current, entry("past-zh-generic", "我感到另一件事，也覺得需要等待。", 2)],
+      artifactsByEntryId: {},
+      locale: "zh-TW",
+    })).toEqual([]);
+  });
+
+  it("keeps Japanese overlap readable without exposing particles as relevance reasons", () => {
+    const current = entry("current-ja-words", "会議の後も不安が残った。期待を話せなかった。");
+    const [candidate] = findHistoricalContextCandidates({
+      currentExperience: current,
+      experiences: [current, entry("past-ja-words", "以前の会議でも期待と不安が残った。", 2)],
+      artifactsByEntryId: {},
+      locale: "ja",
+    });
+
+    expect(candidate.reasons[0].terms).toEqual(
+      expect.arrayContaining(["会議", "期待", "不安"]),
+    );
+    expect(candidate.reasons[0].terms).not.toEqual(
+      expect.arrayContaining(["の", "も", "が", "を"]),
+    );
   });
 
   it("uses only confirmed Evidence and committed user-authored answered Reflection", () => {

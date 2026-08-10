@@ -12,18 +12,39 @@ describe("Context Recovery localization", () => {
       for (const value of [copy.recoveryTitle, copy.recoveryNote, copy.recoveryQuestion]) expect(value).not.toMatch(/\?{4,}/u);
     }
   });
-  it("has readable Pattern availability explanations and an optional Add Context action", () => {
+  it("explains why saved clues and reflections do not replace missing event context", () => {
     expect(uiText.en.patternContextLimited).toContain("event context");
+    expect(uiText.en.patternContextLimited).toContain("saved reflections still count");
     expect(uiText["zh-TW"].patternContextLimited).toContain("事件脈絡");
-    expect(uiText.ja.patternContextLimited).toContain("出来事の文脈");
-    expect(uiText.en.addContext).toBe("Add context");
-    expect(uiText["zh-TW"].addContext).toBe("補充情境");
-    expect(uiText.ja.addContext).toBe("状況を少し補足する");
+    expect(uiText["zh-TW"].patternContextLimited).toContain("都有效");
+    expect(uiText.ja.patternContextLimited).toContain("出来事そのもの");
+    expect(uiText.ja.patternContextLimited).toContain("有効");
+    expect(uiText.en.addContext).toContain("unlock");
+    expect(uiText["zh-TW"].addContext).toContain("解鎖");
+    expect(uiText.ja.addContext).toContain("利用可能");
+  });
+  it("distinguishes the three reflection stages and does not imply that clues unlock patterns", () => {
+    expect(uiText.en.reflectionFlowGuide).toContain("Three distinct stages");
+    expect(uiText.en.evidenceNextReady).toContain("does not mean Stage 3");
+    expect(uiText["zh-TW"].reflectionFlowGuide).toContain("三個不同階段");
+    expect(uiText["zh-TW"].evidenceNextReady).toContain("不代表第 3 階段");
+    expect(uiText.ja.reflectionFlowGuide).toContain("三つの異なる段階");
+    expect(uiText.ja.evidenceNextReady).toContain("意味ではなく");
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      expect(uiText[locale].evidencePurpose).toBeTruthy();
+      expect(uiText[locale].reflectionPurpose).toBeTruthy();
+      expect(uiText[locale].patternPurpose).toBeTruthy();
+    }
+  });
+  it("offers a top local-history shortcut without implying selection or consent", () => {
+    expect(uiText.en.historicalContextShortcutBody).toContain("does not select or send");
+    expect(uiText["zh-TW"].historicalContextShortcutBody).toContain("不代表同意傳送");
+    expect(uiText.ja.historicalContextShortcutBody).toContain("送信同意も行われません");
   });
   it("states the local-only historical selection boundary in every language", () => {
     expect(uiText.en.historicalContextLocalOnly).toContain("has been sent to an AI provider");
-    expect(uiText["zh-TW"].historicalContextLocalOnly).toContain("尚未傳送給 AI provider");
-    expect(uiText.ja.historicalContextLocalOnly).toContain("AI provider に送信されていません");
+    expect(uiText["zh-TW"].historicalContextLocalOnly).toContain("尚未傳送給 AI 供應商");
+    expect(uiText.ja.historicalContextLocalOnly).toContain("AI 提供元に送信されていません");
   });
   it("provides a localized unavailable-date fallback", () => {
     expect(uiText.en.dateUnavailable).toBe("Date unavailable");
@@ -71,5 +92,27 @@ describe("Context Recovery localization", () => {
     expect(uiText.en.historicalProvenanceInvalid).toContain("nothing was changed");
     expect(uiText["zh-TW"].historicalProvenanceInvalid).toContain("沒有變更任何資料");
     expect(uiText.ja.historicalProvenanceInvalid).toContain("データの変更は行っていません");
+  });
+  it("does not leak canonical English domain labels into the ordinary Chinese or Japanese flow", () => {
+    const ordinaryKeys = [
+      "subtitle",
+      "currentSession",
+      "summaryNote",
+      "evidenceStep",
+      "generateEvidence",
+      "reflectionStep",
+      "generateReflection",
+      "patternStep",
+      "generatePattern",
+      "currentReflection",
+      "olderReflection",
+      "nextActionLabel",
+    ] as const;
+    const canonicalEnglish = /\b(?:Experience|Evidence|Reflection|Pattern|candidate|hypothesis|session|review|provenance|artifact)\b/i;
+    for (const locale of ["zh-TW", "ja"] as const) {
+      for (const key of ordinaryKeys) {
+        expect(uiText[locale][key]).not.toMatch(canonicalEnglish);
+      }
+    }
   });
 });

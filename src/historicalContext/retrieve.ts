@@ -16,6 +16,29 @@ const ENGLISH_STOP_WORDS = new Set([
   "would", "your",
 ]);
 
+const CJK_STOP_TERMS = new Set([
+  // Traditional Chinese function words and generic self-report scaffolding.
+  "一個", "一直", "但是", "因為", "所以", "今天", "昨天", "沒有", "以及",
+  "感到", "感覺", "覺得", "覺得很", "認為", "需要", "這個", "那個", "這些", "那些",
+  // Japanese particles, auxiliaries, and generic self-report scaffolding.
+  "から", "こと", "これ", "それ", "ため", "です", "でした", "ます", "ました",
+  "感じ", "感じる", "思う", "思った", "いる", "ある", "する", "した", "だった",
+]);
+
+interface WordSegment {
+  segment: string;
+  isWordLike?: boolean;
+}
+
+interface SegmenterLike {
+  segment(input: string): Iterable<WordSegment>;
+}
+
+type SegmenterConstructor = new (
+  locale: string,
+  options: { granularity: "word" },
+) => SegmenterLike;
+
 function stableCompare(left: string, right: string): number {
   return left === right ? 0 : left < right ? -1 : 1;
 }
@@ -31,6 +54,36 @@ function localeForCaseNormalization(locale: HistoricalContextRetrievalInput["loc
   }
 }
 
+function meaningfulCjkTerm(term: string): boolean {
+  const characters = [...term];
+  if (characters.length < 2 || CJK_STOP_TERMS.has(term)) return false;
+  if (/^[\p{Script=Latin}\p{N}]+$/u.test(term)) {
+    return characters.length >= 3 && !ENGLISH_STOP_WORDS.has(term);
+  }
+  return true;
+}
+
+function cjkVisibleTerms(normalized: string, locale: "zh-TW" | "ja"): Set<string> {
+  const Segmenter = (Intl as unknown as { Segmenter?: SegmenterConstructor }).Segmenter;
+  if (!Segmenter) {
+    // Conservative fallback: keep complete visible runs rather than inventing
+    // adjacent-character fragments across unknown word boundaries.
+    return new Set(
+      (normalized.match(/[\p{L}\p{N}]+/gu) ?? []).filter(meaningfulCjkTerm),
+    );
+  }
+
+  const segmenter = new Segmenter(localeForCaseNormalization(locale), {
+    granularity: "word",
+  });
+  return new Set(
+    [...segmenter.segment(normalized)]
+      .filter((part) => part.isWordLike !== false)
+      .map((part) => part.segment.trim())
+      .filter(meaningfulCjkTerm),
+  );
+}
+
 function visibleTerms(text: string, locale: HistoricalContextRetrievalInput["locale"]): Set<string> {
   const normalized = text.normalize("NFKC").toLocaleLowerCase(localeForCaseNormalization(locale));
   if (locale === "en") {
@@ -39,15 +92,7 @@ function visibleTerms(text: string, locale: HistoricalContextRetrievalInput["loc
         .filter((term) => !ENGLISH_STOP_WORDS.has(term)),
     );
   }
-
-  const terms = new Set<string>();
-  for (const run of normalized.match(/[\p{L}\p{N}]+/gu) ?? []) {
-    const characters = [...run];
-    for (let index = 0; index < characters.length - 1; index += 1) {
-      terms.add(`${characters[index]}${characters[index + 1]}`);
-    }
-  }
-  return terms;
+  return cjkVisibleTerms(normalized, locale);
 }
 
 function sharedTerms(currentTerms: Set<string>, sourceText: string, locale: HistoricalContextRetrievalInput["locale"]): string[] {
@@ -107,7 +152,7 @@ export function findHistoricalContextCandidates(
         !input.savedDateRange ||
         isTimestampInHistoricalSavedDateRange(entry.createdAt, input.savedDateRange),
     )
-    .map((entry) => {
+    .map((entry): HistoricalContextCandidate | null => {
       const { confirmedEvidence, answeredReflections } = sourceArtifacts(
         entry.id,
         input.artifactsByEntryId[entry.id],

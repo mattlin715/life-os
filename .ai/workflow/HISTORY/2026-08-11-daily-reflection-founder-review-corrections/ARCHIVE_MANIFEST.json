@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-11-daily-reflection-founder-review-corrections",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-10T17:21:11.626Z",
+  "repository_head": "f8fbf94812bac2e1359367362e9c1e0db1aeaef1",
+  "working_branch": "codex/daily-reflection-core-ux-r1",
+  "working_tree_digest": "64a45fde5216e770b1532112f87775dbae32d2d586703a0d68b77a23592a801c",
+  "last_event_id": "2026-08-11-daily-reflection-founder-review-corrections:0014",
+  "last_event_hash": "73b2112b2507f7c7586caad672ba5325bf6e1258a844c47b9c88a337d174447c",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
