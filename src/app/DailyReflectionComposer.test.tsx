@@ -21,6 +21,7 @@ describe("DailyReflectionComposer", () => {
       expect(html).toContain(copy.hero);
       expect(html).toContain(copy.experienceAria);
       expect(html).toContain(copy.saveMoment);
+      expect(html).toContain('id="daily-reflection-composer"');
       expect(html).not.toContain(copy.databaseReadinessOpen);
     },
   );

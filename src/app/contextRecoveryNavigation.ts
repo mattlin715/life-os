@@ -6,6 +6,7 @@ interface RecoveryNavigationTarget {
 interface RecoveryNavigationEnvironment {
   getElementById(id: string): RecoveryNavigationTarget | null;
   requestFrame(callback: () => void): void;
+  prefersReducedMotion?(): boolean;
 }
 
 export function focusContextRecovery(
@@ -27,7 +28,9 @@ export function focusContextRecovery(
     if (!recovery) return;
 
     recovery.focus({ preventScroll: true });
-    recovery.scrollIntoView({ behavior: "smooth", block: "center" });
+    const reducedMotion = environment?.prefersReducedMotion?.()
+      ?? (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    recovery.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
   };
 
   requestFrame(focusRecovery);
