@@ -121,7 +121,21 @@ import {
   emptyExperienceTimelineFilters,
   filterExperienceTimeline,
 } from "./experienceTimeline";
-import { nextDailyReflectionAction } from "./dailyReflectionFlow";
+import {
+  resolveDailyReflectionJourney,
+  stageForNextAction,
+  type DailyReflectionStage,
+} from "./dailyReflectionJourney";
+import {
+  JourneyStage,
+  ReflectionCompletionReview,
+} from "./DailyReflectionJourneyView";
+import {
+  focusDailyReflectionComposer,
+  focusJourneyStage,
+  focusJourneyTarget,
+  journeyStageId,
+} from "./journeyNavigation";
 import {
   HistoricalConsentPreflight,
   type EligibleHistoricalArtifactRecord,
@@ -612,11 +626,36 @@ export function App() {
   const [entryDisclosureOverrides, setEntryDisclosureOverrides] = useState<
     Record<string, boolean>
   >({});
+  const [entryStageOverrides, setEntryStageOverrides] = useState<
+    Record<string, DailyReflectionStage | null>
+  >({});
+  const [patternSetAsideEntryIds, setPatternSetAsideEntryIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [databaseReadinessOpen, setDatabaseReadinessOpen] = useState(false);
   const [databaseReadinessResult, setDatabaseReadinessResult] =
     useState<DatabaseReadinessResult | null>(null);
   const [databaseReadinessChecking, setDatabaseReadinessChecking] = useState(false);
   const databaseReadinessRequest = useRef(0);
+
+  const openJourneyStage = useCallback((entryId: string, stage: DailyReflectionStage) => {
+    setEntryDisclosureOverrides((current) => ({ ...current, [entryId]: true }));
+    setEntryStageOverrides((current) => ({ ...current, [entryId]: stage }));
+    focusJourneyStage(entryId, stage);
+  }, []);
+
+  const returnToDerivedJourneyStage = useCallback((entryId: string) => {
+    setEntryStageOverrides((current) => ({ ...current, [entryId]: null }));
+  }, []);
+
+  const clearPatternSetAside = useCallback((entryId: string) => {
+    setPatternSetAsideEntryIds((current) => {
+      if (!current.has(entryId)) return current;
+      const next = new Set(current);
+      next.delete(entryId);
+      return next;
+    });
+  }, []);
 
   const timelineFilterResult = useMemo(
     () => filterExperienceTimeline(entries, timelineFilters),
@@ -741,8 +780,11 @@ export function App() {
       }),
       copy.recoveryNote,
     );
-    if (committed) focusContextRecovery(entry.id);
-  }, [copy.recoveryNote, copy.recoveryQuestion, language, runArtifactMutation]);
+    if (committed) {
+      openJourneyStage(entry.id, "evidence");
+      focusContextRecovery(entry.id);
+    }
+  }, [copy.recoveryNote, copy.recoveryQuestion, language, openJourneyStage, runArtifactMutation]);
 
   useEffect(() => {
     languageRef.current = language;
@@ -784,9 +826,10 @@ export function App() {
 
     try {
       setPendingAction("saving");
-      await store.createExperience({ body: trimmedBody });
+      const created = await store.createExperience({ body: trimmedBody });
       setBody("");
       await refreshEntries();
+      openJourneyStage(created.id, "evidence");
       setStorageError(null);
       setPortabilityStatus(null);
     } catch (error) {
@@ -795,7 +838,7 @@ export function App() {
     } finally {
       setPendingAction(null);
     }
-  }, [body, refreshEntries, store]);
+  }, [body, openJourneyStage, refreshEntries, store]);
 
   const deleteExperience = useCallback(
     async (id: string) => {
@@ -820,6 +863,12 @@ export function App() {
         });
         setPatternNotesByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         setRecoveryTurnsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
+        setEntryStageOverrides((current) => { const next = { ...current }; delete next[id]; return next; });
+        setPatternSetAsideEntryIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
         setHistoricalContextOpenPanels((current) => removeHistoricalContextPanelForExperience(current, id));
         setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
@@ -864,6 +913,11 @@ export function App() {
       try {
         await store.updateExperience(id, { body: trimmedBody });
         setReflectionDrafts((drafts) => removeReflectionDraftsForEntry(drafts, id));
+        setPatternSetAsideEntryIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
         setHistoricalContextSelections((current) => removeHistoricalContextSelectionsForExperience(current, id));
         setHistoricalPreflight((current) => current?.entryId === id || current?.packet.includedItems.some((item) => item.sourceExperienceId === id) ? null : current);
         setEditingEntryId(null);
@@ -966,11 +1020,13 @@ export function App() {
       if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
       const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, evidence: candidates, reflections: [], patterns: [] }), undefined, { generationSnapshot: snapshot });
       if (!committed) return;
+      clearPatternSetAside(entry.id);
+      openJourneyStage(entry.id, "evidence");
       if (!usedFallback) setPortabilityStatus(successfulGenerationMessage("evidence", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
       if (!usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
       if (editingEvidenceCandidate?.entryId === entry.id) setEditingEvidenceCandidate(null);
     } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, copy, editingEvidenceCandidate, hasRealAiSuccess, recoveryTurnsByEntryId, requestContextRecovery, runArtifactMutation, store]);
+  }, [aiRuntime, buildPacket, clearPatternSetAside, copy, editingEvidenceCandidate, hasRealAiSuccess, openJourneyStage, recoveryTurnsByEntryId, requestContextRecovery, runArtifactMutation, store]);
 
   const beginEvidenceCandidateEdit = useCallback((entryId: string, candidate: EvidenceCandidate) => {
     if (candidate.status === "candidate") setEditingEvidenceCandidate({ entryId, candidateId: candidate.id, text: candidate.text });
@@ -984,12 +1040,17 @@ export function App() {
   }, [copy.evidenceEditedStatus, editingEvidenceCandidate, runArtifactMutation]);
 
   const updateEvidenceCandidateStatus = useCallback(async (entryId: string, candidateId: string, status: Extract<CandidateStatus, "confirmed" | "rejected">) => {
-    await runArtifactMutation(entryId, (current) => {
+    const committed = await runArtifactMutation(entryId, (current) => {
       const evidence = status === "rejected" ? current.evidence.filter((item) => item.id !== candidateId) : current.evidence.map((item) => item.id === candidateId ? { ...item, status, updatedAt: new Date().toISOString() } : item);
       const reflections = status === "rejected" ? current.reflections.filter((prompt) => !prompt.sourceEvidenceIds.includes(candidateId)) : current.reflections;
       return { ...current, evidence, reflections, patterns: [] };
     }, copy.evidenceReviewUpdated);
-  }, [copy.evidenceReviewUpdated, runArtifactMutation]);
+    if (!committed) return;
+    clearPatternSetAside(entryId);
+    const pending = committed.evidence.some((candidate) => candidate.status === "candidate");
+    const confirmed = committed.evidence.some((candidate) => candidate.status === "confirmed");
+    openJourneyStage(entryId, !pending && confirmed ? "reflection" : "evidence");
+  }, [clearPatternSetAside, copy.evidenceReviewUpdated, openJourneyStage, runArtifactMutation]);
 
   const generateReflectionPrompts = useCallback(async (entry: ExperienceEntry) => {
     const packet = buildPacket(entry, "reflection").packet;
@@ -1002,10 +1063,16 @@ export function App() {
       catch (error) { usedFallback = true; const fallback = { ...packet, provider: "mock" as const, model: null }; prompts = await placeholderProvider.generateReflectionPrompts(fallback); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); }
       if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
       const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, reflections: prompts, patterns: [] }), undefined, { generationSnapshot: snapshot });
+      if (committed) {
+        clearPatternSetAside(entry.id);
+        openJourneyStage(entry.id, "reflection");
+        const firstSuggested = committed.reflections.find((prompt) => prompt.status === "suggested");
+        if (firstSuggested) focusJourneyTarget(`reflection-prompt-${firstSuggested.id}`);
+      }
       if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("reflection", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
       if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
     } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, copy, hasRealAiSuccess, runArtifactMutation, store]);
+  }, [aiRuntime, buildPacket, clearPatternSetAside, copy, hasRealAiSuccess, openJourneyStage, runArtifactMutation, store]);
 
   const updateReflectionPromptDraft = useCallback((entryId: string, prompt: ReflectionPrompt, response: string) => {
     setReflectionDrafts((drafts) => setReflectionDraft(drafts, entryId, prompt, response));
@@ -1024,10 +1091,25 @@ export function App() {
         Boolean(committed),
       ),
     );
-  }, [copy.reflectionSaved, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation]);
+    if (committed) {
+      clearPatternSetAside(entryId);
+      const hasUnresolved = committed.reflections.some((item) => item.status === "suggested");
+      const hasOtherDirty = committed.reflections.some(
+        (item) => item.id !== promptId && isReflectionDraftDirty(reflectionDrafts, entryId, item),
+      );
+      openJourneyStage(entryId, !hasUnresolved && !hasOtherDirty ? "completion" : "reflection");
+    }
+  }, [clearPatternSetAside, copy.reflectionSaved, openJourneyStage, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation]);
   const skipReflectionPrompt = useCallback(async (entryId: string, promptId: string) => {
-    await runArtifactMutation(entryId, (current) => ({ ...current, reflections: current.reflections.map((prompt) => prompt.id === promptId ? skipReflectionPromptRecord(prompt) : prompt), patterns: [] }), copy.reflectionSkipped);
-  }, [copy.reflectionSkipped, runArtifactMutation]);
+    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, reflections: current.reflections.map((prompt) => prompt.id === promptId ? skipReflectionPromptRecord(prompt) : prompt), patterns: [] }), copy.reflectionSkipped);
+    if (!committed) return;
+    clearPatternSetAside(entryId);
+    const hasUnresolved = committed.reflections.some((item) => item.status === "suggested");
+    const hasOtherDirty = committed.reflections.some(
+      (item) => item.id !== promptId && isReflectionDraftDirty(reflectionDrafts, entryId, item),
+    );
+    openJourneyStage(entryId, !hasUnresolved && !hasOtherDirty ? "completion" : "reflection");
+  }, [clearPatternSetAside, copy.reflectionSkipped, openJourneyStage, reflectionDrafts, runArtifactMutation]);
 
   const generatePatternNotes = useCallback(async (entry: ExperienceEntry) => {
     const availability = decidePatternAvailability({
@@ -1051,12 +1133,31 @@ export function App() {
       catch (error) { usedFallback = true; notes = await placeholderProvider.suggestPatternNotes({ ...packet, provider: "mock", model: null }); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); }
       if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
       const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, patterns: notes }), undefined, { generationSnapshot: snapshot });
+      if (committed) {
+        setPatternSetAsideEntryIds((current) => {
+          const next = new Set(current);
+          next.delete(entry.id);
+          return next;
+        });
+        openJourneyStage(entry.id, "pattern");
+        const firstCandidate = committed.patterns.find((pattern) => pattern.status === "candidate");
+        if (firstCandidate) focusJourneyTarget(`pattern-note-${firstCandidate.id}`);
+      }
       if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("pattern", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
       if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
     } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, copy, evidenceCandidatesByEntryId, hasRealAiSuccess, pendingAction, recoveryTurnsByEntryId, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation, store]);
+  }, [aiRuntime, buildPacket, copy, evidenceCandidatesByEntryId, hasRealAiSuccess, openJourneyStage, pendingAction, recoveryTurnsByEntryId, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation, store]);
   const updatePatternNoteStatus = useCallback(async (entryId: string, patternNoteId: string, status: Extract<CandidateStatus, "confirmed" | "rejected">) => {
-    await runArtifactMutation(entryId, (current) => ({ ...current, patterns: status === "rejected" ? current.patterns.filter((item) => item.id !== patternNoteId) : current.patterns.map((item) => item.id === patternNoteId ? { ...item, status, updatedAt: new Date().toISOString() } : item) }), copy.patternUpdated);
+    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, patterns: status === "rejected" ? current.patterns.filter((item) => item.id !== patternNoteId) : current.patterns.map((item) => item.id === patternNoteId ? { ...item, status, updatedAt: new Date().toISOString() } : item) }), copy.patternUpdated);
+    if (!committed) return;
+    setPatternSetAsideEntryIds((current) => {
+      const next = new Set(current);
+      if (status === "rejected") next.add(entryId);
+      else next.delete(entryId);
+      return next;
+    });
+    setEntryStageOverrides((current) => ({ ...current, [entryId]: null }));
+    focusJourneyStage(entryId, "completion");
   }, [copy.patternUpdated, runArtifactMutation]);
 
   const updateRecoveryResponse = useCallback((entryId: string, turnId: string, response: string) => {
@@ -1080,7 +1181,9 @@ export function App() {
     globalThis.requestAnimationFrame?.(() => {
       const panel = document.getElementById(`historical-context-${entryId}`);
       panel?.focus({ preventScroll: true });
-      panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reducedMotion = typeof matchMedia === "function"
+        && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      panel?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
     });
   }, []);
   const toggleHistoricalSource = useCallback((entryId: string, sourceEntryId: string) => {
@@ -1604,21 +1707,74 @@ export function App() {
               const isCurrentReflection = entry.id === entries[0]?.id;
               const entryDisclosureOpen =
                 entryDisclosureOverrides[entry.id] ?? isCurrentReflection;
-              const nextAction = nextDailyReflectionAction({
+              const recoveryTurns = recoveryTurnsByEntryId[entry.id] ?? [];
+              const journey = resolveDailyReflectionJourney({
+                experienceSaved: true,
+                contextClarificationInvited: recoveryTurns.some(
+                  (turn) => turn.status === "suggested",
+                ),
                 evidenceTotal: evidenceSummary.total,
                 evidencePending: evidenceSummary.pending,
                 evidenceConfirmed: evidenceSummary.confirmed,
                 reflectionTotal: reflectionPrompts.length,
                 reflectionSuggested: reflectionSummary.suggested,
                 reflectionAnswered: reflectionSummary.answered,
+                reflectionSkipped: reflectionSummary.skipped,
+                hasDirtyReflectionDraft,
+                patternAvailable: patternAvailability.available,
+                patternCandidates: patternSummary.candidate,
+                patternConfirmed: patternSummary.confirmed,
+                patternRejectedInSession: patternSetAsideEntryIds.has(entry.id),
+                historicalQuestionCount: savedHistoricalQuestions.length,
               });
               const nextActionText = {
                 generate_evidence: copy.nextActionGenerateEvidence,
                 review_evidence: copy.nextActionReviewEvidence,
                 generate_reflection: copy.nextActionGenerateReflection,
-                answer_reflection: copy.nextActionAnswerReflection,
-                reflection_complete: copy.nextActionReflectionComplete,
-              }[nextAction];
+                resolve_reflection: copy.nextActionAnswerReflection,
+                answer_context: copy.nextActionAnswerContext,
+                save_reflection: copy.nextActionSaveReflection,
+                review_completion: copy.nextActionReviewCompletion,
+              }[journey.nextAction];
+              const displayedStage = entryStageOverrides[entry.id]
+                ?? (journey.coreReflectionComplete ? null : journey.activeStage);
+              const evidenceStageComplete = journey.evidence === "complete";
+              const reflectionStageComplete = journey.reflection === "complete";
+              const evidenceStageSummary = isEvidencePending
+                ? copy.evidenceNextPending
+                : evidenceCandidates.length === 0
+                  ? copy.evidenceNextEmpty
+                  : evidenceSummary.pending > 0
+                    ? copy.evidenceNextReview
+                    : confirmedEvidenceCandidates.length > 0
+                      ? copy.evidenceNextReady
+                      : copy.evidenceNextNone;
+              const reflectionStageSummary = confirmedEvidenceCandidates.length === 0
+                ? copy.reflectionNextNeedEvidence
+                : isReflectionPending
+                  ? copy.reflectionNextPending
+                  : reflectionPrompts.length === 0
+                    ? copy.reflectionNextEmpty
+                    : hasDirtyReflectionDraft
+                      ? copy.patternNeedsSavedReflection
+                      : reflectionSummary.suggested > 0
+                        ? copy.reflectionNextReview
+                        : reflectionSummary.answered > 0
+                          ? copy.reflectionNextReady
+                          : copy.reflectionNextSkipped;
+              const journeyStatus = (stage: DailyReflectionStage) => {
+                if (stage === journey.activeStage && !journey.coreReflectionComplete) {
+                  return copy.journeyStatusActive;
+                }
+                if (
+                  (stage === "evidence" && evidenceStageComplete) ||
+                  (stage === "reflection" && reflectionStageComplete)
+                ) {
+                  return copy.journeyStatusComplete;
+                }
+                if (stage === "pattern") return copy.journeyStatusOptional;
+                return copy.journeyStatusFuture;
+              };
 
               return (
                 <details
@@ -1714,6 +1870,21 @@ export function App() {
                     </>
                   )}
 
+                  <button
+                    type="button"
+                    className="journey-next-action"
+                    onClick={() =>
+                      openJourneyStage(
+                        entry.id,
+                        stageForNextAction(journey.nextAction),
+                      )
+                    }
+                  >
+                    <span>{copy.nextActionLabel}</span>
+                    <strong>{nextActionText}</strong>
+                    <span>{copy.continueNextAction} →</span>
+                  </button>
+
                   <HistoricalContextEntryPoint
                     copy={copy}
                     controlsId={`historical-context-${entry.id}`}
@@ -1725,12 +1896,23 @@ export function App() {
                     <p className="reflection-flow-guide">
                       {copy.reflectionFlowGuide}
                     </p>
-                    <section className="review-card evidence-review">
+                    <JourneyStage
+                      id={journeyStageId(entry.id, "evidence")}
+                      step={copy.evidenceStep}
+                      title={copy.evidenceTitle}
+                      summary={evidenceStageSummary}
+                      statusLabel={journeyStatus("evidence")}
+                      active={journey.activeStage === "evidence" && !journey.coreReflectionComplete}
+                      open={displayedStage === "evidence"}
+                      available
+                      onOpen={() =>
+                        displayedStage === "evidence"
+                          ? returnToDerivedJourneyStage(entry.id)
+                          : openJourneyStage(entry.id, "evidence")
+                      }
+                    >
+                    <div className="review-card evidence-review">
                       <div className="review-card-header">
-                        <div>
-                          <p className="review-step">{copy.evidenceStep}</p>
-                          <h2>{copy.evidenceTitle}</h2>
-                        </div>
                         <button
                           type="button"
                           className="secondary-button"
@@ -1914,17 +2096,26 @@ export function App() {
                           {copy.evidenceEmpty}
                         </p>
                       )}
-                    </section>
+                    </div>
+                    </JourneyStage>
 
-                    <section
-                      className="review-card reflection-review"
-                      aria-label={copy.reflectionAria}
+                    <JourneyStage
+                      id={journeyStageId(entry.id, "reflection")}
+                      step={copy.reflectionStep}
+                      title={copy.reflectionTitle}
+                      summary={reflectionStageSummary}
+                      statusLabel={journeyStatus("reflection")}
+                      active={journey.activeStage === "reflection" && !journey.coreReflectionComplete}
+                      open={displayedStage === "reflection"}
+                      available={evidenceStageComplete || reflectionPrompts.length > 0}
+                      onOpen={() =>
+                        displayedStage === "reflection"
+                          ? returnToDerivedJourneyStage(entry.id)
+                          : openJourneyStage(entry.id, "reflection")
+                      }
                     >
+                    <div className="review-card reflection-review" aria-label={copy.reflectionAria}>
                       <div className="review-card-header">
-                        <div>
-                          <p className="review-step">{copy.reflectionStep}</p>
-                          <h2>{copy.reflectionTitle}</h2>
-                        </div>
                         <button
                           type="button"
                           className="secondary-button"
@@ -1987,8 +2178,10 @@ export function App() {
 
                               return (
                                 <article
+                                  id={`reflection-prompt-${prompt.id}`}
                                   className={`reflection-prompt reflection-prompt-${prompt.status}`}
                                   key={prompt.id}
+                                  tabIndex={-1}
                                 >
                                   <div className="candidate-meta">
                                     <span>{statusLabel(prompt.status, language)}</span>
@@ -2051,17 +2244,26 @@ export function App() {
                           </div>
                         </>
                       ) : null}
-                    </section>
+                    </div>
+                    </JourneyStage>
 
-                    <section
-                      className="review-card pattern-review"
-                      aria-label={copy.patternAria}
+                    <JourneyStage
+                      id={journeyStageId(entry.id, "pattern")}
+                      step={copy.patternStep}
+                      title={copy.patternTitle}
+                      summary={patternAvailabilityMessage ?? (patternNotes.length === 0 ? copy.patternNextEmpty : patternSummary.candidate > 0 ? copy.patternNextReview : patternSummary.confirmed > 0 ? copy.patternNextComplete : copy.patternNextRejected)}
+                      statusLabel={journeyStatus("pattern")}
+                      active={false}
+                      open={displayedStage === "pattern"}
+                      available={journey.coreReflectionComplete || patternNotes.length > 0}
+                      onOpen={() =>
+                        displayedStage === "pattern"
+                          ? returnToDerivedJourneyStage(entry.id)
+                          : openJourneyStage(entry.id, "pattern")
+                      }
                     >
+                    <div className="review-card pattern-review" aria-label={copy.patternAria}>
                       <div className="review-card-header">
-                        <div>
-                          <p className="review-step">{copy.patternStep}</p>
-                          <h2>{copy.patternTitle}</h2>
-                        </div>
                         <button
                           type="button"
                           className="secondary-button"
@@ -2112,8 +2314,10 @@ export function App() {
 
                               return (
                                 <article
+                                  id={`pattern-note-${patternNote.id}`}
                                   className={`pattern-note pattern-note-${patternNote.status}`}
                                   key={patternNote.id}
+                                  tabIndex={-1}
                                 >
                                   <div className="candidate-meta">
                                     <span>
@@ -2169,7 +2373,26 @@ export function App() {
                           </div>
                         </>
                       ) : null}
-                    </section>
+                    </div>
+                    </JourneyStage>
+
+                    {journey.coreReflectionComplete ? (
+                      <ReflectionCompletionReview
+                        id={journeyStageId(entry.id, "completion")}
+                        copy={copy}
+                        experienceBody={entry.body}
+                        confirmedEvidence={confirmedEvidenceCandidates.map((candidate) => candidate.text)}
+                        reflections={reflectionPrompts}
+                        patterns={patternNotes}
+                        patternRejectedInSession={patternSetAsideEntryIds.has(entry.id)}
+                        historicalQuestions={savedHistoricalQuestions}
+                        onReopenEvidence={() => openJourneyStage(entry.id, "evidence")}
+                        onReopenReflection={() => openJourneyStage(entry.id, "reflection")}
+                        onOpenPattern={() => openJourneyStage(entry.id, "pattern")}
+                        onOpenHistory={() => openHistoricalContextFromTop(entry.id)}
+                        onRecordAnother={() => focusDailyReflectionComposer()}
+                      />
+                    ) : null}
                   </section>
 
                   <section

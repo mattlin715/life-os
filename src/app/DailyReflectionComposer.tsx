@@ -26,6 +26,7 @@ export function DailyReflectionComposer({
       </div>
       <div className="reflection-composer">
         <textarea
+          id="daily-reflection-composer"
           aria-label={copy.experienceAria}
           placeholder={copy.experiencePlaceholder}
           value={body}

@@ -107,12 +107,34 @@ describe("Context Recovery localization", () => {
       "currentReflection",
       "olderReflection",
       "nextActionLabel",
+      "completionStep",
+      "completionTitle",
+      "completionEvidenceLabel",
+      "completionReflectionLabel",
+      "completionOptionalLabel",
+      "completionCanRest",
     ] as const;
     const canonicalEnglish = /\b(?:Experience|Evidence|Reflection|Pattern|candidate|hypothesis|session|review|provenance|artifact)\b/i;
     for (const locale of ["zh-TW", "ja"] as const) {
       for (const key of ordinaryKeys) {
         expect(uiText[locale][key]).not.toMatch(canonicalEnglish);
       }
+    }
+  });
+
+  it("keeps the completion journey equivalent in every supported language", () => {
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      const copy = uiText[locale];
+      expect(copy.completionTitle).toBeTruthy();
+      expect(copy.completionIntro).toBeTruthy();
+      expect(copy.completionUserResponseLabel).toBeTruthy();
+      expect(copy.completionPatternAbsent).toBeTruthy();
+      expect(copy.completionHistoricalAbsent).toBeTruthy();
+      expect(copy.completionCanRest).toBeTruthy();
+      expect(copy.completionRecordAnother).toBeTruthy();
+      expect(copy.nextActionAnswerContext).toBeTruthy();
+      expect(copy.nextActionSaveReflection).toBeTruthy();
+      expect(copy.nextActionReviewCompletion).toBeTruthy();
     }
   });
 });

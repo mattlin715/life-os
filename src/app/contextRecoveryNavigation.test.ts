@@ -29,4 +29,15 @@ describe("focusContextRecovery", () => {
       requestFrame,
     })).not.toThrow();
   });
+
+  it("avoids smooth scrolling when reduced motion is preferred", () => {
+    const focus = vi.fn();
+    const scrollIntoView = vi.fn();
+    focusContextRecovery("entry-1", {
+      getElementById: () => ({ focus, scrollIntoView }),
+      requestFrame: (callback) => callback(),
+      prefersReducedMotion: () => true,
+    });
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "center" });
+  });
 });

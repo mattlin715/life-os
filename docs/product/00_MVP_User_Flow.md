@@ -84,13 +84,21 @@ The current per-Experience flow is:
 
 Skipping clarification permits observation but does not increase sufficiency or unlock Pattern generation. Rejected Evidence/Patterns are not durable, and dependent Reflection records are removed. Export/import remains Experience-only.
 
-### Daily Reflection Core UX R1 (implemented, not yet promoted or released)
+### Daily Reflection Core UX R1 (Founder-reviewed and promoted; not deployed or released)
+
+R1 was implemented on feature commit `9f889fe6880bbd0641c0308d60892adade418371`, passed Founder manual UI review, and was promoted to `develop` by non-fast-forward merge commit `c329edb80e0ab3bd5bcbcc4dedd33c9c3af6bf12`.
 
 The ordinary screen now leads with recording an Experience. The newest Experience is expanded with one calm next-action summary; older Experiences use progressive disclosure so the Evidence and Reflection loop remains legible without removing any governed capability. Each open Experience places a calm optional local-history shortcut near the top; it opens and brings the existing governed panel into view but does not select a source or imply consent. Optional portability and database-readiness tools are grouped under a secondary Data and diagnostics disclosure. The readiness inspector remains explicit-open, session-only, read-only, and fail-closed.
 
 The locally loaded Experience timeline can be narrowed by a session-only keyword and an optional saved-date range. Keyword and date constraints combine deterministically; dates mean the persisted `createdAt` saved date, not an inferred real-world event date. The range includes both selected days in the device timezone. Incomplete, invalid, inverted, or unresolvable ranges fail closed and show no entries rather than falling back to an unfiltered list. Clearing filters restores the complete bounded loaded list. These controls make no provider call and persist no preference or search history.
 
 When the Pattern gate needs Context Recovery, the UI explicitly acknowledges that confirmed clues and saved Reflection remain valid while explaining that they do not invent missing facts about what happened. The action asks for the specific missing event context rather than presenting an unexplained disabled Pattern control. Local historical suggestions use concrete visible word overlap: Traditional Chinese and Japanese no longer display adjacent-character fragments or generic feeling-report scaffolding as relevance reasons. This is lexical retrieval only, not semantic classification or a cross-experience conclusion.
+
+### Daily Reflection Completion UX R2 (implemented in the current working tree; not yet Founder-reviewed or promoted)
+
+The open Experience now derives one deterministic journey from already loaded records. Evidence is the active step until one clue is confirmed; Reflection becomes active only after that; an unsaved Reflection draft remains visibly unfinished; and a saved or explicitly skipped set of Reflection prompts reaches an honest core-complete state. Completed stages collapse to concise summaries and can be reopened explicitly. The entry's next gentle step is a navigation action only: it opens and focuses the relevant section without generating content, changing review state, selecting history, creating consent, or transmitting data.
+
+The completion review gathers only the original Experience, confirmed clues, saved user-authored responses, explicit skip count, optional existing tentative Pattern state, and optional already generated Historical Reflection Questions. It does not ask AI for a summary, infer missing meaning, claim recurrence, or require Pattern/history before the reflection can rest. Stage and completion display state remains session-only; durable records continue to use the existing schema-v4 persistence and provenance boundaries.
 
 ## 3. Flow 1: Pattern Review
 
