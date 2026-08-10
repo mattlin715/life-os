@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.9
+version: 1.0
 owner: product-and-engineering
-last_updated: 2026/07/27
+last_updated: 2026/08/11
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -38,9 +38,11 @@ Raw Experience text, confirmed Evidence, user Reflection, and AI hypotheses rema
 
 ## Local Retrieval Rule
 
-`local-lexical-v1` runs only after the user explicitly opens that Experience's local-history panel. Initial hydration and closed panels perform no candidate retrieval; opening one panel retrieves only for that exact current Experience. English uses deterministic explicit-locale case normalization and meaningful terms. Traditional Chinese and Japanese normalize text with NFKC, split it into contiguous Unicode letter/number runs, and create visible adjacent-character terms only within each run. Punctuation, whitespace, newlines, emoji, and symbols cannot manufacture a shared term across a boundary. A source appears only when it has visible overlap. Results exclude the current Experience, are limited to at most three by default, and sort by score, source timestamp, then exact source ID. No relevant overlap produces no candidate.
+The current `local-lexical-v2` runs only after the user explicitly opens that Experience's local-history panel. Initial hydration and closed panels perform no candidate retrieval; opening one panel retrieves only for that exact current Experience. English retains deterministic explicit-locale case normalization and meaningful terms. Traditional Chinese and Japanese normalize text with NFKC and use the pinned runtime's locale-aware word segmentation, retaining only visible word-like segments of meaningful length after an explicit generic/function-word filter. If segmentation is unavailable, retrieval conservatively keeps only complete visible runs; it does not recreate adjacent-character fragments. Punctuation, whitespace, newlines, emoji, and symbols cannot manufacture a shared term across a boundary. A source appears only when it has concrete visible overlap. Results exclude the current Experience, are limited to at most three by default, and sort by score, source timestamp, then exact source ID. No relevant overlap produces no candidate.
 
-This is a modest retrieval aid, not a claim that similarity creates meaning. The user can inspect each source, include or exclude it, clear the selection, or continue with no history.
+`local-lexical-v2` is a quality correction to the earlier `local-lexical-v1` adjacent-character behavior. It prevents fragments such as `對自`, `的失`, and `望感`, and filters generic reporting scaffolding such as `感到` and `覺得` from both ranking and the visible reason. It does not infer synonyms, emotions, relationships, values, event dates, or meaning. Newly assembled governed packets disclose v2 as the retrieval algorithm and bind it into the immutable packet digest. The read-only provenance path continues to accept exact previously persisted v1 packets; it does not rewrite them.
+
+This is a modest retrieval aid, not a claim that similarity creates meaning. The user can inspect each source, include or exclude it, clear the selection, or continue with no history. A discoverability shortcut may open and bring the existing panel into view near the top of an Experience; rendering or activating that shortcut does not select a source, record consent, or send content.
 
 ## Explicit Saved-Date Range R1
 

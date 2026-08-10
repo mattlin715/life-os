@@ -2,7 +2,21 @@ import type { AppLanguage } from "../app/i18n";
 import type { EvidenceCandidate, ExperienceEntry, ReflectionPrompt } from "../types/domain";
 import type { HistoricalSavedDateRange } from "./savedDateRange";
 
-export const HISTORICAL_CONTEXT_ALGORITHM_VERSION = "local-lexical-v1";
+export const HISTORICAL_CONTEXT_ALGORITHM_VERSIONS = [
+  "local-lexical-v1",
+  "local-lexical-v2",
+] as const;
+export type HistoricalContextAlgorithmVersion =
+  (typeof HISTORICAL_CONTEXT_ALGORITHM_VERSIONS)[number];
+export const HISTORICAL_CONTEXT_ALGORITHM_VERSION = "local-lexical-v2" as const;
+
+export function isHistoricalContextAlgorithmVersion(
+  value: unknown,
+): value is HistoricalContextAlgorithmVersion {
+  return HISTORICAL_CONTEXT_ALGORITHM_VERSIONS.includes(
+    value as HistoricalContextAlgorithmVersion,
+  );
+}
 
 export interface HistoricalSourceArtifacts {
   /** Supplied only to the governed Phase 3B assembler; Phase 3A retrieval ignores it. */
@@ -25,7 +39,7 @@ export interface HistoricalContextCandidate {
   confirmedEvidenceIds: string[];
   answeredReflectionIds: string[];
   ranking: {
-    algorithmVersion: typeof HISTORICAL_CONTEXT_ALGORITHM_VERSION;
+    algorithmVersion: HistoricalContextAlgorithmVersion;
     score: number;
     matchedTermCount: number;
   };

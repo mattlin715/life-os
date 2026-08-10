@@ -1,7 +1,7 @@
 import { HARNESS_VERSION } from "../ai/harness/version";
 import type { AppLanguage } from "../app/i18n";
 import type { AiProviderName, EvidenceCandidate, ExperienceEntry, ReflectionPrompt } from "../types/domain";
-import { HISTORICAL_CONTEXT_ALGORITHM_VERSION, type HistoricalContextCandidate, type HistoricalSourceArtifacts } from "./types";
+import { HISTORICAL_CONTEXT_ALGORITHM_VERSION, type HistoricalContextAlgorithmVersion, type HistoricalContextCandidate, type HistoricalSourceArtifacts } from "./types";
 
 export const HISTORICAL_PACKET_SCHEMA_VERSION = "historical-packet-v1";
 export const HISTORICAL_PROMPT_VERSION = "historical-reflection-question-v1";
@@ -23,7 +23,7 @@ export interface HistoricalIncludedItem {
   reviewState: "persisted" | "confirmed" | "answered";
   content: string;
   relevanceReason: string;
-  retrievalAlgorithmVersion: typeof HISTORICAL_CONTEXT_ALGORITHM_VERSION;
+  retrievalAlgorithmVersion: HistoricalContextAlgorithmVersion;
 }
 
 export interface HistoricalContextPacket {

@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 1.1
+version: 1.2
 owner: product-and-engineering
-last_updated: 2026/07/14
+last_updated: 2026/08/11
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -51,7 +51,7 @@ These states must not be collapsed. The implemented packet contract does not mak
 
 ### Implemented in Phase 3A
 
-- `local-lexical-v1` retrieves at most a small bounded candidate set only after the user explicitly opens a local-history panel.
+- The current `local-lexical-v2` retrieves at most a small bounded candidate set only after the user explicitly opens a local-history panel. Previously persisted `local-lexical-v1` actual-use records remain inspectable without rewriting.
 - Each candidate exposes an exact source Experience ID, bounded excerpt, visible shared-term reason, source timestamps, and eligible artifact IDs.
 - Source selection is an ephemeral exact-ID `Map<string, ReadonlySet<string>>`; it is not serialized or persisted.
 - Reopening a panel retrieves fresh candidates and removes no-longer-eligible selections without reselecting a returning source.

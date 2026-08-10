@@ -56,7 +56,7 @@ The MVP should build the smallest system capable of answering these questions ho
 
 ## Current Implemented Scope
 
-Verified against the repository on 2026/07/13:
+Verified against the repository on 2026/08/10:
 
 - Tauri 2 + React 18 + SQLite desktop architecture.
 - Desktop-first configuration intended for Windows and macOS.
@@ -78,6 +78,7 @@ Verified against the repository on 2026/07/13:
 - Optional local historical candidate retrieval and source selection with visible lexical reasons, source preview, ephemeral include/exclude controls, and an explicit session-only saved-date range that narrows candidates before lexical ranking. Retrieval begins only when the user opens that Experience's panel; filtering and selection alone never send data or produce a Cross-Experience conclusion.
 - Governed Historical Reflection Question generation for exact selected sources: exact-content preflight, per-generation/per-purpose consent, provider-independent bounded packet, OpenAI/Gemini destination disclosure, stale-work rejection, and actual-use provenance. The output is limited to neutral source-citing questions and may return no question.
 - Promoted Provenance Inspector P1 adds a collapsed, explicit-open, local read-only actual-use inspector for one already-loaded Historical Question and exact packet snapshot. Exact outgoing content remains behind a second explicit reveal; invalid provenance fails closed rather than reloading current sources or showing partial evidence. The Founder accepted the diff and stepwise manual UI review on 2026/07/29; feature commit `824a2294f2090c541eff0530063fc0730c18cc63` was promoted to `develop` through non-fast-forward merge commit `cf7633780a1a0a72efcad7558e463ceb094468c4`. P1 is not deployed or released and does not replace the future schema-v5 provenance graph.
+- Daily Reflection Core UX R1 is implemented on its feature branch but is not promoted, deployed, or released. It restores the Experience composer as the first product action, gives the newest Experience a visible next-step summary, collapses older Experiences, adds session-only local keyword and saved-date timeline filters, moves database readiness under secondary data and diagnostics tools, and presents the governed historical preflight as a concise consent summary with exact transmission details behind an explicit disclosure. Founder-review corrections add an open-only local-history shortcut near the top of every Experience, explain why saved clues and Reflection do not invent missing event facts for the Pattern gate, and replace fragmentary CJK adjacent-character reasons with bounded concrete word overlap. The slice changes presentation and local retrieval only: schema v4, provider transport, ContextPacket structure, consent, retention, and actual-use provenance semantics remain unchanged.
 
 Important qualification: reviewed artifact records now survive restart locally; JSON/Markdown portability remains experience-only. Historical candidate retrieval, saved-date controls, and selection stay bounded and local; the range and selection remain ephemeral. Phase 3B permits historical provider transmission only through the separately governed one-generation Historical Reflection Question gate. Cross-Experience Reflection remains deferred.
 

@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.2
+version: 0.3
 owner: product-and-engineering
-last_updated: 2026/07/16
+last_updated: 2026/08/11
 depends:
   - docs/00_Constitution.md
   - docs/02_Philosophy.md
@@ -73,7 +73,7 @@ The audit uses the Phase 3 capabilities and exit criteria in `docs/12_Roadmap.md
 | Artifact/source export | **Partially implemented** | JSON and Markdown export preserve Experience records only. Evidence, Reflection, Pattern, Context Recovery, Historical Questions, consent/transmission references, packet snapshots, dependencies, and provenance are absent. Artifact export is therefore **absent** even though source Experience export exists. |
 | Revision history | **Absent** | Records carry `createdAt` and `updatedAt`; successful Phase 3B packets preserve exact used revisions. There is no general append-only revision history, correction lineage, prior-value inspection, or exportable revision chain. Timestamps and snapshots are not a revision-history capability. |
 | Provenance | **Implemented for current persisted artifacts; partial as a user-facing capability** | Source-scoped artifacts retain authorship/provider/model/Harness/prompt/source IDs. Phase 3B persists packet, consent, transmission, revisions, and dependencies. Legacy hydration can remain `legacy_unknown`, and the UI/export do not make the full chain generally inspectable. |
-| Selective retrieval | **Implemented narrowly** | `local-lexical-v1` is explicit-panel, bounded, deterministic, local, and capped. It does not load whole history. |
+| Selective retrieval | **Implemented narrowly** | `local-lexical-v2` is explicit-panel, bounded, deterministic, local, capped, and filters fragmentary/generic CJK overlap. Previously persisted v1 provenance remains readable. It does not load whole history. |
 | Explainable retrieval | **Implemented narrowly** | Visible shared lexical terms explain each candidate. The reason is lexical overlap, not a semantic claim. |
 | Retrieval by theme | **Partially implemented** | Shared visible terms can approximate themes, but there is no governed theme taxonomy, user theme selector, or independently evaluated theme signal. |
 | Retrieval by emotion | **Absent as an explicit retrieval signal** | Evidence may carry kind `emotion`, but retrieval only compares lexical terms and has no emotion filter or explanation type. |

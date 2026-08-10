@@ -7,6 +7,27 @@ import {
 import { inspectHistoricalQuestionProvenance } from "./provenanceInspector";
 import type { HistoricalContextCandidate } from "./types";
 
+const canonicalize = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left === right ? 0 : left < right ? -1 : 1)
+      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalize(nested)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
+
+async function digest(value: unknown): Promise<string> {
+  const bytes = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(canonicalize(value)),
+  );
+  return [...new Uint8Array(bytes)]
+    .map((part) => part.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 const at = (day: number) => `2026-07-${String(day).padStart(2, "0")}T00:00:00.000Z`;
 const experience = (id: string, body: string, day: number): ExperienceEntry => ({
   id,
@@ -55,6 +76,32 @@ async function artifactFixture(): Promise<HistoricalQuestionArtifact> {
 }
 
 describe("Historical Question actual-use provenance inspector", () => {
+  it("accepts persisted local-lexical-v1 records while new packets use local-lexical-v2", async () => {
+    const currentArtifact = await artifactFixture();
+    expect(currentArtifact.packet.includedItems.every(
+      (item) => item.retrievalAlgorithmVersion === "local-lexical-v2",
+    )).toBe(true);
+
+    const { packetDigest: _oldDigest, ...withoutDigest } = currentArtifact.packet;
+    const legacyWithoutDigest = {
+      ...withoutDigest,
+      includedItems: withoutDigest.includedItems.map((item) => ({
+        ...item,
+        retrievalAlgorithmVersion: "local-lexical-v1" as const,
+      })),
+    };
+    const legacyArtifact: HistoricalQuestionArtifact = {
+      ...currentArtifact,
+      packet: {
+        ...legacyWithoutDigest,
+        packetDigest: await digest(legacyWithoutDigest),
+      },
+    };
+
+    expect((await inspectHistoricalQuestionProvenance(legacyArtifact)).status).toBe("valid");
+    expect((await inspectHistoricalQuestionProvenance(currentArtifact)).status).toBe("valid");
+  });
+
   it("builds the four-stage read-only view from the artifact and exact packet snapshot", async () => {
     const artifact = await artifactFixture();
     const result = await inspectHistoricalQuestionProvenance(artifact);

@@ -13,7 +13,7 @@ import {
   type HistoricalIncludedItem,
   type HistoricalQuestionArtifact,
 } from "./governedPacket";
-import { HISTORICAL_CONTEXT_ALGORITHM_VERSION } from "./types";
+import { isHistoricalContextAlgorithmVersion } from "./types";
 
 type ProvenanceInvalidReason =
   | "malformed"
@@ -114,7 +114,7 @@ function includedItem(value: unknown): HistoricalIncludedItem | null {
     || !["persisted", "confirmed", "answered"].includes(String(item.reviewState))
     || !nonEmptyString(item.content)
     || !nonEmptyString(item.relevanceReason)
-    || item.retrievalAlgorithmVersion !== HISTORICAL_CONTEXT_ALGORITHM_VERSION) {
+    || !isHistoricalContextAlgorithmVersion(item.retrievalAlgorithmVersion)) {
     return null;
   }
 

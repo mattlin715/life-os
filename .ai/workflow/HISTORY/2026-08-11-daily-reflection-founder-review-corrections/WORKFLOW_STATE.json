@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-11-daily-reflection-founder-review-corrections:0014",
+  "last_event_hash": "73b2112b2507f7c7586caad672ba5325bf6e1258a844c47b9c88a337d174447c",
+  "sprint_id": "2026-08-11-daily-reflection-founder-review-corrections",
+  "mission_title": "Daily Reflection Founder Review Corrections R1",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/daily-reflection-core-ux-r1",
+  "repository_head": "f8fbf94812bac2e1359367362e9c1e0db1aeaef1",
+  "working_tree_digest": "64a45fde5216e770b1532112f87775dbae32d2d586703a0d68b77a23592a801c",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-10T17:17:58.366Z",
+      "repository_head": "f8fbf94812bac2e1359367362e9c1e0db1aeaef1",
+      "working_tree_digest": "64a45fde5216e770b1532112f87775dbae32d2d586703a0d68b77a23592a801c"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-10T16:53:20.369Z",
+  "updated_at": "2026-08-10T17:21:10.393Z"
+}

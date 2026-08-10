@@ -79,7 +79,7 @@ describe("HistoricalProvenanceInspector", () => {
       expect(html).toContain(copy.historicalProvenanceConsented);
       expect(html).toContain(copy.historicalProvenanceTransmitted);
       expect(html).toContain(copy.historicalProvenancePersisted);
-      expect(html).toContain("local-lexical-v1");
+      expect(html).toContain("local-lexical-v2");
       expect(html).not.toContain("Current exact content.");
       expect(html).not.toContain("Historical exact content.");
     },
