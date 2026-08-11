@@ -1,5 +1,11 @@
 export type DailyReflectionStage = "evidence" | "reflection" | "pattern" | "completion";
 
+export type DailyReflectionStageOverride =
+  | DailyReflectionStage
+  | "collapsed"
+  | null
+  | undefined;
+
 export type DailyReflectionNextAction =
   | "answer_context"
   | "generate_evidence"
@@ -155,4 +161,12 @@ export function stageForNextAction(
     return "reflection";
   }
   return "completion";
+}
+
+export function resolveDisplayedJourneyStage(
+  override: DailyReflectionStageOverride,
+  journey: Pick<DailyReflectionJourney, "activeStage" | "coreReflectionComplete">,
+): DailyReflectionStage | null {
+  if (override === "collapsed") return null;
+  return override ?? (journey.coreReflectionComplete ? null : journey.activeStage);
 }

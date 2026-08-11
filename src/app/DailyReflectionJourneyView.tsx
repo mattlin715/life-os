@@ -39,7 +39,7 @@ export function JourneyStage({
         <div>
           <p className="review-step">{step}</p>
           <h2>{title}</h2>
-          <p className="journey-stage-summary">{summary}</p>
+          {!open ? <p className="journey-stage-summary">{summary}</p> : null}
         </div>
         <div className="journey-stage-controls">
           <span className="journey-stage-status">{statusLabel}</span>

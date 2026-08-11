@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-11-phase-3-product-exit-private-alpha-readiness-audit",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-10T23:52:36.934Z",
+  "repository_head": "76bc4addd954cd14a4ab82f3e4a2369efaab8820",
+  "working_branch": "codex/phase-3-product-exit-private-alpha-readiness-audit",
+  "working_tree_digest": "0dff63c44a7e9b0969ea84fb1f1a335bbf28f7f834dd6318ff3bd5caaa673e86",
+  "last_event_id": "2026-08-11-phase-3-product-exit-private-alpha-readiness-audit:0014",
+  "last_event_hash": "46ce209048d800943516a3a79cd7150065cfbbb683112e29d9130c47031b3334",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

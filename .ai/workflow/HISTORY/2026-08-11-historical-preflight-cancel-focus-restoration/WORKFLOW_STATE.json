@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-11-historical-preflight-cancel-focus-restoration:0014",
+  "last_event_hash": "098955b39aec044e8d3d9fc8edd1066fb8e087173735855ea527d56394346ba9",
+  "sprint_id": "2026-08-11-historical-preflight-cancel-focus-restoration",
+  "mission_title": "Historical Preflight Cancel Focus Restoration",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/phase-3-product-exit-private-alpha-readiness-audit",
+  "repository_head": "76bc4addd954cd14a4ab82f3e4a2369efaab8820",
+  "working_tree_digest": "045451c1bf736038b4617b33abdbc114229d82796c4e70bfce34e95bf6e831e4",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-11T10:04:10.172Z",
+      "repository_head": "76bc4addd954cd14a4ab82f3e4a2369efaab8820",
+      "working_tree_digest": "045451c1bf736038b4617b33abdbc114229d82796c4e70bfce34e95bf6e831e4"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-11T09:53:04.999Z",
+  "updated_at": "2026-08-11T10:05:16.199Z"
+}

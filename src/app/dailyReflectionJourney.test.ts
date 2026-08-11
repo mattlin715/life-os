@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveDailyReflectionJourney,
+  resolveDisplayedJourneyStage,
   stageForNextAction,
   type DailyReflectionJourneyInput,
 } from "./dailyReflectionJourney";
@@ -23,6 +24,14 @@ const base: DailyReflectionJourneyInput = {
 };
 
 describe("resolveDailyReflectionJourney", () => {
+  it("allows the derived active stage to be explicitly collapsed and reopened", () => {
+    const journey = resolveDailyReflectionJourney(base);
+
+    expect(resolveDisplayedJourneyStage(undefined, journey)).toBe("evidence");
+    expect(resolveDisplayedJourneyStage("collapsed", journey)).toBeNull();
+    expect(resolveDisplayedJourneyStage("evidence", journey)).toBe("evidence");
+  });
+
   it("starts a saved Experience at explicit Evidence generation", () => {
     expect(resolveDailyReflectionJourney(base)).toMatchObject({
       experienceSaved: true,

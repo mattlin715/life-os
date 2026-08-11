@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { focusDailyReflectionComposer, focusJourneyStage, focusJourneyTarget } from "./journeyNavigation";
+import {
+  focusDailyReflectionComposer,
+  focusHistoricalContextPanel,
+  focusJourneyStage,
+  focusJourneyTarget,
+} from "./journeyNavigation";
 
 function environment(reducedMotion = false) {
   const focus = vi.fn();
@@ -50,6 +55,34 @@ describe("journey navigation", () => {
     focusJourneyTarget("reflection-prompt-1", target.value);
     expect(target.value.getElementById).toHaveBeenCalledWith("reflection-prompt-1");
     expect(target.focus).toHaveBeenCalledOnce();
+  });
+
+  it("restores the exact historical panel at its top after disclosure closes", () => {
+    const target = environment();
+    focusHistoricalContextPanel("entry", target.value);
+    expect(target.value.getElementById).toHaveBeenCalledWith("historical-context-entry");
+    expect(target.focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(target.scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "start",
+    });
+  });
+
+  it("restores historical-panel focus without animation for reduced motion", () => {
+    const target = environment(true);
+    focusHistoricalContextPanel("entry", target.value);
+    expect(target.scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      block: "start",
+    });
+  });
+
+  it("fails safely when the historical panel is no longer present", () => {
+    expect(() => focusHistoricalContextPanel("missing", {
+      getElementById: () => null,
+      requestFrame: (callback) => callback(),
+      prefersReducedMotion: () => false,
+    })).not.toThrow();
   });
 
   it("fails safely when a stage is no longer present", () => {

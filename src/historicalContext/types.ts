@@ -30,12 +30,21 @@ export interface HistoricalContextCandidateReason {
   terms: string[];
 }
 
+export interface HistoricalContextVisibleMatch {
+  kind: "experience" | "confirmed_evidence" | "saved_reflection";
+  artifactId?: string;
+  terms: string[];
+  excerpt: string;
+}
+
 export interface HistoricalContextCandidate {
   sourceExperienceId: string;
   sourceCreatedAt: string;
   sourceUpdatedAt: string;
   sourceExcerpt: string;
   reasons: HistoricalContextCandidateReason[];
+  /** Local presentation evidence only; governed packets continue to use `reasons`. */
+  visibleMatches?: HistoricalContextVisibleMatch[];
   confirmedEvidenceIds: string[];
   answeredReflectionIds: string[];
   ranking: {

@@ -123,8 +123,10 @@ import {
 } from "./experienceTimeline";
 import {
   resolveDailyReflectionJourney,
+  resolveDisplayedJourneyStage,
   stageForNextAction,
   type DailyReflectionStage,
+  type DailyReflectionStageOverride,
 } from "./dailyReflectionJourney";
 import {
   JourneyStage,
@@ -132,6 +134,7 @@ import {
 } from "./DailyReflectionJourneyView";
 import {
   focusDailyReflectionComposer,
+  focusHistoricalContextPanel,
   focusJourneyStage,
   focusJourneyTarget,
   journeyStageId,
@@ -141,6 +144,7 @@ import {
   type EligibleHistoricalArtifactRecord,
 } from "./HistoricalConsentPreflight";
 import { HistoricalContextEntryPoint } from "./HistoricalContextEntryPoint";
+import { HistoricalCandidateRelevance } from "./HistoricalCandidateRelevance";
 import { focusContextRecovery } from "./contextRecoveryNavigation";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
@@ -627,7 +631,7 @@ export function App() {
     Record<string, boolean>
   >({});
   const [entryStageOverrides, setEntryStageOverrides] = useState<
-    Record<string, DailyReflectionStage | null>
+    Record<string, DailyReflectionStageOverride>
   >({});
   const [patternSetAsideEntryIds, setPatternSetAsideEntryIds] = useState<
     ReadonlySet<string>
@@ -644,8 +648,8 @@ export function App() {
     focusJourneyStage(entryId, stage);
   }, []);
 
-  const returnToDerivedJourneyStage = useCallback((entryId: string) => {
-    setEntryStageOverrides((current) => ({ ...current, [entryId]: null }));
+  const collapseJourneyStage = useCallback((entryId: string) => {
+    setEntryStageOverrides((current) => ({ ...current, [entryId]: "collapsed" }));
   }, []);
 
   const clearPatternSetAside = useCallback((entryId: string) => {
@@ -1178,13 +1182,7 @@ export function App() {
     setHistoricalContextOpenPanels((current) =>
       openHistoricalContextPanel(current, entryId),
     );
-    globalThis.requestAnimationFrame?.(() => {
-      const panel = document.getElementById(`historical-context-${entryId}`);
-      panel?.focus({ preventScroll: true });
-      const reducedMotion = typeof matchMedia === "function"
-        && matchMedia("(prefers-reduced-motion: reduce)").matches;
-      panel?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
-    });
+    focusHistoricalContextPanel(entryId);
   }, []);
   const toggleHistoricalSource = useCallback((entryId: string, sourceEntryId: string) => {
     setHistoricalContextSelections((current) => toggleHistoricalContextSelection(current, entryId, sourceEntryId));
@@ -1291,7 +1289,10 @@ export function App() {
     }
   }, [historicalPacketInput, historicalPreflight]);
 
-  const cancelHistoricalPreflight = useCallback(() => setHistoricalPreflight(null), []);
+  const cancelHistoricalPreflight = useCallback((entryId: string) => {
+    setHistoricalPreflight((current) => current?.entryId === entryId ? null : current);
+    focusHistoricalContextPanel(entryId);
+  }, []);
 
   const deleteHistoricalQuestionArtifact = useCallback(async (entryId: string, artifactId: string) => {
     try {
@@ -1736,8 +1737,10 @@ export function App() {
                 save_reflection: copy.nextActionSaveReflection,
                 review_completion: copy.nextActionReviewCompletion,
               }[journey.nextAction];
-              const displayedStage = entryStageOverrides[entry.id]
-                ?? (journey.coreReflectionComplete ? null : journey.activeStage);
+              const displayedStage = resolveDisplayedJourneyStage(
+                entryStageOverrides[entry.id],
+                journey,
+              );
               const evidenceStageComplete = journey.evidence === "complete";
               const reflectionStageComplete = journey.reflection === "complete";
               const evidenceStageSummary = isEvidencePending
@@ -1907,7 +1910,7 @@ export function App() {
                       available
                       onOpen={() =>
                         displayedStage === "evidence"
-                          ? returnToDerivedJourneyStage(entry.id)
+                          ? collapseJourneyStage(entry.id)
                           : openJourneyStage(entry.id, "evidence")
                       }
                     >
@@ -2110,7 +2113,7 @@ export function App() {
                       available={evidenceStageComplete || reflectionPrompts.length > 0}
                       onOpen={() =>
                         displayedStage === "reflection"
-                          ? returnToDerivedJourneyStage(entry.id)
+                          ? collapseJourneyStage(entry.id)
                           : openJourneyStage(entry.id, "reflection")
                       }
                     >
@@ -2258,7 +2261,7 @@ export function App() {
                       available={journey.coreReflectionComplete || patternNotes.length > 0}
                       onOpen={() =>
                         displayedStage === "pattern"
-                          ? returnToDerivedJourneyStage(entry.id)
+                          ? collapseJourneyStage(entry.id)
                           : openJourneyStage(entry.id, "pattern")
                       }
                     >
@@ -2470,9 +2473,10 @@ export function App() {
                                     <span className="historical-context-source-date">{sourceDatePresentation}</span>
                                   )}
                                   <p>{candidate.sourceExcerpt}</p>
-                                  <p className="historical-context-reason">
-                                    {copy.historicalContextReason(candidate.reasons.flatMap((reason) => reason.terms).join(", "))}
-                                  </p>
+                                  <HistoricalCandidateRelevance
+                                    candidate={candidate}
+                                    copy={copy}
+                                  />
                                   {historicalSavedDateRangeState.status ===
                                   "applied" ? (
                                     <p className="historical-context-reason">
@@ -2540,8 +2544,8 @@ export function App() {
                               void toggleHistoricalPreflightArtifact(entry, artifactId)
                             }
                             onSend={() => void sendHistoricalReflectionQuestions(entry)}
-                            onCancel={cancelHistoricalPreflight}
-                            onAdjustSources={cancelHistoricalPreflight}
+                            onCancel={() => cancelHistoricalPreflight(entry.id)}
+                            onAdjustSources={() => cancelHistoricalPreflight(entry.id)}
                           />
                         ) : null}
                       </>
