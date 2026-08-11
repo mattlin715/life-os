@@ -5,6 +5,7 @@ import {
   type HistoricalContextCandidate,
   type HistoricalContextRetrievalInput,
   type HistoricalSourceArtifacts,
+  type HistoricalContextVisibleMatch,
 } from "./types";
 
 const DEFAULT_LIMIT = 3;
@@ -123,16 +124,23 @@ function excerpt(body: string): string {
   return normalized.length > 180 ? `${normalized.slice(0, 177)}…` : normalized;
 }
 
-function matchingArtifactIds<T extends EvidenceCandidate | ReflectionPrompt>(
+function matchingArtifactDisclosures<T extends EvidenceCandidate | ReflectionPrompt>(
   records: T[],
   currentTerms: Set<string>,
   locale: HistoricalContextRetrievalInput["locale"],
   text: (record: T) => string,
-): string[] {
+  kind: HistoricalContextVisibleMatch["kind"],
+): HistoricalContextVisibleMatch[] {
   return records
-    .filter((record) => sharedTerms(currentTerms, text(record), locale).length > 0)
-    .map((record) => record.id)
-    .sort(stableCompare);
+    .map((record): HistoricalContextVisibleMatch | null => {
+      const content = text(record);
+      const terms = sharedTerms(currentTerms, content, locale);
+      return terms.length > 0
+        ? { kind, artifactId: record.id, terms, excerpt: excerpt(content) }
+        : null;
+    })
+    .filter((match): match is HistoricalContextVisibleMatch => match !== null)
+    .sort((left, right) => stableCompare(left.artifactId ?? "", right.artifactId ?? ""));
 }
 
 /**
@@ -158,28 +166,30 @@ export function findHistoricalContextCandidates(
         input.artifactsByEntryId[entry.id],
       );
       const bodyMatches = sharedTerms(currentTerms, entry.body, input.locale);
-      const evidenceMatches = confirmedEvidence.flatMap((evidence) =>
-        sharedTerms(currentTerms, evidence.text, input.locale),
-      );
-      const reflectionMatches = answeredReflections.flatMap((reflection) =>
-        sharedTerms(currentTerms, reflection.response ?? "", input.locale),
-      );
-      const matchedTerms = [...new Set([...bodyMatches, ...evidenceMatches, ...reflectionMatches])]
-        .sort(stableCompare);
-      if (matchedTerms.length === 0) return null;
-
-      const confirmedEvidenceIds = matchingArtifactIds(
+      const evidenceDisclosures = matchingArtifactDisclosures(
         confirmedEvidence,
         currentTerms,
         input.locale,
         (evidence) => evidence.text,
+        "confirmed_evidence",
       );
-      const answeredReflectionIds = matchingArtifactIds(
+      const reflectionDisclosures = matchingArtifactDisclosures(
         answeredReflections,
         currentTerms,
         input.locale,
         (reflection) => reflection.response ?? "",
+        "saved_reflection",
       );
+      const matchedTerms = [...new Set([
+        ...bodyMatches,
+        ...evidenceDisclosures.flatMap((match) => match.terms),
+        ...reflectionDisclosures.flatMap((match) => match.terms),
+      ])]
+        .sort(stableCompare);
+      if (matchedTerms.length === 0) return null;
+
+      const confirmedEvidenceIds = evidenceDisclosures.map((match) => match.artifactId!);
+      const answeredReflectionIds = reflectionDisclosures.map((match) => match.artifactId!);
       const score = matchedTerms.length * 10 + confirmedEvidenceIds.length * 2 + answeredReflectionIds.length * 2;
 
       return {
@@ -188,6 +198,13 @@ export function findHistoricalContextCandidates(
         sourceUpdatedAt: entry.updatedAt,
         sourceExcerpt: excerpt(entry.body),
         reasons: [{ kind: "shared_visible_terms" as const, terms: matchedTerms }],
+        visibleMatches: [
+          ...(bodyMatches.length > 0
+            ? [{ kind: "experience" as const, terms: bodyMatches, excerpt: excerpt(entry.body) }]
+            : []),
+          ...evidenceDisclosures,
+          ...reflectionDisclosures,
+        ],
         confirmedEvidenceIds,
         answeredReflectionIds,
         ranking: {

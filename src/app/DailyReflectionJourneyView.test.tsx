@@ -41,6 +41,32 @@ describe("Daily Reflection journey surfaces", () => {
     expect(closed).not.toContain("private stage detail");
   });
 
+  it.each(
+    (["en", "zh-TW", "ja"] as const).flatMap((locale) =>
+      (["evidenceNextEmpty", "reflectionNextEmpty", "patternNextEmpty"] as const).map(
+        (summaryKey) => [locale, summaryKey] as const,
+      ),
+    ),
+  )("shows the %s %s summary only while its stage is collapsed", (locale, summaryKey) => {
+    const summary = uiText[locale][summaryKey];
+    const detail = `${locale}-${summaryKey}-detail`;
+    const closed = renderToStaticMarkup(
+      <JourneyStage id="stage" step="1" title="Stage" summary={summary} statusLabel="Current" active open={false} available onOpen={vi.fn()}>
+        <p>{detail}</p>
+      </JourneyStage>,
+    );
+    const open = renderToStaticMarkup(
+      <JourneyStage id="stage" step="1" title="Stage" summary={summary} statusLabel="Current" active open available onOpen={vi.fn()}>
+        <p>{detail}</p>
+      </JourneyStage>,
+    );
+
+    expect(closed).toContain(summary);
+    expect(closed).not.toContain(detail);
+    expect(open).not.toContain(summary);
+    expect(open).toContain(detail);
+  });
+
   it.each(["en", "zh-TW", "ja"] as const)("keeps completion record-only and authorship-distinct in %s", (locale) => {
     const copy = uiText[locale];
     const html = renderToStaticMarkup(

@@ -58,6 +58,55 @@ describe("local historical context retrieval", () => {
     expect(candidates[0].ranking.algorithmVersion).toBe("local-lexical-v2");
   });
 
+  it("discloses exact match origins without changing the aggregate governed reason", () => {
+    const current = entry("current", "project feedback response hidden");
+    const source = entry("past", "A project note from earlier.", 2);
+    const confirmed = evidence("confirmed", source.id, "The feedback was specific.");
+    const rejected = evidence("rejected", source.id, "A hidden detail.", "rejected");
+    const answered = reflection(
+      "answered",
+      source.id,
+      [confirmed.id],
+      "My response was calm.",
+    );
+    const skipped = reflection("skipped", source.id, [confirmed.id], "hidden", "skipped");
+
+    const [candidate] = findHistoricalContextCandidates({
+      currentExperience: current,
+      experiences: [current, source],
+      artifactsByEntryId: {
+        [source.id]: {
+          evidence: [confirmed, rejected],
+          reflections: [answered, skipped],
+        },
+      },
+      locale: "en",
+    });
+
+    expect(candidate.reasons[0].terms).toEqual(["feedback", "project", "response"]);
+    expect(candidate.ranking.score).toBe(34);
+    expect(candidate.visibleMatches).toEqual([
+      {
+        kind: "experience",
+        terms: ["project"],
+        excerpt: "A project note from earlier.",
+      },
+      {
+        kind: "confirmed_evidence",
+        artifactId: "confirmed",
+        terms: ["feedback"],
+        excerpt: "The feedback was specific.",
+      },
+      {
+        kind: "saved_reflection",
+        artifactId: "answered",
+        terms: ["response"],
+        excerpt: "My response was calm.",
+      },
+    ]);
+    expect(candidate.visibleMatches?.some((match) => match.excerpt.includes("hidden"))).toBe(false);
+  });
+
   it("preserves the exact Phase 3A path when no saved-date range is supplied", () => {
     const current = entry("current", "The project deadline mattered.", 15);
     const experiences = [

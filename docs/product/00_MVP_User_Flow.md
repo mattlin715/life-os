@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.9
+version: 1.0
 owner: LIN MENGLUNG
-last_updated: 2026/07/14
+last_updated: 2026/08/11
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -94,7 +94,9 @@ The locally loaded Experience timeline can be narrowed by a session-only keyword
 
 When the Pattern gate needs Context Recovery, the UI explicitly acknowledges that confirmed clues and saved Reflection remain valid while explaining that they do not invent missing facts about what happened. The action asks for the specific missing event context rather than presenting an unexplained disabled Pattern control. Local historical suggestions use concrete visible word overlap: Traditional Chinese and Japanese no longer display adjacent-character fragments or generic feeling-report scaffolding as relevance reasons. This is lexical retrieval only, not semantic classification or a cross-experience conclusion.
 
-### Daily Reflection Completion UX R2 (implemented in the current working tree; not yet Founder-reviewed or promoted)
+### Daily Reflection Completion UX R2 (promoted; not deployed or released)
+
+R2 was implemented on feature commit `a8dd26b0652fd284f6d18fd726a87577b79e9b32` and promoted to `develop` through non-fast-forward merge commit `76bc4addd954cd14a4ab82f3e4a2369efaab8820`. The archived R2 workflow state records `manual_ui.status = not_run`; the repository does not infer or retroactively claim Founder manual acceptance, and the missing record is not evidence of a failed review.
 
 The open Experience now derives one deterministic journey from already loaded records. Evidence is the active step until one clue is confirmed; Reflection becomes active only after that; an unsaved Reflection draft remains visibly unfinished; and a saved or explicitly skipped set of Reflection prompts reaches an honest core-complete state. Completed stages collapse to concise summaries and can be reopened explicitly. The entry's next gentle step is a navigation action only: it opens and focuses the relevant section without generating content, changing review state, selecting history, creating consent, or transmitting data.
 

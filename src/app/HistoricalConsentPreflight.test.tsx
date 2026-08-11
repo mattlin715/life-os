@@ -43,6 +43,7 @@ describe("HistoricalConsentPreflight", () => {
     expect(html).toContain(packet.packetId);
     expect(html).toContain(packet.packetDigest);
     expect(html).toContain(uiText[locale].historicalConsentAndSend);
+    expect(html).toContain(uiText[locale].historicalAdjustSources);
     expect(html).toContain(uiText[locale].historicalCancel);
     expect(html).toContain("<details");
   });

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.9
+version: 1.1
 owner: LIN MENGLUNG
-last_updated: 2026/08/10
+last_updated: 2026/08/12
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -59,7 +59,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | AI Role | `docs/09_AI.md` | `docs/Reflection.md` | `docs/03_Principles.md`, `docs/10_Privacy.md` |
 | AI Hypothesis Protocol | `docs/09_AI.md` | `docs/appendix/Harness.md` | `docs/06_Memory.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
 | Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
-| MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/12_Roadmap.md` |
+| MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`, `docs/12_Roadmap.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
 | Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
@@ -81,6 +81,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 2. `docs/12_Roadmap.md`
 3. `docs/product/00_MVP_User_Flow.md`
 4. `docs/architecture/00_MVP_Architecture.md`
+5. `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`
 
 ### Design AI Or Harness Behavior
 

@@ -26,6 +26,10 @@ export function journeyStageId(entryId: string, stage: DailyReflectionStage): st
   return `journey-${stage}-${entryId}`;
 }
 
+export function historicalContextPanelId(entryId: string): string {
+  return `historical-context-${entryId}`;
+}
+
 export function focusJourneyStage(
   entryId: string,
   stage: DailyReflectionStage,
@@ -53,6 +57,21 @@ export function focusJourneyTarget(
     target.scrollIntoView({
       behavior: environment.prefersReducedMotion() ? "auto" : "smooth",
       block: "center",
+    });
+  });
+}
+
+export function focusHistoricalContextPanel(
+  entryId: string,
+  environment: JourneyNavigationEnvironment = browserEnvironment,
+): void {
+  environment.requestFrame(() => {
+    const target = environment.getElementById(historicalContextPanelId(entryId));
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({
+      behavior: environment.prefersReducedMotion() ? "auto" : "smooth",
+      block: "start",
     });
   });
 }

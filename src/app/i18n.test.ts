@@ -46,6 +46,15 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].historicalContextLocalOnly).toContain("尚未傳送給 AI 供應商");
     expect(uiText.ja.historicalContextLocalOnly).toContain("AI 提供元に送信されていません");
   });
+  it("labels each local historical relevance origin in every language", () => {
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      const copy = uiText[locale];
+      expect(copy.historicalContextMatchLocations).toBeTruthy();
+      expect(copy.historicalContextExperienceMatch("term")).toContain("term");
+      expect(copy.historicalContextEvidenceMatch("term")).toContain("term");
+      expect(copy.historicalContextReflectionMatch("term")).toContain("term");
+    }
+  });
   it("provides a localized unavailable-date fallback", () => {
     expect(uiText.en.dateUnavailable).toBe("Date unavailable");
     expect(uiText["zh-TW"].dateUnavailable).toBe("日期無法使用");
