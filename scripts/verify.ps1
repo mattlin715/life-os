@@ -25,6 +25,7 @@ try {
   Invoke-VerificationStep 'pnpm toolchain' { pnpm --version }
   Invoke-VerificationStep 'AI workflow contract tests' { pnpm run test:workflow }
   Invoke-VerificationStep 'AI workflow state validation' { pnpm run verify:workflow }
+  Invoke-VerificationStep 'Windows Founder dogfooding package contract tests' { node --test scripts/founder-dogfood-package.node-test.mjs }
   Invoke-VerificationStep 'Vitest' { pnpm run test:run }
   Invoke-VerificationStep 'TypeScript typecheck' { pnpm run typecheck }
   Invoke-VerificationStep 'Frontend build' { pnpm run build }

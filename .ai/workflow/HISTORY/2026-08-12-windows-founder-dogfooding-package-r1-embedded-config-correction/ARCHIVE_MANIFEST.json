@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-12T14:04:46.993Z",
+  "repository_head": "c7e767a397995c1d96daebcafa08eb1e578e356e",
+  "working_branch": "codex/windows-founder-dogfooding-package-r1",
+  "working_tree_digest": "a60fe6c599a6ee938464209f4ec0c9808ec88ef30112ce9197805b212fbae6c8",
+  "last_event_id": "2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction:0021",
+  "last_event_hash": "8d1cfcce60ff5437aac977479e4eea36e39b5680f1e889e49748aa40c707d470",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
