@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 21,
+  "last_event_id": "2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction:0021",
+  "last_event_hash": "8d1cfcce60ff5437aac977479e4eea36e39b5680f1e889e49748aa40c707d470",
+  "sprint_id": "2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction",
+  "mission_title": "Correct the installed Founder package embedded Tauri configuration",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/windows-founder-dogfooding-package-r1",
+  "repository_head": "c7e767a397995c1d96daebcafa08eb1e578e356e",
+  "working_tree_digest": "a60fe6c599a6ee938464209f4ec0c9808ec88ef30112ce9197805b212fbae6c8",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-12T14:02:08.723Z",
+      "repository_head": "c7e767a397995c1d96daebcafa08eb1e578e356e",
+      "working_tree_digest": "a60fe6c599a6ee938464209f4ec0c9808ec88ef30112ce9197805b212fbae6c8"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-12T13:37:28.998Z",
+  "updated_at": "2026-08-12T14:04:45.331Z"
+}

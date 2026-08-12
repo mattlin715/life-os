@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Life OS Founder Dogfood",
+  "identifier": "com.lifeos.founderdogfood",
+  "app": {
+    "windows": [
+      {
+        "title": "Life OS — Founder Dogfood (Private)",
+        "width": 1000,
+        "height": 760,
+        "minWidth": 720,
+        "minHeight": 560
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

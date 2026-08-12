@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-12-windows-founder-dogfooding-package-r1-console-correction:0014",
+  "last_event_hash": "49d69a67a791353d54c8321475f6853524c4eb894b30eabdb9aeaaff89502bce",
+  "sprint_id": "2026-08-12-windows-founder-dogfooding-package-r1-console-correction",
+  "mission_title": "Correct the Founder package Windows subsystem without touching product runtime source",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/windows-founder-dogfooding-package-r1",
+  "repository_head": "c7e767a397995c1d96daebcafa08eb1e578e356e",
+  "working_tree_digest": "21e70ef78e08482e9c0b9d9402ef32c98fcc4d8993afbc24019710b657987e1e",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-12T12:39:33.363Z",
+      "repository_head": "c7e767a397995c1d96daebcafa08eb1e578e356e",
+      "working_tree_digest": "21e70ef78e08482e9c0b9d9402ef32c98fcc4d8993afbc24019710b657987e1e"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-12T12:20:52.194Z",
+  "updated_at": "2026-08-12T12:40:26.658Z"
+}

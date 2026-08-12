@@ -1,6 +1,6 @@
 ---
 status: Founder-approved
-version: 0.2
+version: 0.3
 owner: product-and-engineering
 last_updated: 2026/08/12
 depends:
@@ -41,9 +41,10 @@ restore, provider or consent changes, Phase 4, packaging, distribution,
 deployment, or release. Passing tests does not change those states. The Founder
 remains the final authority.
 
-Founder approval accepts the bounded conclusions and next-step direction below.
-It does not promote the current working tree, authorize the next implementation
-slice, or authorize Private Alpha distribution, deployment, or release.
+Founder approval accepted the bounded conclusions and next-step direction below.
+The reviewed audit package was later promoted through feature commit
+`af3f673d` and non-fast-forward merge `c7e767a`. Promotion did not authorize
+Private Alpha distribution, deployment, or release.
 
 ## Founder Acceptance And Independent Manual Evidence
 
@@ -69,13 +70,12 @@ The accepted decisions are:
 5. The R2 manual-record gap is closed only for this audit by the new bounded
    walkthrough. The old workflow archive is not rewritten.
 
-The live walkthrough also found and Founder-accepted four bounded corrections
-in the current unpromoted working tree: journey-summary deduplication and
-collapse behavior, historical relevance-origin disclosure, historical
-preflight cancel/adjust focus restoration, and collapsed timeline keyboard
-focus visibility. Their implementation, verification, manual acceptance, and
-promotion state remain distinct: they are implemented and manually accepted in
-this working tree but are not promoted until a later explicit promotion gate.
+The live walkthrough also found and Founder-accepted four bounded corrections:
+journey-summary deduplication and collapse behavior, historical relevance-origin
+disclosure, historical preflight cancel/adjust focus restoration, and collapsed
+timeline keyboard focus visibility. They were implemented, verified, manually
+accepted, and promoted as part of feature commit `af3f673d` and merge
+`c7e767a`; they are not deployed or released.
 
 ## Evidence Baseline And State Vocabulary
 
@@ -87,6 +87,11 @@ Intake was performed from feature branch
 `origin/develop` matched. The tree and index were clean, workflow validated
 idle, production `SCHEMA_VERSION` was 4, the Constitution was unchanged, and
 canonical intake verification passed.
+
+The completed audit package contains 87 promoted files. Git records feature
+commit `af3f673d` and non-fast-forward merge `c7e767a`; the latter is the
+current Founder-package sprint baseline. These promotion facts do not imply
+deployment, release, Private Alpha readiness, or schema-v5 authority.
 
 R2 is implemented by feature commit `a8dd26b0652fd284f6d18fd726a87577b79e9b32`
 and promoted by the merge above. It is not deployed or released. Its archived
@@ -276,8 +281,8 @@ for bounded Founder use. No stronger alternative was found.
 
 ### Windows Founder Dogfooding Package R1
 
-**Founder-approved direction only; implementation remains unauthorized until a
-separate post-promotion gate.** Keep production schema v4. Add one Windows-only
+**Founder-approved and separately authorized for bounded R1 implementation.**
+Keep production schema v4. Add one Windows-only
 local build path that produces an unsigned,
 non-distributed Founder package with a distinct private-alpha application
 identity/profile so installation tests cannot open or mutate the ordinary
@@ -324,6 +329,17 @@ Founder manual matrix:
 
 The slice stops at Founder diff and manual install review. It does not stage,
 commit, push, merge, deploy, distribute, or release without separate authority.
+
+### R1 implementation state
+
+Windows Founder Dogfooding Package R1 is implemented in the current feature
+working tree as an additive Tauri override, repository build/verification
+scripts, focused contract tests, ignored review output, and a content-free
+manifest. It remains unpromoted and not Founder-manually accepted until the
+separate diff and install review completes. The ordinary Tauri identifier stays
+`com.lifeos.app`; the Founder package uses `com.lifeos.founderdogfood`, so the
+relative `sqlite:life-os.db` resolves under a distinct Tauri application config
+directory. Production `SCHEMA_VERSION` remains 4.
 
 ## Copy-Ready Next `/goal`
 
@@ -386,4 +402,6 @@ does not include promotion or implementation authority.
 The Constitution, Book Zero, ADR status, production code, schema, provider,
 ContextPacket, consent policy, historical behavior, Phase 4, Engineering
 Harness contract, deployment, and release are unchanged. This document is
-Founder-approved but not yet promoted.
+Founder-approved and promoted through `af3f673d` / `c7e767a`. Windows Founder
+Dogfooding Package R1 is a later separately authorized implementation working
+tree and is not promoted, distributed, deployed, or released by this document.
