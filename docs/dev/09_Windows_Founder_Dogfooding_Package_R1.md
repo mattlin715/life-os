@@ -10,6 +10,19 @@ The package changes no React product behavior, Rust runtime behavior, SQLite
 schema, provider, ContextPacket, consent policy, or persistence contract.
 Production `SCHEMA_VERSION` and the supported startup maximum remain 4.
 
+The separately authorized schema-v5 Founder activation candidate reuses the
+same isolated identifier only for a controlled migration/restart review. Its
+implemented-but-unpromoted boundary and separate build command are recorded in
+`docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md`.
+This runbook's schema-v4 package remains the baseline and is not rewritten as a
+schema-v5 package.
+
+Candidate build (does not install or launch):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-founder-schema-v5-candidate.ps1
+```
+
 ## Identity and data-profile separation
 
 | Surface | Ordinary development app | Founder dogfooding package |

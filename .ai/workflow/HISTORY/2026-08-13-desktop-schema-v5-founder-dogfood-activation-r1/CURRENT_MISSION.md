@@ -1,0 +1,23 @@
+# Current Mission
+
+Status: ready
+
+- Sprint ID: 2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1
+- Mission title: Implement isolated Desktop schema-v5 Founder dogfood activation candidate R1
+- Origin: founder_request
+- Base branch: develop
+- Starting commit: 9a226f7081aabc071571f4a745e1343dbdb7d927
+- Background: The Windows Founder Dogfooding Package R1 and the private/disposable Phase 3C migration, recovery, and write-parity evidence are promoted. The ordinary app remains schema v4.
+- Problem: Life OS cannot yet exercise the accepted schema-v5 contracts through one isolated packaged desktop profile with explicit migration, restart/recovery, typed runtime routing, backup lifecycle, and restore controls.
+- Intended outcome: Build a production-quality candidate available only in the compile-time Founder package boundary `com.lifeos.founderdogfood`, verify it with disposable fixtures, package it, and stop for Founder diff and one-step manual review.
+- Initial scope: Missing Founder profile exact-v5 initialization; explicit exact-v4 backup/migration; durable restart classification; typed v5 runtime routing for currently reachable actions; exact-owned backup retention/delete/restore; three-language UI; package and disposable evidence.
+- Explicit non-scope: The ordinary `com.lifeos.app` profile, real Founder data, general schema-v5 rollout, provider/ContextPacket/consent changes, Phase 4, Android, export v2, distribution, deployment, release, or Git promotion.
+- Relevant Book Zero definitions: `docs/03_Principles.md`, `docs/06_Memory.md`, `docs/Reflection.md`, `docs/09_AI.md`, and `docs/10_Privacy.md`.
+- Relevant ADRs: `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`, `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`, and `docs/adr/ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md`.
+- Relevant architecture documents: `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md`, `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md`, `docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md`, `docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md`, and `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`.
+- Relevant code areas: `src-tauri/src/`, `src/shared/storage/`, `src/app/`, package configuration, package scripts, and focused tests.
+- Constraints: Follow AGENTS.md and `.ai/workflow/WORKFLOW.md`; use no concurrent writable agents; preserve ordinary schema-v4 behavior; stop on unresolved constitutional/data-governance authority.
+- Anticipated file allowlist: `.ai/workflow/CURRENT_MISSION.md`, `.ai/workflow/PRODUCT_REVIEW.md`, `.ai/workflow/ENGINEERING_PLAN.md`, `.ai/workflow/ENGINEERING_REPORT.md`, `.ai/workflow/THEORY_ALIGNMENT_REVIEW.md`, `.ai/workflow/SPRINT_REPORT.md`, `.ai/workflow/EVENTS.jsonl`, `.ai/workflow/WORKFLOW_STATE.json`, the eventual current-sprint archive directory; `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src-tauri/src/sqlite.rs`, `src-tauri/src/filesystem_safety.rs`, `src-tauri/src/schema_v5_migration.rs`, the seven existing `src-tauri/src/schema_v5_*write.rs`/lifecycle files, new `src-tauri/src/schema_v5_founder_activation.rs`, new `src-tauri/src/schema_v5_runtime.rs`, focused Rust tests; `src/shared/storage/types.ts`, `src/shared/storage/createLocalEvidenceStore.ts`, `src/shared/storage/createLocalEvidenceStore.test.ts`, `src/shared/storage/sqlite/sqliteLocalEvidenceStore.ts`, `src/shared/storage/sqlite/sqliteLocalEvidenceStore.test.ts`, `src/vite-env.d.ts`, new Founder activation and typed-store adapters/tests; `src/app/App.tsx`, `src/app/App.test.tsx`, `src/app/i18n.ts`, `src/app/i18n.test.ts`, new Founder activation/backup panels and tests, `src/styles.css`; `src-tauri/tauri.founder-dogfood-v5-candidate.conf.json`; `scripts/build-founder-schema-v5-candidate.ps1`, `scripts/founder-dogfood-package.mjs`, `scripts/founder-schema-v5-candidate-package.mjs`, its Node test, `scripts/verify.ps1`, `package.json`; `docs/00_Index.md`, architecture/13, architecture/15, architecture/16, architecture/17, and `docs/dev/09_Windows_Founder_Dogfooding_Package_R1.md`. The plan was factually revised before completion to record the exact runtime façade, build-script names, Vite declaration, and backup panel paths actually required. No path outside this set may change without another truthful plan revision.
+- Current owner: orchestrator
+- Current phase: intake
+- Created at: 2026-08-13T11:32:11.507Z

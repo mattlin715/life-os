@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 23,
+  "last_event_id": "2026-08-16-founder-v5-context-recovery-runtime-correction-r1:0023",
+  "last_event_hash": "c0d5d7ec7f2f74702f57a232b2cb7b84a0208c000ce62c16e3221767dda38498",
+  "sprint_id": "2026-08-16-founder-v5-context-recovery-runtime-correction-r1",
+  "mission_title": "Correct isolated Founder v5 Context Recovery runtime routing and local error disclosure",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "Manual now",
+    "selected_option": "A",
+    "authorized_scope": "Founder authorizes only the bounded manual installation and affected Step 11D-3 retest using the exact new unsigned isolated Candidate package, one instruction at a time. No automatic profile mutation, ordinary-profile access, schema or policy expansion, Git promotion, distribution, deployment, or release.",
+    "decided_at": "2026-08-15T20:58:23.623Z",
+    "evidence_reference": "FOUNDER-V5-CONTEXT-RECOVERY-R1-MANUAL-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": "Stop at Founder diff review; no promotion authority.",
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-founder-dogfood-activation-r1",
+  "repository_head": "9a226f7081aabc071571f4a745e1343dbdb7d927",
+  "working_tree_digest": "806b2355fefea3278cdbe8d88bb3f115256e0ef285cd432e03c238c8b4b452b7",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-15T20:55:52.707Z",
+      "repository_head": "9a226f7081aabc071571f4a745e1343dbdb7d927",
+      "working_tree_digest": "806b2355fefea3278cdbe8d88bb3f115256e0ef285cd432e03c238c8b4b452b7"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-15T20:32:19.468Z",
+  "updated_at": "2026-08-15T21:16:31.889Z"
+}

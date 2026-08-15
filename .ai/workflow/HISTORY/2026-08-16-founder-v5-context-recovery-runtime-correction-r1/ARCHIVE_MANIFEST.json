@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-16-founder-v5-context-recovery-runtime-correction-r1",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-15T21:16:38.085Z",
+  "repository_head": "9a226f7081aabc071571f4a745e1343dbdb7d927",
+  "working_branch": "codex/desktop-schema-v5-founder-dogfood-activation-r1",
+  "working_tree_digest": "806b2355fefea3278cdbe8d88bb3f115256e0ef285cd432e03c238c8b4b452b7",
+  "last_event_id": "2026-08-16-founder-v5-context-recovery-runtime-correction-r1:0023",
+  "last_event_hash": "c0d5d7ec7f2f74702f57a232b2cb7b84a0208c000ce62c16e3221767dda38498",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

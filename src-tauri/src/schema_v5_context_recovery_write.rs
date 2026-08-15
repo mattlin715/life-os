@@ -5,28 +5,28 @@ use sqlx::{raw_sql, Row};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PromptProvenanceInput {
-    origin: String,
-    provider: String,
-    model: Option<String>,
-    harness_version: String,
-    prompt_version: String,
-    generated_at: String,
-    source_artifact_ids: Vec<String>,
+pub(super) struct PromptProvenanceInput {
+    pub(super) origin: String,
+    pub(super) provider: String,
+    pub(super) model: Option<String>,
+    pub(super) harness_version: String,
+    pub(super) prompt_version: String,
+    pub(super) generated_at: String,
+    pub(super) source_artifact_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct SuggestedPromptInput {
-    id: String,
-    source_id: String,
-    question: String,
-    locale: String,
-    created_at: String,
-    provenance: PromptProvenanceInput,
+pub(super) struct SuggestedPromptInput {
+    pub(super) id: String,
+    pub(super) source_id: String,
+    pub(super) question: String,
+    pub(super) locale: String,
+    pub(super) created_at: String,
+    pub(super) provenance: PromptProvenanceInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum ContextRecoveryWriteCommand {
+pub(super) enum ContextRecoveryWriteCommand {
     CreateSuggested {
         expected_source_revision_id: String,
         prompt: SuggestedPromptInput,
@@ -47,7 +47,7 @@ enum ContextRecoveryWriteCommand {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum ContextRecoveryWriteFailurePoint {
+pub(super) enum ContextRecoveryWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -64,17 +64,17 @@ enum ContextRecoveryWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct ContextRecoveryWriteContext<'a> {
-    occurred_at: &'a str,
-    guard_token: &'a str,
-    failure_point: ContextRecoveryWriteFailurePoint,
+pub(super) struct ContextRecoveryWriteContext<'a> {
+    pub(super) occurred_at: &'a str,
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: ContextRecoveryWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ContextRecoveryWriteOutcome {
-    artifact_id: String,
-    revision_id: String,
-    operation_manifest: String,
+pub(super) struct ContextRecoveryWriteOutcome {
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -2239,7 +2239,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn execute_disposable(
+pub(super) async fn execute_disposable(
     path: &Path,
     command: ContextRecoveryWriteCommand,
     context: ContextRecoveryWriteContext<'_>,

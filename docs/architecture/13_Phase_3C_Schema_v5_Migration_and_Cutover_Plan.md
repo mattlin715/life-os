@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 4.8
+version: 5.1
 owner: product-and-engineering
-last_updated: 2026/08/10
+last_updated: 2026/08/15
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -2660,3 +2660,32 @@ user data, runtime/Tauri/UI, provider/ContextPacket/consent changes, export v2,
 production recovery, the original Slice 5 production integration and manual
 gates, Slice 6 runtime work, Phase 4, deployment, and release remain
 unauthorized.
+> 2026/08/13 factual implementation note: Desktop Schema-v5 Founder Dogfood
+> Activation Candidate R1 is implemented in the current feature working tree
+> under the isolated `com.lifeos.founderdogfood` build identity and is awaiting
+> canonical verification and Founder packaged manual review. It has not been
+> promoted and does not activate schema v5 for `com.lifeos.app` or real data.
+> See architecture/17.
+>
+> 2026/08/15 corrective-cycle-2 note: packaged disposable migration proved
+> that the full schema-object digest had test coverage only for the multiline
+> v4 contract fixture, while the promoted v4 runtime persists the same eleven
+> object definitions as compact `sqlite_master.sql`. The candidate now keeps
+> the accepted fixed v5 DDL digest and fixture digest, adds exactly one fixed
+> full-schema digest for the promoted runtime-v4 representation, and rejects
+> every third representation. A production-initialized v4 regression covers
+> the complete owned backup/migration/reopen path. Exact durable
+> `V5BlockedRestoreAvailable` evidence may expose a separately explicit restore
+> of its verified v4 backup; it does not authorize retry, repair, cleanup,
+> ordinary-profile migration, real-user data, deployment, or release. See
+> architecture/17 v0.4.
+>
+> 2026/08/15 corrective-cycle-3 note: packaged migration and restart reached
+> exact durable v5, but the first typed Experience create exposed a remaining
+> duplicated single-digest check in the runtime Experience verifier. The check
+> failed before `BEGIN IMMEDIATE` and wrote no Experience. Runtime writers now
+> reuse the same exact two-manifest predicate as migration and restart, with a
+> production-initialized-v4 migration followed by a typed Experience write
+> regression. The fixed DDL, schema objects, production `SCHEMA_VERSION = 4`,
+> ordinary profile, provider, consent, Phase 4, deployment, and release fences
+> remain unchanged.

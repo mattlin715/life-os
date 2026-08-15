@@ -2018,6 +2018,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-sql",
  "tempfile",
+ "time",
  "tokio",
  "windows-sys 0.59.0",
 ]

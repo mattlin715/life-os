@@ -146,6 +146,10 @@ import {
 import { HistoricalContextEntryPoint } from "./HistoricalContextEntryPoint";
 import { HistoricalCandidateRelevance } from "./HistoricalCandidateRelevance";
 import { focusContextRecovery } from "./contextRecoveryNavigation";
+import { authorizeFounderSchemaV5Migration, deleteFounderSchemaV5Backup, restoreFounderSchemaV4Backup } from "../shared/storage/sqlite/founderSchemaV5";
+import { FounderSchemaV5MigrationPanel } from "./FounderSchemaV5MigrationPanel";
+import { FounderSchemaV5BackupPanel } from "./FounderSchemaV5BackupPanel";
+import { ContextRecoveryPanel } from "./ContextRecoveryPanel";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -584,6 +588,9 @@ export function App() {
   const [databaseStartup, setDatabaseStartup] = useState<DatabaseStartupViewState>({
     state: "checking",
   });
+  const [founderMigrationPending, setFounderMigrationPending] = useState(false);
+  const [founderMigrationCancelled, setFounderMigrationCancelled] = useState(false);
+  const [founderMigrationError, setFounderMigrationError] = useState<string | null>(null);
   const [language, setLanguage] = useState<AppLanguage>(() =>
     readInitialLanguage(),
   );
@@ -608,6 +615,9 @@ export function App() {
   >({});
   const [recoveryTurnsByEntryId, setRecoveryTurnsByEntryId] = useState<
     Record<string, ContextRecoveryTurn[]>
+  >({});
+  const [recoveryMutationFailedByEntryId, setRecoveryMutationFailedByEntryId] = useState<
+    Record<string, boolean>
   >({});
   const [reflectionDrafts, setReflectionDrafts] = useState<ReflectionDrafts>({});
   const [historicalContextOpenPanels, setHistoricalContextOpenPanels] =
@@ -637,6 +647,8 @@ export function App() {
     ReadonlySet<string>
   >(() => new Set());
   const [databaseReadinessOpen, setDatabaseReadinessOpen] = useState(false);
+  const [founderBackupPending, setFounderBackupPending] = useState(false);
+  const [founderBackupError, setFounderBackupError] = useState(false);
   const [databaseReadinessResult, setDatabaseReadinessResult] =
     useState<DatabaseReadinessResult | null>(null);
   const [databaseReadinessChecking, setDatabaseReadinessChecking] = useState(false);
@@ -867,6 +879,7 @@ export function App() {
         });
         setPatternNotesByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         setRecoveryTurnsByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
+        setRecoveryMutationFailedByEntryId((current) => { const next = { ...current }; delete next[id]; return next; });
         setEntryStageOverrides((current) => { const next = { ...current }; delete next[id]; return next; });
         setPatternSetAsideEntryIds((current) => {
           const next = new Set(current);
@@ -898,6 +911,33 @@ export function App() {
     setStorageError(null);
     setPortabilityStatus(null);
   }, []);
+
+  const authorizeFounderMigration = useCallback(async () => {
+    setFounderMigrationPending(true);
+    setFounderMigrationError(null);
+    try {
+      const state = await authorizeFounderSchemaV5Migration();
+      if (state.state !== "ready") throw new Error(state.reason ?? "founder_migration_not_ready");
+      window.location.reload();
+    } catch (error) {
+      setFounderMigrationError(error instanceof Error ? error.message : String(error));
+      setFounderMigrationPending(false);
+    }
+  }, []);
+
+  const deleteFounderBackup = useCallback(async () => {
+    if (!window.confirm(copy.founderV5DeleteConfirm)) return;
+    setFounderBackupPending(true); setFounderBackupError(false);
+    try { await deleteFounderSchemaV5Backup(); window.location.reload(); }
+    catch { setFounderBackupError(true); setFounderBackupPending(false); }
+  }, [copy.founderV5DeleteConfirm]);
+
+  const restoreFounderBackup = useCallback(async () => {
+    if (!window.confirm(copy.founderV5RestoreConfirm)) return;
+    setFounderBackupPending(true); setFounderBackupError(false);
+    try { await restoreFounderSchemaV4Backup(); window.location.reload(); }
+    catch { setFounderBackupError(true); setFounderBackupPending(false); }
+  }, [copy.founderV5RestoreConfirm]);
 
   const cancelEdit = useCallback(() => {
     setEditingEntryId(null);
@@ -1169,10 +1209,14 @@ export function App() {
   }, []);
   const saveRecoveryResponse = useCallback(async (entryId: string, turnId: string) => {
     const response = recoveryTurnsByEntryId[entryId]?.find((turn) => turn.id === turnId)?.response?.trim(); if (!response) return;
-    await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? answerRecoveryTurn(turn, response) : turn) }), copy.recoverySave);
+    setRecoveryMutationFailedByEntryId((current) => ({ ...current, [entryId]: false }));
+    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? answerRecoveryTurn(turn, response) : turn) }), copy.recoverySave);
+    setRecoveryMutationFailedByEntryId((current) => ({ ...current, [entryId]: committed === null }));
   }, [copy.recoverySave, recoveryTurnsByEntryId, runArtifactMutation]);
   const skipRecoveryTurn = useCallback(async (entryId: string, turnId: string) => {
-    await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? skipRecoveryTurnRecord(turn) : turn) }), copy.recoverySkip);
+    setRecoveryMutationFailedByEntryId((current) => ({ ...current, [entryId]: false }));
+    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, recoveryTurns: current.recoveryTurns.map((turn) => turn.id === turnId ? skipRecoveryTurnRecord(turn) : turn) }), copy.recoverySkip);
+    setRecoveryMutationFailedByEntryId((current) => ({ ...current, [entryId]: committed === null }));
   }, [copy.recoverySkip, runArtifactMutation]);
 
   const toggleHistoricalContext = useCallback((entryId: string) => {
@@ -1444,6 +1488,15 @@ export function App() {
         ? copy.aiAvailable("OpenAI")
         : copy.aiFallbackDetail;
   if (databaseStartup.state !== "ready") {
+    const founderMigration = databaseStartup.state === "blocked"
+      && databaseStartup.reason === "migration_required"
+      ? databaseStartup.founderSchemaV5
+      : null;
+    const founderRecovery = databaseStartup.state === "blocked"
+      && databaseStartup.reason === "founder_v5_blocked"
+      && databaseStartup.founderSchemaV5?.restoreAvailable
+      ? databaseStartup.founderSchemaV5
+      : null;
     const blockedMessage = databaseStartup.state === "checking"
       ? copy.databaseChecking
       : databaseStartup.reason === "newer_schema"
@@ -1453,6 +1506,8 @@ export function App() {
           )
         : databaseStartup.reason === "initialization_failed"
           ? copy.databaseInitializationFailed
+          : databaseStartup.reason === "founder_v5_blocked"
+            ? copy.founderV5Blocked(databaseStartup.founderSchemaV5?.reason ?? "recovery_required")
           : copy.databaseInspectionFailed;
 
     return (
@@ -1479,24 +1534,46 @@ export function App() {
               </select>
             </label>
           </header>
-          <section
-            className="welcome-card"
-            role={databaseStartup.state === "checking" ? "status" : "alert"}
-            aria-live="polite"
-          >
-            <div className="welcome-copy">
-              <p className="soft-label">{copy.databaseLocalLabel}</p>
-              <h1>
-                {databaseStartup.state === "checking"
-                  ? copy.databaseCheckingTitle
-                  : copy.databaseBlockedTitle}
-              </h1>
-              <p className="welcome-subtitle">{blockedMessage}</p>
-              {databaseStartup.state === "blocked" ? (
-                <p className="summary-note">{copy.databaseBlockedAction}</p>
-              ) : null}
-            </div>
-          </section>
+          {founderMigration ? (
+            <FounderSchemaV5MigrationPanel
+              copy={copy}
+              state={founderMigration}
+              pending={founderMigrationPending}
+              cancelled={founderMigrationCancelled}
+              error={founderMigrationError}
+              onAuthorize={() => void authorizeFounderMigration()}
+              onCancel={() => setFounderMigrationCancelled(true)}
+            />
+          ) : <>
+            <section
+              className="welcome-card"
+              role={databaseStartup.state === "checking" ? "status" : "alert"}
+              aria-live="polite"
+            >
+              <div className="welcome-copy">
+                <p className="soft-label">{copy.databaseLocalLabel}</p>
+                <h1>
+                  {databaseStartup.state === "checking"
+                    ? copy.databaseCheckingTitle
+                    : copy.databaseBlockedTitle}
+                </h1>
+                <p className="welcome-subtitle">{blockedMessage}</p>
+                {databaseStartup.state === "blocked" ? (
+                  <p className="summary-note">{copy.databaseBlockedAction}</p>
+                ) : null}
+              </div>
+            </section>
+            {founderRecovery ? (
+              <FounderSchemaV5BackupPanel
+                copy={copy}
+                state={founderRecovery}
+                pending={founderBackupPending}
+                error={founderBackupError}
+                onDelete={() => void deleteFounderBackup()}
+                onRestore={() => void restoreFounderBackup()}
+              />
+            ) : null}
+          </>}
         </section>
       </main>
     );
@@ -1559,6 +1636,16 @@ export function App() {
           onCheckReadiness={checkDatabaseReadiness}
           onCloseReadiness={closeDatabaseReadiness}
         />
+        {databaseStartup.founderSchemaV5 ? (
+          <FounderSchemaV5BackupPanel
+            copy={copy}
+            state={databaseStartup.founderSchemaV5}
+            pending={founderBackupPending}
+            error={founderBackupError}
+            onDelete={() => void deleteFounderBackup()}
+            onRestore={() => void restoreFounderBackup()}
+          />
+        ) : null}
 
         {storageError ? (
           <p className="storage-error" role="alert">
@@ -1928,24 +2015,16 @@ export function App() {
                         </button>
                       </div>
                       <p className="phase-purpose">{copy.evidencePurpose}</p>
-                      {(recoveryTurnsByEntryId[entry.id] ?? []).length > 0 ? (
-                        <div
-                          aria-label={copy.recoveryTitle}
-                          className="session-note"
-                          id={`context-recovery-${entry.id}`}
-                          role="region"
-                          tabIndex={-1}
-                        >
-                          <strong>{copy.recoveryTitle}</strong>
-                          <p>{copy.recoveryNote}</p>
-                          {(recoveryTurnsByEntryId[entry.id] ?? []).map((turn) => (
-                            <div key={turn.id} className="candidate-card">
-                              <p>{turn.question}</p>
-                              <textarea value={turn.response ?? ""} disabled={turn.status !== "suggested"} onChange={(event) => updateRecoveryResponse(entry.id, turn.id, event.target.value)} />
-                              {turn.status === "suggested" ? <div className="candidate-actions"><button type="button" className="ghost-button compact" onClick={() => saveRecoveryResponse(entry.id, turn.id)}>{copy.recoverySave}</button><button type="button" className="ghost-button compact" onClick={() => skipRecoveryTurn(entry.id, turn.id)}>{copy.recoverySkip}</button></div> : null}
-                            </div>
-                          ))}
-                        </div>
+                      {recoveryTurns.length > 0 ? (
+                        <ContextRecoveryPanel
+                          copy={copy}
+                          entryId={entry.id}
+                          turns={recoveryTurns}
+                          mutationFailed={recoveryMutationFailedByEntryId[entry.id] ?? false}
+                          onResponseChange={(turnId, response) => updateRecoveryResponse(entry.id, turnId, response)}
+                          onSave={(turnId) => void saveRecoveryResponse(entry.id, turnId)}
+                          onSkip={(turnId) => void skipRecoveryTurn(entry.id, turnId)}
+                        />
                       ) : null}
                       <p className="next-step">
                         {isEvidencePending

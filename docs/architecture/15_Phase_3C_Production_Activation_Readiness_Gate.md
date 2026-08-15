@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.3
+version: 0.4
 owner: product-and-engineering
-last_updated: 2026/08/10
+last_updated: 2026/08/13
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -406,3 +406,6 @@ not authorize fresh-v5 initialization, existing-v4 migration, production backup
 or restore, retention, v5 read/write routing, lifecycle UI, full provenance
 inspection, export v2, real-user migration testing, provider or ContextPacket
 changes, Phase 4, Harness expansion, deployment, or release.
+> 2026/08/13 factual note: architecture/17 implements the isolated Founder
+> activation candidate authorized after this gate. This does not close the
+> ordinary-profile, real-user, deployment, release, or Phase 4 gates.

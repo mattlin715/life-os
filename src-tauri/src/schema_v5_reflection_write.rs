@@ -6,37 +6,41 @@ use sqlx::{raw_sql, Row};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PromptProvenanceInput {
-    origin: String,
-    provider: String,
-    model: Option<String>,
-    harness_version: String,
-    prompt_version: String,
-    generated_at: String,
-    source_artifact_ids: Vec<String>,
+pub(super) struct PromptProvenanceInput {
+    pub(super) origin: String,
+    pub(super) provider: String,
+    pub(super) model: Option<String>,
+    pub(super) harness_version: String,
+    pub(super) prompt_version: String,
+    pub(super) generated_at: String,
+    pub(super) source_artifact_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-struct EvidenceRevisionRef {
-    artifact_id: String,
-    revision_id: String,
+pub(super) struct EvidenceRevisionRef {
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct SuggestedPromptInput {
-    id: String,
-    source_id: String,
-    question: String,
-    created_at: String,
-    evidence: Vec<EvidenceRevisionRef>,
-    provenance: PromptProvenanceInput,
+pub(super) struct SuggestedPromptInput {
+    pub(super) id: String,
+    pub(super) source_id: String,
+    pub(super) question: String,
+    pub(super) created_at: String,
+    pub(super) evidence: Vec<EvidenceRevisionRef>,
+    pub(super) provenance: PromptProvenanceInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum ReflectionWriteCommand {
+pub(super) enum ReflectionWriteCommand {
     CreateSuggested {
         expected_source_revision_id: String,
         prompt: SuggestedPromptInput,
+    },
+    CreateSuggestedBatch {
+        expected_source_revision_id: String,
+        prompts: Vec<SuggestedPromptInput>,
     },
     SaveResponse {
         source_id: String,
@@ -71,7 +75,7 @@ enum ReflectionWriteCommand {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum ReflectionWriteFailurePoint {
+pub(super) enum ReflectionWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -92,19 +96,19 @@ enum ReflectionWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct ReflectionWriteContext<'a> {
-    occurred_at: &'a str,
-    guard_token: &'a str,
-    failure_point: ReflectionWriteFailurePoint,
+pub(super) struct ReflectionWriteContext<'a> {
+    pub(super) occurred_at: &'a str,
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: ReflectionWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ReflectionWriteOutcome {
-    artifact_id: String,
-    revision_id: String,
-    invalidated_pattern_ids: Vec<String>,
-    deleted_historical_artifact_ids: Vec<String>,
-    operation_manifest: String,
+pub(super) struct ReflectionWriteOutcome {
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
+    pub(super) invalidated_pattern_ids: Vec<String>,
+    pub(super) deleted_historical_artifact_ids: Vec<String>,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -2425,6 +2429,23 @@ async fn apply_command(
         } => create_suggested(connection, &expected_source_revision_id, prompt, context)
             .await
             .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new())),
+        ReflectionWriteCommand::CreateSuggestedBatch {
+            expected_source_revision_id,
+            prompts,
+        } => {
+            if prompts.is_empty() {
+                return Err(write_error("reflection_batch_empty"));
+            }
+            let mut last = None;
+            for prompt in prompts {
+                last = Some(
+                    create_suggested(connection, &expected_source_revision_id, prompt, context)
+                        .await?,
+                );
+            }
+            let (artifact_id, revision_id) = last.expect("non-empty prompt batch");
+            Ok((artifact_id, revision_id, Vec::new(), Vec::new()))
+        }
         ReflectionWriteCommand::SaveResponse {
             source_id,
             artifact_id,
@@ -3070,7 +3091,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn execute_disposable(
+pub(super) async fn execute_disposable(
     path: &Path,
     command: ReflectionWriteCommand,
     context: ReflectionWriteContext<'_>,

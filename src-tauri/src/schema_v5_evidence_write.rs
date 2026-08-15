@@ -13,34 +13,38 @@ const ALLOWED_EVIDENCE_KINDS: [&str; 6] = [
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct EvidenceProvenanceInput {
-    origin: String,
-    provider: String,
-    model: Option<String>,
-    harness_version: String,
-    prompt_version: String,
-    generated_at: String,
-    source_artifact_ids: Vec<String>,
+pub(super) struct EvidenceProvenanceInput {
+    pub(super) origin: String,
+    pub(super) provider: String,
+    pub(super) model: Option<String>,
+    pub(super) harness_version: String,
+    pub(super) prompt_version: String,
+    pub(super) generated_at: String,
+    pub(super) source_artifact_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct EvidenceCandidateInput {
-    id: String,
-    source_id: String,
-    text: String,
-    original_text: String,
-    kind: String,
-    user_editable: bool,
-    created_at: String,
-    provenance: EvidenceProvenanceInput,
+pub(super) struct EvidenceCandidateInput {
+    pub(super) id: String,
+    pub(super) source_id: String,
+    pub(super) text: String,
+    pub(super) original_text: String,
+    pub(super) kind: String,
+    pub(super) user_editable: bool,
+    pub(super) created_at: String,
+    pub(super) provenance: EvidenceProvenanceInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::large_enum_variant)]
-enum EvidenceWriteCommand {
+pub(super) enum EvidenceWriteCommand {
     Create {
         expected_source_revision_id: String,
         candidate: EvidenceCandidateInput,
+    },
+    CreateBatch {
+        expected_source_revision_id: String,
+        candidates: Vec<EvidenceCandidateInput>,
     },
     CorrectPending {
         source_id: String,
@@ -64,7 +68,7 @@ enum EvidenceWriteCommand {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum EvidenceWriteFailurePoint {
+pub(super) enum EvidenceWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -83,23 +87,23 @@ enum EvidenceWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct EvidenceWriteContext<'a> {
-    occurred_at: &'a str,
-    guard_token: &'a str,
-    failure_point: EvidenceWriteFailurePoint,
+pub(super) struct EvidenceWriteContext<'a> {
+    pub(super) occurred_at: &'a str,
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: EvidenceWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum EvidenceWriteStatus {
+pub(super) enum EvidenceWriteStatus {
     Committed,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct EvidenceWriteOutcome {
-    status: EvidenceWriteStatus,
-    artifact_id: String,
-    revision_id: String,
-    operation_manifest: String,
+pub(super) struct EvidenceWriteOutcome {
+    pub(super) status: EvidenceWriteStatus,
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -1652,6 +1656,22 @@ async fn apply_command(
             expected_source_revision_id,
             candidate,
         } => create_candidate(connection, &expected_source_revision_id, candidate, context).await,
+        EvidenceWriteCommand::CreateBatch {
+            expected_source_revision_id,
+            candidates,
+        } => {
+            if candidates.is_empty() {
+                return Err(write_error("evidence_batch_empty"));
+            }
+            let mut last = None;
+            for candidate in candidates {
+                last = Some(
+                    create_candidate(connection, &expected_source_revision_id, candidate, context)
+                        .await?,
+                );
+            }
+            Ok(last.expect("non-empty candidate batch"))
+        }
         EvidenceWriteCommand::CorrectPending {
             source_id,
             artifact_id,
@@ -1807,7 +1827,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn execute_disposable(
+pub(super) async fn execute_disposable(
     path: &Path,
     command: EvidenceWriteCommand,
     context: EvidenceWriteContext<'_>,
