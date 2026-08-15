@@ -5,15 +5,15 @@ use sqlx::{raw_sql, Row};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ExperienceWriteInput {
-    id: String,
-    content: String,
-    created_at: String,
-    updated_at: String,
+pub(crate) struct ExperienceWriteInput {
+    pub(crate) id: String,
+    pub(crate) content: String,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum ExperienceWriteCommand {
+pub(super) enum ExperienceWriteCommand {
     Create(ExperienceWriteInput),
     Update {
         id: String,
@@ -29,7 +29,7 @@ enum ExperienceWriteCommand {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum ExperienceWriteFailurePoint {
+pub(super) enum ExperienceWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -47,26 +47,26 @@ enum ExperienceWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct ExperienceWriteContext<'a> {
-    occurred_at: &'a str,
-    guard_token: &'a str,
-    failure_point: ExperienceWriteFailurePoint,
+pub(super) struct ExperienceWriteContext<'a> {
+    pub(super) occurred_at: &'a str,
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: ExperienceWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum ExperienceWriteStatus {
+pub(super) enum ExperienceWriteStatus {
     Committed,
     StaleRevision,
     NotFound,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ExperienceWriteOutcome {
-    status: ExperienceWriteStatus,
-    revision_id: Option<String>,
-    imported_count: u64,
-    skipped_count: u64,
-    operation_manifest: String,
+pub(super) struct ExperienceWriteOutcome {
+    pub(super) status: ExperienceWriteStatus,
+    pub(super) revision_id: Option<String>,
+    pub(super) imported_count: u64,
+    pub(super) skipped_count: u64,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -237,14 +237,12 @@ async fn verify_receipt_and_contract(
     .fetch_all(&mut *connection)
     .await
     .map_err(|error| migration_error("experience_write_contract_unreadable", error))?;
-    if contracts
-        != vec![(
-            TARGET_SCHEMA_VERSION,
-            APPLICATION_VERSION.to_string(),
-            "enabled".to_string(),
-            "disabled".to_string(),
-            "disabled".to_string(),
-        )]
+    if contracts.len() != 1
+        || contracts[0].0 != TARGET_SCHEMA_VERSION
+        || contracts[0].1 != APPLICATION_VERSION
+        || contracts[0].2 != "enabled"
+        || !matches!(contracts[0].3.as_str(), "disabled" | "enabled")
+        || contracts[0].4 != "disabled"
     {
         return Err(recovery_error("experience_write_contract_mismatch"));
     }
@@ -331,7 +329,7 @@ pub(super) async fn verify_exact_v5(
     if user_version(connection).await? != TARGET_SCHEMA_VERSION {
         return Err(write_error("experience_write_requires_exact_v5"));
     }
-    if schema_object_manifest(connection).await? != EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256 {
+    if !is_expected_schema_object_manifest(&schema_object_manifest(connection).await?) {
         return Err(recovery_error("experience_write_schema_manifest_mismatch"));
     }
     verify_receipt_and_contract(connection).await?;
@@ -1567,7 +1565,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn execute_disposable(
+pub(super) async fn execute_disposable(
     path: &Path,
     command: ExperienceWriteCommand,
     context: ExperienceWriteContext<'_>,

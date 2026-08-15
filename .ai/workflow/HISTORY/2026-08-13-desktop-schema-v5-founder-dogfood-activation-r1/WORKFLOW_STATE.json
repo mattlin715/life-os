@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 56,
+  "last_event_id": "2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1:0056",
+  "last_event_hash": "93d72c0cbcf468a4fe0fda81964d10a481f00fe6fbea47dcc917fe2f75bb8d17",
+  "sprint_id": "2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1",
+  "mission_title": "Implement isolated Desktop schema-v5 Founder dogfood activation candidate R1",
+  "status": "failed",
+  "current_phase": "failed",
+  "current_role": "orchestrator",
+  "review_cycle": 3,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve FOUNDER-SCHEMA-V5-CANDIDATE-R1-CONTEXT-RECOVERY-FOLLOWUP-004 by selecting Option A. I authorize closing the current Candidate R1 sprint truthfully as incomplete at its bounded three-cycle limit, archiving and resetting its evidence, and starting the separate sprint 2026-08-16-founder-v5-context-recovery-runtime-correction-r1. The new sprint may only correct the Context Recovery runtime artifact-kind discriminator, add a regression through the real typed facade, provide visible English／Traditional Chinese／Japanese mutation-error disclosure within the Context Recovery area, run focused tests、Clippy and canonical verification, build a new unsigned isolated Candidate package, and return to the affected Step 11D-3 manual review before Founder diff review. It must not retry or mutate the current disposable profile automatically. I do not authorize schema／DDL or migration-policy changes, ordinary-profile or real-user-data access, provider／ContextPacket／consent changes, Phase 4, Android, Harness expansion, distribution, deployment, release, staging, commit, push, merge, or PR.",
+    "selected_option": "option_a",
+    "authorized_scope": "Close and archive the current incomplete cycle-limited sprint; then start one separate minimal Context Recovery runtime correction sprint limited to discriminator, real-facade regression, local three-language error disclosure, verification, unsigned package, and affected manual retest. No profile mutation by automation and no schema, ordinary-profile, provider, Phase 4, Android, Git promotion, distribution, deployment, or release authority.",
+    "decided_at": "2026-08-15T20:31:29.104Z",
+    "evidence_reference": "FOUNDER-SCHEMA-V5-CANDIDATE-R1-CONTEXT-RECOVERY-FOLLOWUP-004"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": "Archive and reset workflow",
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-founder-dogfood-activation-r1",
+  "repository_head": "9a226f7081aabc071571f4a745e1343dbdb7d927",
+  "working_tree_digest": "f1ea137a22336e22bbe311fac980e0cc446e5b79398f318185fd9343efc54a44",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "human_decision_required",
+    "decision_required": "resolved",
+    "sprint_report": "failed"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-14T19:44:51.685Z",
+      "repository_head": "9a226f7081aabc071571f4a745e1343dbdb7d927",
+      "working_tree_digest": "f1ea137a22336e22bbe311fac980e0cc446e5b79398f318185fd9343efc54a44"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-13T11:32:11.507Z",
+  "updated_at": "2026-08-15T20:32:01.754Z"
+}

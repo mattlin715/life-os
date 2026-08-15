@@ -6,6 +6,14 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].recoveryQuestion).toContain("發生了什麼");
     expect(uiText.ja.recoveryQuestion).toContain("何が起きたのか");
   });
+  it("discloses Context Recovery persistence failure calmly and equivalently", () => {
+    expect(uiText.en.recoveryMutationFailed).toContain("not saved");
+    expect(uiText.en.recoveryMutationFailed).toContain("unchanged");
+    expect(uiText["zh-TW"].recoveryMutationFailed).toContain("未被儲存");
+    expect(uiText["zh-TW"].recoveryMutationFailed).toContain("狀態不變");
+    expect(uiText.ja.recoveryMutationFailed).toContain("保存されませんでした");
+    expect(uiText.ja.recoveryMutationFailed).toContain("変更していません");
+  });
   it("contains no question-mark replacement corruption", () => {
     for (const locale of ["en", "zh-TW", "ja"] as const) {
       const copy = uiText[locale];

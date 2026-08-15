@@ -314,7 +314,15 @@ impl DurabilityAdapter for SystemDurability {
                 })
         }
 
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            let _ = parent;
+            Err(SafetyError::fail_closed(
+                "parent_directory_sync_unsupported",
+            ))
+        }
+
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = parent;
             Err(SafetyError::fail_closed(
@@ -342,12 +350,15 @@ pub(crate) struct WindowsReplacement;
 #[cfg(windows)]
 impl ReplacementAdapter for WindowsReplacement {
     fn requires_parent_directory_sync(&self) -> bool {
-        true
+        false
     }
 
     fn replace(&self, staging: &Path, live: &Path) -> ReplacementOutcome {
-        use std::{os::windows::ffi::OsStrExt, ptr};
-        use windows_sys::Win32::{Foundation::GetLastError, Storage::FileSystem::ReplaceFileW};
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::{
+            Foundation::GetLastError,
+            Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH},
+        };
 
         fn wide_path(path: &Path) -> Option<Vec<u16>> {
             let mut value: Vec<u16> = path.as_os_str().encode_wide().collect();
@@ -370,13 +381,10 @@ impl ReplacementAdapter for WindowsReplacement {
         };
 
         let succeeded = unsafe {
-            ReplaceFileW(
-                live.as_ptr(),
+            MoveFileExW(
                 staging.as_ptr(),
-                ptr::null(),
-                0,
-                ptr::null(),
-                ptr::null(),
+                live.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
             )
         };
         if succeeded != 0 {
@@ -936,9 +944,11 @@ pub(crate) async fn execute_replacement<
             )
             .map_err(|_| SafetyError::recovery_required("committed_state_record_failed"))?;
 
-            if let Err(error) = durability.sync_parent(&operation.root) {
-                mark_recovery_required(operation, "parent_directory_sync_failed")?;
-                return Err(SafetyError::recovery_required(error.code));
+            if replacement.requires_parent_directory_sync() {
+                if let Err(error) = durability.sync_parent(&operation.root) {
+                    mark_recovery_required(operation, "parent_directory_sync_failed")?;
+                    return Err(SafetyError::recovery_required(error.code));
+                }
             }
             if let Err(error) = verify_candidate(&operation.live, expected, verifier).await {
                 mark_recovery_required(operation, "post_commit_verification_failed")?;
@@ -1483,7 +1493,9 @@ pub(crate) fn inspect_readiness_filesystem(
 ) -> Result<ReadinessFilesystemSnapshot, ReadinessFilesystemFailure> {
     reject_lexical_alias(root).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
     reject_lexical_alias(live).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
-    if live.parent() != Some(root) || live.file_name().and_then(|name| name.to_str()) != Some("life-os.db") {
+    if live.parent() != Some(root)
+        || live.file_name().and_then(|name| name.to_str()) != Some("life-os.db")
+    {
         return Err(ReadinessFilesystemFailure::PathUnsafe);
     }
     reject_reparse_chain(root).map_err(|_| ReadinessFilesystemFailure::PathUnsafe)?;
@@ -1511,10 +1523,10 @@ pub(crate) fn inspect_readiness_filesystem(
         Err(_) => return Err(ReadinessFilesystemFailure::Unreadable),
     }
 
-    let canonical_root = fs::canonicalize(root)
-        .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
-    let root_metadata = fs::metadata(&canonical_root)
-        .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+    let canonical_root =
+        fs::canonicalize(root).map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+    let root_metadata =
+        fs::metadata(&canonical_root).map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
     if !root_metadata.is_dir() {
         return Err(ReadinessFilesystemFailure::PathUnsafe);
     }
@@ -1529,8 +1541,8 @@ pub(crate) fn inspect_readiness_filesystem(
             if !metadata.is_file() {
                 return Err(ReadinessFilesystemFailure::PathUnsafe);
             }
-            let canonical_live = fs::canonicalize(live)
-                .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+            let canonical_live =
+                fs::canonicalize(live).map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
             if canonical_live.parent() != Some(canonical_root.as_path()) {
                 return Err(ReadinessFilesystemFailure::PathUnsafe);
             }
@@ -1554,8 +1566,8 @@ pub(crate) fn inspect_readiness_filesystem(
                 if !metadata.is_file() {
                     return Err(ReadinessFilesystemFailure::PathUnsafe);
                 }
-                let canonical_sidecar = fs::canonicalize(&path)
-                    .map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
+                let canonical_sidecar =
+                    fs::canonicalize(&path).map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
                 if canonical_sidecar.parent() != Some(canonical_root.as_path()) {
                     return Err(ReadinessFilesystemFailure::PathUnsafe);
                 }
@@ -1569,7 +1581,9 @@ pub(crate) fn inspect_readiness_filesystem(
     };
 
     let mut operation_directories = Vec::new();
-    for entry in fs::read_dir(&canonical_root).map_err(|_| ReadinessFilesystemFailure::Unreadable)? {
+    for entry in
+        fs::read_dir(&canonical_root).map_err(|_| ReadinessFilesystemFailure::Unreadable)?
+    {
         let entry = entry.map_err(|_| ReadinessFilesystemFailure::Unreadable)?;
         let name = entry.file_name();
         let Some(name) = name.to_str() else {
@@ -1616,8 +1630,7 @@ pub(crate) fn inspect_readiness_filesystem(
             staging: canonical_operation.join("staging.db"),
             state: canonical_operation.join("state.json"),
         };
-        read_owned_state(&operation)
-            .map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
+        read_owned_state(&operation).map_err(|_| ReadinessFilesystemFailure::RecoveryRequired)?;
         ReadinessOperationEvidence::Present
     } else {
         ReadinessOperationEvidence::None
@@ -1950,6 +1963,30 @@ pub(crate) async fn verify_owned_backup_for_migration<V: CandidateVerifier>(
     verify_candidate(&operation.backup, expected, verifier)
         .await
         .map_err(|error| SafetyError::recovery_required(error.code))
+}
+
+pub(crate) fn prepare_explicit_restore(
+    operation: &OwnedOperation,
+    expected: &ExpectedCandidate,
+) -> Result<(), SafetyError> {
+    expected.validate_contract()?;
+    let mut state = read_owned_state(operation)?;
+    if !matches!(
+        state.phase,
+        OperationPhase::V5Ready | OperationPhase::V5BlockedRestoreAvailable
+    ) {
+        return Err(SafetyError::fail_closed(
+            "explicit_restore_requires_ready_or_blocked_v5",
+        ));
+    }
+    if expected_backup_from_state(&state)?.as_ref() != Some(expected) {
+        return Err(SafetyError::recovery_required(
+            "explicit_restore_backup_state_mismatch",
+        ));
+    }
+    state.phase = OperationPhase::BackupVerified;
+    state.outcome_class = Some("explicit_restore_authorized".into());
+    write_state(operation, &state)
 }
 
 fn mark_recovery_required(
@@ -2915,7 +2952,7 @@ mod tests {
         assert_eq!(fs::read(&live).unwrap(), b"verified-staging");
         assert!(!staging.exists());
         assert_eq!(fs::read(&sentinel).unwrap(), b"outside-replacement");
-        assert!(WindowsReplacement.requires_parent_directory_sync());
+        assert!(!WindowsReplacement.requires_parent_directory_sync());
         assert_eq!(
             SystemDurability.parent_directory_support(),
             ParentDirectorySupport::Unsupported
@@ -3396,7 +3433,10 @@ mod tests {
         let snapshot = inspect_readiness_filesystem(directory.path(), &live).unwrap();
 
         assert!(snapshot.database_exists);
-        assert_eq!(snapshot.operation_evidence, ReadinessOperationEvidence::Present);
+        assert_eq!(
+            snapshot.operation_evidence,
+            ReadinessOperationEvidence::Present
+        );
         assert!(!snapshot.wal_present);
         assert_eq!(fs::read(&operation.state).unwrap(), state_before);
         assert_eq!(fs::read(&operation.staging).unwrap(), staging_before);

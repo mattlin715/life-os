@@ -5,36 +5,36 @@ use sqlx::{raw_sql, Row};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PatternProvenanceInput {
-    origin: String,
-    provider: String,
-    model: Option<String>,
-    harness_version: String,
-    prompt_version: String,
-    generated_at: String,
-    source_artifact_ids: Vec<String>,
+pub(super) struct PatternProvenanceInput {
+    pub(super) origin: String,
+    pub(super) provider: String,
+    pub(super) model: Option<String>,
+    pub(super) harness_version: String,
+    pub(super) prompt_version: String,
+    pub(super) generated_at: String,
+    pub(super) source_artifact_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-struct ArtifactRevisionRef {
-    artifact_id: String,
-    revision_id: String,
+pub(super) struct ArtifactRevisionRef {
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PatternCandidateInput {
-    id: String,
-    source_id: String,
-    text: String,
-    created_at: String,
-    evidence: Vec<ArtifactRevisionRef>,
-    reflections: Vec<ArtifactRevisionRef>,
-    provenance: PatternProvenanceInput,
+pub(super) struct PatternCandidateInput {
+    pub(super) id: String,
+    pub(super) source_id: String,
+    pub(super) text: String,
+    pub(super) created_at: String,
+    pub(super) evidence: Vec<ArtifactRevisionRef>,
+    pub(super) reflections: Vec<ArtifactRevisionRef>,
+    pub(super) provenance: PatternProvenanceInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::large_enum_variant)]
-enum PatternWriteCommand {
+pub(super) enum PatternWriteCommand {
     Create {
         expected_source_revision_id: String,
         candidate: PatternCandidateInput,
@@ -75,7 +75,7 @@ enum PatternWriteCommand {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum PatternWriteFailurePoint {
+pub(super) enum PatternWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -94,23 +94,23 @@ enum PatternWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct PatternWriteContext<'a> {
-    occurred_at: &'a str,
-    guard_token: &'a str,
-    failure_point: PatternWriteFailurePoint,
+pub(super) struct PatternWriteContext<'a> {
+    pub(super) occurred_at: &'a str,
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: PatternWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum PatternWriteStatus {
+pub(super) enum PatternWriteStatus {
     Committed,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct PatternWriteOutcome {
-    status: PatternWriteStatus,
-    artifact_id: String,
-    revision_id: String,
-    operation_manifest: String,
+pub(super) struct PatternWriteOutcome {
+    pub(super) status: PatternWriteStatus,
+    pub(super) artifact_id: String,
+    pub(super) revision_id: String,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -1318,12 +1318,14 @@ async fn verify_pattern_projection(
                     "provenance_sources",
                     false,
                 )?;
-                let legacy_unknown_without_raw = serialization == "legacy-v4-raw"
-                    && projected_value.get("provenance").is_none();
+                let legacy_unknown_without_raw =
+                    serialization == "legacy-v4-raw" && projected_value.get("provenance").is_none();
                 if legacy_unknown_without_raw {
                     if provenance_value.get("origin").and_then(Value::as_str)
                         != Some("legacy_unknown")
-                        || provenance_value.get("sourceEntryId").and_then(Value::as_str)
+                        || provenance_value
+                            .get("sourceEntryId")
+                            .and_then(Value::as_str)
                             != Some(source_id.as_str())
                         || !provenance_sources.is_empty()
                         || [
@@ -1336,9 +1338,7 @@ async fn verify_pattern_projection(
                         .iter()
                         .any(|key| provenance_value.get(*key) != Some(&Value::Null))
                     {
-                        return Err(recovery_error(
-                            "pattern_legacy_unknown_provenance_mismatch",
-                        ));
+                        return Err(recovery_error("pattern_legacy_unknown_provenance_mismatch"));
                     }
                 } else if serialization == "legacy-v4-raw" {
                     let raw_provenance = projected_value
@@ -2561,7 +2561,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn execute_disposable(
+pub(super) async fn execute_disposable(
     path: &Path,
     command: PatternWriteCommand,
     context: PatternWriteContext<'_>,
@@ -4609,8 +4609,7 @@ mod tests {
     async fn migrated_legacy_review_ambiguous_commit_classifies_exact_pre_post_and_third_state() {
         for (commit_first, third_state) in [(false, false), (true, false), (true, true)] {
             let id = format!("legacy-pattern-ambiguous-{commit_first}-{third_state}");
-            let (_directory, path, raw) =
-                exact_v5_legacy_pattern_fixture(&id, true, false).await;
+            let (_directory, path, raw) = exact_v5_legacy_pattern_fixture(&id, true, false).await;
             let (revision, evidence) = legacy_pattern_refs(&path, &id).await;
             let adapter = InjectedCommitAdapter {
                 outcome: CommitAttemptOutcome::OutcomeUnknown {

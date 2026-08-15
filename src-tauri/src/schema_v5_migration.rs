@@ -25,6 +25,8 @@ mod historical_question_write;
 mod pattern_write;
 #[path = "schema_v5_reflection_write.rs"]
 mod reflection_write;
+#[path = "schema_v5_runtime.rs"]
+pub(crate) mod runtime;
 
 const APPLICATION_VERSION: &str = "0.2.0";
 const SOURCE_SCHEMA_VERSION: i64 = 4;
@@ -34,8 +36,223 @@ const EXPECTED_DDL_SHA256: &str =
     "396c06634ab871f892be36280468726cda1777b6bdf18039ea165d6b54e126dc";
 const EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
     "bc92f25e12f8a6829c152d4b51fcf741872d94724afaccdb2236d399f5b8abe8";
+// The promoted schema-v4 runtime creates the same eleven legacy objects as
+// the fixed contract fixture, but its one-line SQL is preserved verbatim by
+// SQLite in `sqlite_master.sql`. The schema-object manifest intentionally
+// includes those legacy objects, so the runtime representation has one
+// separately fixed full-manifest digest. Accept only these two exact forms;
+// every other object name/body combination remains fail closed.
+const EXPECTED_RUNTIME_V4_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
+    "ed833be6efd8227bc367d9fe0e996a11c3f2240aafa85397e24a7964b7049d4e";
 const PROJECTION_GUARD_MARKER: &str =
     "-- Existing v4/current-state tables become guarded compatibility projections.";
+
+pub(crate) struct ExactV4CandidateVerifier;
+
+impl CandidateVerifier for ExactV4CandidateVerifier {
+    async fn inspect(
+        &self,
+        path: &Path,
+    ) -> Result<crate::filesystem_safety::CandidateEvidence, SafetyError> {
+        let mut connection = connect(path, true)
+            .await
+            .map_err(|error| SafetyError::fail_closed(error.code))?;
+        let version = user_version(&mut connection)
+            .await
+            .map_err(|error| SafetyError::fail_closed(error.code))?;
+        if version != SOURCE_SCHEMA_VERSION {
+            return Err(SafetyError::fail_closed(
+                "source_schema_version_not_supported",
+            ));
+        }
+        let source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+            .await
+            .map_err(|error| SafetyError::fail_closed(error.code))?;
+        integrity_checks(&mut connection)
+            .await
+            .map_err(|error| SafetyError::fail_closed(error.code))?;
+        Ok(crate::filesystem_safety::CandidateEvidence {
+            source_manifest_digest: source_manifest_digest.clone(),
+            schema_version: version,
+            foreign_keys_valid: true,
+            integrity_valid: true,
+            exact_record_digest: source_manifest_digest,
+        })
+    }
+}
+
+pub(crate) async fn source_manifest_for_path(path: &Path) -> Result<String, MigrationError> {
+    let mut connection = connect(path, true).await?;
+    if user_version(&mut connection).await? != SOURCE_SCHEMA_VERSION {
+        return Err(MigrationError::fail_closed(
+            "source_schema_version_not_supported",
+        ));
+    }
+    let result = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS).await;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("source_manifest_close_failed:{error}"))
+    })?;
+    result
+}
+
+pub(crate) async fn verify_any_committed_v5(
+    path: &Path,
+) -> Result<MigrationReceipt, MigrationError> {
+    let mut connection = connect(path, true).await?;
+    if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
+        return Err(MigrationError::recovery_required(
+            "durable_v5_version_mismatch",
+        ));
+    }
+    let rows: Vec<(String, Option<String>, String, String)> = sqlx::query_as(
+        "SELECT migration_id, backup_id, source_manifest_digest, target_manifest_digest FROM schema_migration_receipts WHERE state = 'committed'",
+    )
+    .fetch_all(&mut connection)
+    .await
+    .map_err(|error| MigrationError::recovery_required(format!("durable_v5_receipt_unreadable:{error}")))?;
+    if rows.len() != 1 {
+        return Err(MigrationError::recovery_required(
+            "durable_v5_receipt_count_mismatch",
+        ));
+    }
+    let (migration_id, backup_id, source_manifest_digest, target_manifest_digest) =
+        rows.into_iter().next().unwrap();
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v5_close_failed:{error}"))
+    })?;
+    let receipt = MigrationReceipt {
+        migration_id,
+        backup_id,
+        source_manifest_digest,
+        target_manifest_digest,
+    };
+    verify_activated_v5_runtime(path).await?;
+    Ok(receipt)
+}
+
+pub(crate) async fn verify_activated_v5_runtime(path: &Path) -> Result<(), MigrationError> {
+    let mut connection = connect(path, true).await?;
+    if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
+        return Err(MigrationError::recovery_required(
+            "runtime_v5_version_mismatch",
+        ));
+    }
+    let receipt_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM schema_migration_receipts WHERE from_version = 4 AND to_version = 5 AND state = 'committed' AND application_version = ?",
+    )
+    .bind(APPLICATION_VERSION)
+    .fetch_one(&mut connection)
+    .await
+    .map_err(|error| MigrationError::recovery_required(format!("runtime_v5_receipt_unreadable:{error}")))?;
+    if receipt_count != 1 {
+        return Err(MigrationError::recovery_required(
+            "runtime_v5_receipt_count_mismatch",
+        ));
+    }
+    let contract: (i64, String, String, String, String) = sqlx::query_as(
+        "SELECT authoritative_schema, minimum_application_version, compatibility_projection, lifecycle_writes, export_v2 FROM database_contract WHERE singleton = 1",
+    )
+    .fetch_one(&mut connection)
+    .await
+    .map_err(|error| MigrationError::recovery_required(format!("runtime_v5_contract_unreadable:{error}")))?;
+    if contract
+        != (
+            5,
+            APPLICATION_VERSION.into(),
+            "enabled".into(),
+            "enabled".into(),
+            "disabled".into(),
+        )
+    {
+        return Err(MigrationError::recovery_required(
+            "runtime_v5_contract_mismatch",
+        ));
+    }
+    let guard_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM v5_compatibility_write_guard")
+        .fetch_one(&mut connection)
+        .await
+        .map_err(|error| {
+            MigrationError::recovery_required(format!("runtime_v5_guard_unreadable:{error}"))
+        })?;
+    if guard_count != 0 {
+        return Err(MigrationError::recovery_required(
+            "runtime_v5_guard_not_empty",
+        ));
+    }
+    if !is_expected_schema_object_manifest(&schema_object_manifest(&mut connection).await?) {
+        return Err(MigrationError::recovery_required(
+            "runtime_v5_schema_manifest_mismatch",
+        ));
+    }
+    current_content_checks(&mut connection).await?;
+    integrity_checks(&mut connection).await?;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("runtime_v5_close_failed:{error}"))
+    })?;
+    Ok(())
+}
+
+pub(crate) async fn activate_lifecycle_writes(
+    path: &Path,
+    expected: &MigrationReceipt,
+    occurred_at: &str,
+) -> Result<(), MigrationError> {
+    verify_committed_v5(path, expected).await?;
+    let mut connection = connect(path, false).await?;
+    raw_sql("BEGIN IMMEDIATE")
+        .execute(&mut connection)
+        .await
+        .map_err(|error| migration_error("lifecycle_activation_begin_failed", error))?;
+    let guard_token = format!("founder-v5-activation-{}", expected.migration_id);
+    sqlx::query("INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)")
+        .bind(&guard_token)
+        .bind(occurred_at)
+        .execute(&mut connection)
+        .await
+        .map_err(|error| migration_error("lifecycle_activation_guard_failed", error))?;
+    let result = sqlx::query(
+        "UPDATE database_contract SET lifecycle_writes = 'enabled' WHERE singleton = 1 AND lifecycle_writes = 'disabled' AND export_v2 = 'disabled'",
+    )
+    .execute(&mut connection)
+    .await
+    .map_err(|error| migration_error("lifecycle_activation_failed", error));
+    match result {
+        Ok(result) if result.rows_affected() == 1 => {}
+        Ok(_) => {
+            let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+            return Err(MigrationError::fail_closed(
+                "lifecycle_activation_contract_mismatch",
+            ));
+        }
+        Err(error) => {
+            let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+            return Err(error);
+        }
+    }
+    let removed = sqlx::query("DELETE FROM v5_compatibility_write_guard WHERE token = ?")
+        .bind(&guard_token)
+        .execute(&mut connection)
+        .await
+        .map_err(|error| migration_error("lifecycle_activation_guard_cleanup_failed", error))?;
+    if removed.rows_affected() != 1 {
+        let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+        return Err(MigrationError::recovery_required(
+            "lifecycle_activation_guard_cleanup_mismatch",
+        ));
+    }
+    raw_sql("COMMIT")
+        .execute(&mut connection)
+        .await
+        .map_err(|error| {
+            MigrationError::recovery_required(format!(
+                "lifecycle_activation_commit_unknown:{error}"
+            ))
+        })?;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("lifecycle_activation_close_failed:{error}"))
+    })?;
+    verify_committed_v5_with_lifecycle(path, expected, "enabled").await
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct MigrationError {
@@ -616,6 +833,11 @@ async fn schema_object_manifest(
         })
         .collect::<String>();
     Ok(sha256_hex(framing.as_bytes()))
+}
+
+fn is_expected_schema_object_manifest(manifest: &str) -> bool {
+    manifest == EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256
+        || manifest == EXPECTED_RUNTIME_V4_SCHEMA_OBJECT_MANIFEST_SHA256
 }
 
 async fn integrity_checks(connection: &mut SqliteConnection) -> Result<(), MigrationError> {
@@ -1960,6 +2182,9 @@ async fn verify_durable_v4(
         Ok(())
     }
     .await;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v4_close_failed:{error}"))
+    })?;
     result.map_err(|error| {
         if error.recovery_required {
             error
@@ -2036,6 +2261,14 @@ async fn verify_committed_v5(
     path: &Path,
     expected: &MigrationReceipt,
 ) -> Result<(), MigrationError> {
+    verify_committed_v5_with_lifecycle(path, expected, "disabled").await
+}
+
+async fn verify_committed_v5_with_lifecycle(
+    path: &Path,
+    expected: &MigrationReceipt,
+    expected_lifecycle_writes: &str,
+) -> Result<(), MigrationError> {
     let mut connection = connect(path, true).await.map_err(|error| {
         MigrationError::recovery_required(format!("post_commit_open_failed:{}", error.code))
     })?;
@@ -2087,7 +2320,7 @@ async fn verify_committed_v5(
                 5,
                 APPLICATION_VERSION.to_string(),
                 "enabled".to_string(),
-                "disabled".to_string(),
+                expected_lifecycle_writes.to_string(),
                 "disabled".to_string(),
             )
         {
@@ -2109,8 +2342,7 @@ async fn verify_committed_v5(
                 "post_commit_guard_not_empty",
             ));
         }
-        if schema_object_manifest(&mut connection).await? != EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256
-        {
+        if !is_expected_schema_object_manifest(&schema_object_manifest(&mut connection).await?) {
             return Err(MigrationError::recovery_required(
                 "post_commit_schema_manifest_mismatch",
             ));
@@ -2134,6 +2366,9 @@ async fn verify_committed_v5(
         Ok(())
     }
     .await;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("post_commit_close_failed:{error}"))
+    })?;
     result.map_err(|error| {
         if error.recovery_required {
             error

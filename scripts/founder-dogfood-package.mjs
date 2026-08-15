@@ -44,6 +44,48 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-console-correction/",
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction/",
 ];
+const ACTIVE_SUCCESSOR_PREFIXES = [
+  ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
+  ".ai/workflow/HISTORY/2026-08-16-founder-v5-context-recovery-runtime-correction-r1/",
+];
+const ACTIVE_SUCCESSOR_ALLOWLIST = new Set([
+  "docs/00_Index.md",
+  "docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md",
+  "docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md",
+  "docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md",
+  "scripts/build-founder-schema-v5-candidate.ps1",
+  "scripts/founder-schema-v5-candidate-package.mjs",
+  "scripts/founder-schema-v5-candidate-package.node-test.mjs",
+  "src-tauri/Cargo.lock",
+  "src-tauri/Cargo.toml",
+  "src-tauri/src/filesystem_safety.rs",
+  "src-tauri/src/lib.rs",
+  "src-tauri/src/schema_v5_context_recovery_write.rs",
+  "src-tauri/src/schema_v5_evidence_write.rs",
+  "src-tauri/src/schema_v5_experience_write.rs",
+  "src-tauri/src/schema_v5_founder_activation.rs",
+  "src-tauri/src/schema_v5_historical_question_write.rs",
+  "src-tauri/src/schema_v5_migration.rs",
+  "src-tauri/src/schema_v5_pattern_write.rs",
+  "src-tauri/src/schema_v5_reflection_write.rs",
+  "src-tauri/src/schema_v5_runtime.rs",
+  "src-tauri/tauri.founder-dogfood-v5-candidate.conf.json",
+  "src/app/App.tsx",
+  "src/app/ContextRecoveryPanel.test.tsx",
+  "src/app/ContextRecoveryPanel.tsx",
+  "src/app/FounderSchemaV5BackupPanel.test.tsx",
+  "src/app/FounderSchemaV5BackupPanel.tsx",
+  "src/app/FounderSchemaV5MigrationPanel.test.tsx",
+  "src/app/FounderSchemaV5MigrationPanel.tsx",
+  "src/app/i18n.ts",
+  "src/app/i18n.test.ts",
+  "src/shared/storage/createLocalEvidenceStore.ts",
+  "src/shared/storage/sqlite/founderSchemaV5.test.ts",
+  "src/shared/storage/sqlite/founderSchemaV5.ts",
+  "src/shared/storage/sqlite/founderSchemaV5LocalEvidenceStore.test.ts",
+  "src/shared/storage/sqlite/founderSchemaV5LocalEvidenceStore.ts",
+  "src/vite-env.d.ts",
+]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -165,7 +207,11 @@ export async function validateSourceContract(root, { inspectGit = true } = {}) {
       .filter(Boolean);
     const paths = [...new Set([...changed, ...untracked].map(normalizeRepositoryPath))].sort();
     const outside = paths.filter(
-      (item) => !SOURCE_ALLOWLIST.has(item) && !HISTORY_PREFIXES.some((prefix) => item.startsWith(prefix)),
+      (item) =>
+        !SOURCE_ALLOWLIST.has(item) &&
+        !ACTIVE_SUCCESSOR_ALLOWLIST.has(item) &&
+        !HISTORY_PREFIXES.some((prefix) => item.startsWith(prefix)) &&
+        !ACTIVE_SUCCESSOR_PREFIXES.some((prefix) => item.startsWith(prefix)),
     );
     assert(outside.length === 0, `Changed paths outside the Founder package allowlist: ${outside.join(", ")}`);
     const ignoreCheck = spawnSync(

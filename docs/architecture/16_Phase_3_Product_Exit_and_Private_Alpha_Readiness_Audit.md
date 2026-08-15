@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.3
+version: 0.4
 owner: product-and-engineering
-last_updated: 2026/08/12
+last_updated: 2026/08/13
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -405,3 +405,6 @@ Harness contract, deployment, and release are unchanged. This document is
 Founder-approved and promoted through `af3f673d` / `c7e767a`. Windows Founder
 Dogfooding Package R1 is a later separately authorized implementation working
 tree and is not promoted, distributed, deployed, or released by this document.
+> 2026/08/13 factual note: the next bounded direction selected here now has an
+> implemented but unpromoted isolated schema-v5 Founder candidate in
+> architecture/17. Private Alpha distribution remains unauthorized.

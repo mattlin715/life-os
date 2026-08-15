@@ -5,6 +5,8 @@ import {
   createSqliteLocalEvidenceStore,
   initializeSqliteDatabaseConnection,
 } from "./sqlite/sqliteLocalEvidenceStore";
+import { initializeFounderSchemaV5Database, inspectFounderSchemaV5Startup, isFounderSchemaV5Candidate, type FounderSchemaV5State } from "./sqlite/founderSchemaV5";
+import { createFounderSchemaV5LocalEvidenceStore } from "./sqlite/founderSchemaV5LocalEvidenceStore";
 import type { LocalEvidenceStore } from "./types";
 
 const SUPPORTED_SCHEMA_VERSION = 4;
@@ -17,14 +19,16 @@ export type DatabaseStartupState =
       supportedSchemaVersion: number;
       initializationRequired: boolean;
       storage: "sqlite" | "memory";
+      founderSchemaV5?: FounderSchemaV5State;
     }
   | {
       state: "blocked";
-      reason: "newer_schema" | "inspection_failed" | "initialization_failed";
+      reason: "newer_schema" | "inspection_failed" | "initialization_failed" | "migration_required" | "founder_v5_blocked";
       detectedSchemaVersion: number | null;
       supportedSchemaVersion: number;
       initializationRequired: false;
       storage: "sqlite";
+      founderSchemaV5?: FounderSchemaV5State;
     };
 
 interface RustDatabaseStartupState {
@@ -92,6 +96,32 @@ export function createLocalEvidenceStoreRuntime(): LocalEvidenceStoreRuntime {
     state: DatabaseStartupState;
     store: LocalEvidenceStore | null;
   }> => {
+    if (isFounderSchemaV5Candidate) {
+      try {
+        let founder = await inspectFounderSchemaV5Startup();
+        if (founder.state === "missing") founder = await initializeFounderSchemaV5Database();
+        if (founder.state === "ready") {
+          return {
+            state: { state: "ready", reason: null, detectedSchemaVersion: 5, supportedSchemaVersion: 5, initializationRequired: false, storage: "sqlite", founderSchemaV5: founder },
+            store: createFounderSchemaV5LocalEvidenceStore(),
+          };
+        }
+        return {
+          state: {
+            state: "blocked",
+            reason: founder.state === "migration_required" ? "migration_required" : "founder_v5_blocked",
+            detectedSchemaVersion: founder.detectedSchemaVersion,
+            supportedSchemaVersion: 5,
+            initializationRequired: false,
+            storage: "sqlite",
+            founderSchemaV5: founder,
+          },
+          store: null,
+        };
+      } catch {
+        return { state: { ...blockedState("inspection_failed"), supportedSchemaVersion: 5 }, store: null };
+      }
+    }
     let inspected: RustDatabaseStartupState;
     try {
       inspected = await invoke<RustDatabaseStartupState>("inspect_sqlite_database");

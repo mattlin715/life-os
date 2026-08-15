@@ -85,25 +85,25 @@ struct ConsentPayload {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct HistoricalQuestion {
-    id: String,
-    text: String,
-    source_experience_ids: Vec<String>,
+pub(super) struct HistoricalQuestion {
+    pub(super) id: String,
+    pub(super) text: String,
+    pub(super) source_experience_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
-struct HistoricalQuestionWriteRequest {
-    artifact_id: String,
-    current_experience_id: String,
-    questions: Vec<HistoricalQuestion>,
-    packet_snapshot: String,
-    consent_id: String,
-    transmission_id: String,
-    generated_at: String,
+pub(super) struct HistoricalQuestionWriteRequest {
+    pub(super) artifact_id: String,
+    pub(super) current_experience_id: String,
+    pub(super) questions: Vec<HistoricalQuestion>,
+    pub(super) packet_snapshot: String,
+    pub(super) consent_id: String,
+    pub(super) transmission_id: String,
+    pub(super) generated_at: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum HistoricalWriteFailurePoint {
+pub(super) enum HistoricalWriteFailurePoint {
     #[default]
     None,
     AfterGuard,
@@ -122,24 +122,24 @@ enum HistoricalWriteFailurePoint {
 }
 
 #[derive(Clone, Debug)]
-struct HistoricalWriteContext<'a> {
-    guard_token: &'a str,
-    failure_point: HistoricalWriteFailurePoint,
+pub(super) struct HistoricalWriteContext<'a> {
+    pub(super) guard_token: &'a str,
+    pub(super) failure_point: HistoricalWriteFailurePoint,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum HistoricalWriteStatus {
+pub(super) enum HistoricalWriteStatus {
     Committed,
     AlreadyCommitted,
     NoQuestion,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct HistoricalWriteOutcome {
-    status: HistoricalWriteStatus,
-    artifact_id: Option<String>,
-    revision_id: Option<String>,
-    operation_manifest: String,
+pub(super) struct HistoricalWriteOutcome {
+    pub(super) status: HistoricalWriteStatus,
+    pub(super) artifact_id: Option<String>,
+    pub(super) revision_id: Option<String>,
+    pub(super) operation_manifest: String,
 }
 
 #[derive(Clone, Debug)]
@@ -202,7 +202,9 @@ fn unique_strings(values: &[String], field: &str) -> Result<BTreeSet<String>, Mi
     for value in values {
         validate_identifier(value, field)?;
         if !result.insert(value.clone()) {
-            return Err(write_error(format!("historical_question_{field}_duplicate")));
+            return Err(write_error(format!(
+                "historical_question_{field}_duplicate"
+            )));
         }
     }
     Ok(result)
@@ -233,10 +235,7 @@ fn normalize_items(items: &[IncludedItem]) -> Result<Vec<IncludedItem>, Migratio
         validate_identifier(&item.source_experience_id, "source_experience_id")?;
         validate_timestamp(&item.revision, "source_revision")?;
         sources.insert(item.source_experience_id.clone());
-        let identity = (
-            item.source_experience_id.clone(),
-            item.artifact_id.clone(),
-        );
+        let identity = (item.source_experience_id.clone(), item.artifact_id.clone());
         if !identities.insert(identity) {
             return Err(write_error("historical_packet_dependency_duplicate"));
         }
@@ -408,7 +407,10 @@ async fn validate_current_source(
     .map_err(|error| migration_error("historical_source_lookup_failed", error))?;
     match state {
         Some((updated_at, revision_id, lifecycle))
-            if updated_at == v4_revision && lifecycle == "active" => Ok(revision_id),
+            if updated_at == v4_revision && lifecycle == "active" =>
+        {
+            Ok(revision_id)
+        }
         _ => Err(write_error("historical_source_revision_stale")),
     }
 }
@@ -449,11 +451,12 @@ async fn validate_artifact_item(
     {
         return Err(write_error("historical_artifact_revision_stale"));
     }
-    let payload: String = sqlx::query_scalar("SELECT payload FROM persisted_artifacts WHERE id = ?")
-        .bind(artifact_id)
-        .fetch_one(&mut *connection)
-        .await
-        .map_err(|error| migration_error("historical_artifact_payload_failed", error))?;
+    let payload: String =
+        sqlx::query_scalar("SELECT payload FROM persisted_artifacts WHERE id = ?")
+            .bind(artifact_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("historical_artifact_payload_failed", error))?;
     let payload: Value = serde_json::from_str(&payload)
         .map_err(|error| migration_error("historical_artifact_payload_malformed", error))?;
     let eligible = if expected_kind == "evidence" {
@@ -516,24 +519,22 @@ async fn validate_artifact_item(
             .bind(&evidence_id)
             .fetch_optional(&mut *connection)
             .await
-            .map_err(|error| migration_error("historical_reflection_evidence_read_failed", error))?;
-            if evidence
-                .as_ref()
-                .map(|value| {
-                    (
-                        value.0.as_str(),
-                        value.1.as_str(),
-                        value.2.as_str(),
-                        value.3.as_str(),
-                    )
-                })
-                != Some((
-                    item.source_experience_id.as_str(),
-                    evidence_revision_id.as_str(),
-                    "confirmed",
-                    "eligible",
-                ))
-            {
+            .map_err(|error| {
+                migration_error("historical_reflection_evidence_read_failed", error)
+            })?;
+            if evidence.as_ref().map(|value| {
+                (
+                    value.0.as_str(),
+                    value.1.as_str(),
+                    value.2.as_str(),
+                    value.3.as_str(),
+                )
+            }) != Some((
+                item.source_experience_id.as_str(),
+                evidence_revision_id.as_str(),
+                "confirmed",
+                "eligible",
+            )) {
                 return Err(write_error("historical_reflection_evidence_ineligible"));
             }
         }
@@ -606,25 +607,21 @@ async fn validate_consent_and_transmission(
     .fetch_optional(&mut *connection)
     .await
     .map_err(|error| migration_error("historical_transmission_lookup_failed", error))?;
-    if transmission
-        .as_ref()
-        .map(|value| {
-            (
-                value.0.as_str(),
-                value.1.as_str(),
-                value.2.as_str(),
-                value.3.as_str(),
-                value.4.as_str(),
-            )
-        })
-        != Some((
-            request.consent_id.as_str(),
-            prepared.packet.packet_digest.as_str(),
-            prepared.packet.destination.provider.as_str(),
-            prepared.packet.destination.model.as_str(),
-            "sent",
-        ))
-    {
+    if transmission.as_ref().map(|value| {
+        (
+            value.0.as_str(),
+            value.1.as_str(),
+            value.2.as_str(),
+            value.3.as_str(),
+            value.4.as_str(),
+        )
+    }) != Some((
+        request.consent_id.as_str(),
+        prepared.packet.packet_digest.as_str(),
+        prepared.packet.destination.provider.as_str(),
+        prepared.packet.destination.model.as_str(),
+        "sent",
+    )) {
         return Err(write_error("historical_transmission_mismatch"));
     }
     Ok(())
@@ -801,13 +798,12 @@ async fn verify_exact_dependencies(
     if actual_v4 != expected_v4 {
         return Err(recovery_error("historical_v4_dependencies_mismatch"));
     }
-    let current_revision: String = sqlx::query_scalar(
-        "SELECT current_revision_id FROM source_heads WHERE id = ?",
-    )
-    .bind(&request.current_experience_id)
-    .fetch_one(&mut *connection)
-    .await
-    .map_err(|error| migration_error("historical_current_dependency_read_failed", error))?;
+    let current_revision: String =
+        sqlx::query_scalar("SELECT current_revision_id FROM source_heads WHERE id = ?")
+            .bind(&request.current_experience_id)
+            .fetch_one(&mut *connection)
+            .await
+            .map_err(|error| migration_error("historical_current_dependency_read_failed", error))?;
     let mut expected_v5 = vec![(
         "historical_current_experience".to_string(),
         request.current_experience_id.clone(),
@@ -883,8 +879,8 @@ async fn write_new(
     }
     inject(context, HistoricalWriteFailurePoint::AfterV4Dependency)?;
 
-    let provenance_id = insert_provenance(connection, &prepared.provenance, &request.generated_at)
-        .await?;
+    let provenance_id =
+        insert_provenance(connection, &prepared.provenance, &request.generated_at).await?;
     inject(context, HistoricalWriteFailurePoint::AfterProvenance)?;
     sqlx::query(
         "INSERT INTO artifact_revisions (id, artifact_id, source_id, revision_number, \
@@ -1035,10 +1031,7 @@ async fn reconcile(
     Ok(())
 }
 
-async fn verify_read_only(
-    path: &Path,
-    expected_manifest: &str,
-) -> Result<(), MigrationError> {
+async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), MigrationError> {
     let mut connection = connect(path, true).await?;
     verify_exact_reflection_v5(&mut connection).await?;
     let actual = operation_manifest(&mut connection).await?;
@@ -1099,12 +1092,14 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
             drop(connection);
-            verify_read_only(path, &pre_manifest).await.map_err(|verify| {
-                recovery_error(format!(
-                    "historical_rollback_verification_failed:{}:{}",
-                    error.code, verify.code
-                ))
-            })?;
+            verify_read_only(path, &pre_manifest)
+                .await
+                .map_err(|verify| {
+                    recovery_error(format!(
+                        "historical_rollback_verification_failed:{}:{}",
+                        error.code, verify.code
+                    ))
+                })?;
             return match rollback {
                 RollbackAttemptOutcome::RolledBack => Err(error),
                 RollbackAttemptOutcome::Failed { error_class } => Err(recovery_error(format!(
@@ -1166,7 +1161,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     }
 }
 
-async fn write_disposable_historical_question(
+pub(super) async fn write_disposable_historical_question(
     path: &Path,
     request: HistoricalQuestionWriteRequest,
     context: HistoricalWriteContext<'_>,
@@ -1357,12 +1352,10 @@ mod tests {
         .execute(&mut connection)
         .await
         .unwrap();
-        sqlx::query(
-            "DELETE FROM v5_compatibility_write_guard WHERE token = 'slice4c2-seed-guard'",
-        )
-        .execute(&mut connection)
-        .await
-        .unwrap();
+        sqlx::query("DELETE FROM v5_compatibility_write_guard WHERE token = 'slice4c2-seed-guard'")
+            .execute(&mut connection)
+            .await
+            .unwrap();
         raw_sql("COMMIT").execute(&mut connection).await.unwrap();
     }
 
@@ -1471,7 +1464,10 @@ mod tests {
         .fetch_one(&mut connection)
         .await
         .unwrap();
-        assert_eq!(stored_packet.as_bytes(), request().packet_snapshot.as_bytes());
+        assert_eq!(
+            stored_packet.as_bytes(),
+            request().packet_snapshot.as_bytes()
+        );
     }
 
     #[tokio::test]
@@ -1502,13 +1498,11 @@ mod tests {
         .execute(&mut connection)
         .await
         .unwrap();
-        sqlx::query(
-            "UPDATE historical_transmission_events SET outcome = 'failed' WHERE id = ?",
-        )
-        .bind(TRANSMISSION_ID)
-        .execute(&mut connection)
-        .await
-        .unwrap();
+        sqlx::query("UPDATE historical_transmission_events SET outcome = 'failed' WHERE id = ?")
+            .bind(TRANSMISSION_ID)
+            .execute(&mut connection)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM v5_compatibility_write_guard")
             .execute(&mut connection)
             .await
@@ -1550,7 +1544,10 @@ mod tests {
             if case == "duplicate_dependency" {
                 let mut packet: Value = serde_json::from_str(&request.packet_snapshot).unwrap();
                 let duplicate = packet["includedItems"][0].clone();
-                packet["includedItems"].as_array_mut().unwrap().push(duplicate);
+                packet["includedItems"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(duplicate);
                 packet.as_object_mut().unwrap().remove("packetDigest");
                 let digest = sha256_hex(canonical_json(&packet).unwrap().as_bytes());
                 packet["packetDigest"] = json!(digest);
@@ -1637,13 +1634,16 @@ mod tests {
             raw_sql("COMMIT").execute(&mut connection).await.unwrap();
             drop(connection);
             let before = manifest_at(&path).await;
-            assert!(write_disposable_historical_question(
-                &path,
-                request(),
-                context(HistoricalWriteFailurePoint::None),
-            )
-            .await
-            .is_err(), "drift case {case} must fail closed");
+            assert!(
+                write_disposable_historical_question(
+                    &path,
+                    request(),
+                    context(HistoricalWriteFailurePoint::None),
+                )
+                .await
+                .is_err(),
+                "drift case {case} must fail closed"
+            );
             assert_eq!(manifest_at(&path).await, before, "drift case {case}");
         }
     }
@@ -1705,9 +1705,11 @@ mod tests {
         ] {
             let (_directory, path) = create_v5_fixture().await;
             let before = manifest_at(&path).await;
-            assert!(write_disposable_historical_question(&path, request(), context(point))
-                .await
-                .is_err());
+            assert!(
+                write_disposable_historical_question(&path, request(), context(point))
+                    .await
+                    .is_err()
+            );
             assert_eq!(manifest_at(&path).await, before, "failure point {point:?}");
         }
     }
@@ -1808,7 +1810,9 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(error.code.starts_with("historical_commit_definitely_not_committed:"));
+        assert!(error
+            .code
+            .starts_with("historical_commit_definitely_not_committed:"));
         assert_eq!(manifest_at(&rolled_path).await, before);
 
         let (_unknown_dir, unknown_path) = create_v5_fixture().await;
@@ -1821,7 +1825,9 @@ mod tests {
         .await
         .unwrap_err();
         assert!(unknown.recovery_required);
-        assert!(unknown.code.starts_with("historical_commit_outcome_unknown:"));
+        assert!(unknown
+            .code
+            .starts_with("historical_commit_outcome_unknown:"));
     }
 
     #[tokio::test]
