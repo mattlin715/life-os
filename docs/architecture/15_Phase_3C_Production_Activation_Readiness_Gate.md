@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.4
+version: 0.5
 owner: product-and-engineering
-last_updated: 2026/08/13
+last_updated: 2026/08/18
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -409,3 +409,10 @@ changes, Phase 4, Harness expansion, deployment, or release.
 > 2026/08/13 factual note: architecture/17 implements the isolated Founder
 > activation candidate authorized after this gate. This does not close the
 > ordinary-profile, real-user, deployment, release, or Phase 4 gates.
+>
+> 2026/08/18 factual note: architecture/18 implements an unpromoted ordinary
+> schema-v5-capable desktop path. Inspector R1 remains explicit-open and
+> read-only, but its supported maximum and exact-v5 classification now match
+> the compiled feature: 5 for schema-v5-capable desktop builds and 4 for the
+> no-default-feature legacy compatibility build. It still provides no migrate,
+> backup, restore, repair, cleanup, retry, or other write control.

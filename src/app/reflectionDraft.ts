@@ -1,4 +1,5 @@
 import type { ReflectionPrompt } from "../types/domain";
+import { answerReflectionPrompt } from "../ai/harness/reflectionResponse";
 
 /**
  * Reflection text is intentionally held outside persisted artifacts until the
@@ -6,6 +7,64 @@ import type { ReflectionPrompt } from "../types/domain";
  * neither ID is encoded into a delimiter-based composite key.
  */
 export type ReflectionDrafts = Record<string, Record<string, string>>;
+
+/**
+ * A mutable, UI-local guard used only to reject duplicate activation before
+ * React has time to render the durable result. Entries and prompts remain
+ * separate map keys, so caller-controlled IDs are never delimiter-encoded.
+ */
+export type ReflectionSaveFlights = Map<string, Set<string>>;
+
+export function beginReflectionSave(
+  flights: ReflectionSaveFlights,
+  entryId: string,
+  promptId: string,
+): boolean {
+  const prompts = flights.get(entryId);
+  if (prompts?.has(promptId)) return false;
+  if (prompts) {
+    prompts.add(promptId);
+  } else {
+    flights.set(entryId, new Set([promptId]));
+  }
+  return true;
+}
+
+export function endReflectionSave(
+  flights: ReflectionSaveFlights,
+  entryId: string,
+  promptId: string,
+): void {
+  const prompts = flights.get(entryId);
+  if (!prompts) return;
+  prompts.delete(promptId);
+  if (prompts.size === 0) flights.delete(entryId);
+}
+
+export function isReflectionSaveInFlight(
+  flights: ReflectionSaveFlights,
+  entryId: string,
+  promptId: string,
+): boolean {
+  return flights.get(entryId)?.has(promptId) ?? false;
+}
+
+/**
+ * A queued duplicate may observe the first save as already durable. Returning
+ * that exact prompt prevents an unchanged answer from becoming a fabricated
+ * append-only correction while preserving genuine later edits.
+ */
+export function answerReflectionPromptIfChanged(
+  prompt: ReflectionPrompt,
+  submittedDraft: string,
+  updatedAt?: string,
+): ReflectionPrompt {
+  const normalized = submittedDraft.trim();
+  if (prompt.status === "answered" && prompt.response === normalized) {
+    return prompt;
+  }
+  return answerReflectionPrompt(prompt, submittedDraft, updatedAt);
+}
 
 export function canSaveReflectionDraft(response: string): boolean {
   return Boolean(response.trim());

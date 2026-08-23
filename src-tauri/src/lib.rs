@@ -1,6 +1,6 @@
 #[allow(dead_code)]
 mod filesystem_safety;
-#[cfg(feature = "founder-schema-v5")]
+#[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
 mod schema_v5_founder_activation;
 #[allow(dead_code)]
 mod schema_v5_migration;
@@ -312,45 +312,45 @@ pub fn run() {
             sqlite::save_sqlite_historical_question_artifact,
             sqlite::delete_sqlite_historical_question_artifact,
             sqlite::purge_sqlite_expired_historical_audit_records,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::inspect_founder_schema_v5_startup,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::initialize_founder_schema_v5_database,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::authorize_founder_schema_v5_migration,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::inspect_founder_schema_v5_backup,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::delete_founder_schema_v5_backup,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::restore_founder_schema_v4_backup,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::list_founder_v5_experiences,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::get_founder_v5_experience,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::list_founder_v5_artifacts,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::create_founder_v5_experience,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::update_founder_v5_experience,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::delete_founder_v5_experience,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::import_founder_v5_experiences,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::save_founder_v5_artifacts,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::save_founder_v5_historical_consent,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::save_founder_v5_historical_transmission,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::save_founder_v5_historical_question,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::list_founder_v5_historical_questions,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::delete_founder_v5_historical_question,
-            #[cfg(feature = "founder-schema-v5")]
+            #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::purge_founder_v5_expired_historical_audit
         ])
         .run(tauri::generate_context!())

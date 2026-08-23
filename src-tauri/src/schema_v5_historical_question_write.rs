@@ -1091,7 +1091,9 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
         Ok(value) => value,
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|close_error| {
+                recovery_error(format!("historical_close_failed:{close_error}"))
+            })?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verify| {
@@ -1112,7 +1114,10 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
 
     match adapter.commit(&mut connection).await {
         CommitAttemptOutcome::Committed => {
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("historical_close_failed:{error}")))?;
             verify_read_only(path, &post_manifest).await?;
             Ok(HistoricalWriteOutcome {
                 status: if already {
@@ -1126,14 +1131,20 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             })
         }
         CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("historical_close_failed:{error}")))?;
             verify_read_only(path, &pre_manifest).await?;
             Err(write_error(format!(
                 "historical_commit_definitely_not_committed:{error_class}"
             )))
         }
         CommitAttemptOutcome::OutcomeUnknown { error_class } => {
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("historical_close_failed:{error}")))?;
             let mut read_only = connect(path, true).await?;
             verify_exact_reflection_v5(&mut read_only).await?;
             let durable = operation_manifest(&mut read_only).await?;

@@ -222,7 +222,7 @@ async fn verify_receipt_and_contract(
     if receipt.0 != SOURCE_SCHEMA_VERSION
         || receipt.1 != TARGET_SCHEMA_VERSION
         || receipt.2 != "committed"
-        || receipt.3 != APPLICATION_VERSION
+        || !receipt_application_version_supported(&receipt.3)
         || !valid_sha256(&receipt.4)
         || !valid_sha256(&receipt.5)
     {
@@ -239,7 +239,7 @@ async fn verify_receipt_and_contract(
     .map_err(|error| migration_error("experience_write_contract_unreadable", error))?;
     if contracts.len() != 1
         || contracts[0].0 != TARGET_SCHEMA_VERSION
-        || contracts[0].1 != APPLICATION_VERSION
+        || contracts[0].1 != MINIMUM_APPLICATION_VERSION
         || contracts[0].2 != "enabled"
         || !matches!(contracts[0].3.as_str(), "disabled" | "enabled")
         || contracts[0].4 != "disabled"
@@ -1497,7 +1497,9 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
         Ok(PreparedWriteResult::Write(prepared)) => prepared,
         Ok(PreparedWriteResult::NoChange(mut outcome)) => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|error| {
+                recovery_error(format!("experience_write_close_failed:{error}"))
+            })?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verification| {
@@ -1511,7 +1513,9 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
         }
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|close_error| {
+                recovery_error(format!("experience_write_close_failed:{close_error}"))
+            })?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verification| {
@@ -1526,13 +1530,17 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
 
     match adapter.commit(&mut connection).await {
         CommitAttemptOutcome::Committed => {
-            drop(connection);
+            connection.close().await.map_err(|error| {
+                recovery_error(format!("experience_write_close_failed:{error}"))
+            })?;
             verify_read_only(path, &prepared.post_manifest).await?;
             Ok(prepared.outcome)
         }
         CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|error| {
+                recovery_error(format!("experience_write_close_failed:{error}"))
+            })?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verification| {
@@ -1546,7 +1554,9 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             )))
         }
         CommitAttemptOutcome::OutcomeUnknown { error_class } => {
-            drop(connection);
+            connection.close().await.map_err(|error| {
+                recovery_error(format!("experience_write_close_failed:{error}"))
+            })?;
             if verify_read_only(path, &prepared.post_manifest)
                 .await
                 .is_ok()

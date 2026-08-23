@@ -9,13 +9,13 @@ const result: DatabaseReadinessResult = {
   classification: "exact_v4",
   databaseExists: true,
   detectedSchemaVersion: 4,
-  supportedSchemaVersion: 4,
+  supportedSchemaVersion: 5,
   walPresent: false,
   shmPresent: false,
   rollbackJournalPresent: false,
   quiescence: "not_proven",
   operationEvidence: "none",
-  schemaV5Available: false,
+  schemaV5Available: true,
   inspectedAtUnixMs: Date.parse("2026-08-10T00:00:00.000Z"),
 };
 
@@ -48,6 +48,27 @@ describe("DatabaseReadinessPanel", () => {
     ]);
     expect(labels.join(" ")).not.toMatch(/Upgrade|Backup|Restore|Delete|Retry migration/iu);
   });
+
+  it.each(["en", "zh-TW", "ja"] as const)(
+    "truthfully renders an exact-v5 read-only result in %s",
+    (locale) => {
+      const copy = uiText[locale];
+      const html = renderToStaticMarkup(
+        <DatabaseReadinessPanel
+          copy={copy}
+          result={{ ...result, classification: "exact_v5", detectedSchemaVersion: 5 }}
+          checking={false}
+          onCheck={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(html).toContain(copy.databaseReadinessExactV5);
+      expect(html).toContain(copy.databaseReadinessNoAction);
+      const labels = [...html.matchAll(/<button[^>]*>(.*?)<\/button>/gu)].map((match) => match[1]);
+      expect(labels).toEqual([copy.databaseReadinessClose, copy.databaseReadinessCheck]);
+      expect(labels.join(" ")).not.toMatch(/Upgrade|Migrate|升級|遷移|移行/iu);
+    },
+  );
 
   it("keeps uncertain metadata visibly unknown and offers no recovery action", () => {
     const html = renderToStaticMarkup(

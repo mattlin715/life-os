@@ -23,6 +23,7 @@ function classificationMessage(result: DatabaseReadinessResult, copy: UiCopy): s
     case "missing": return copy.databaseReadinessMissing;
     case "older_supported": return copy.databaseReadinessOlder;
     case "exact_v4": return copy.databaseReadinessExactV4;
+    case "exact_v5": return copy.databaseReadinessExactV5;
     case "newer_unsupported": return copy.databaseReadinessNewer;
     case "malformed": return copy.databaseReadinessMalformed;
     case "path_unsafe": return copy.databaseReadinessPathUnsafe;

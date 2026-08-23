@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-23-ordinary-v5-disclosure-manual-correction-r1",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-22T19:38:34.685Z",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "working_tree_digest": "6a8307bbbb9934d1de8638fc1e1e9234d13dcbfdc46f872c406386e07cb3811d",
+  "last_event_id": "2026-08-23-ordinary-v5-disclosure-manual-correction-r1:0019",
+  "last_event_hash": "beb4f92cc6822f6d59567a47b34c9207e37ac0bf3c407fc9aa02f3ba0a32f532",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

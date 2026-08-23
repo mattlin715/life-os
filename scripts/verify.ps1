@@ -27,11 +27,15 @@ try {
   Invoke-VerificationStep 'AI workflow state validation' { pnpm run verify:workflow }
   Invoke-VerificationStep 'Windows Founder dogfooding package contract tests' { node --test scripts/founder-dogfood-package.node-test.mjs }
   Invoke-VerificationStep 'Founder schema-v5 candidate package contract tests' { node --test scripts/founder-schema-v5-candidate-package.node-test.mjs }
+  Invoke-VerificationStep 'Ordinary schema-v5 review package contract tests' { node --test scripts/ordinary-schema-v5-review-package.node-test.mjs }
   Invoke-VerificationStep 'Vitest' { pnpm run test:run }
   Invoke-VerificationStep 'TypeScript typecheck' { pnpm run typecheck }
   Invoke-VerificationStep 'Frontend build' { pnpm run build }
   Invoke-VerificationStep 'Rust tests' { cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture }
   Invoke-VerificationStep 'Rust check' { cargo check --manifest-path src-tauri/Cargo.toml }
+  Invoke-VerificationStep 'Legacy schema-v4 binary compatibility check' { cargo check --manifest-path src-tauri/Cargo.toml --no-default-features }
+  Invoke-VerificationStep 'Legacy schema-v4 refusal tests' { cargo test --manifest-path src-tauri/Cargo.toml --no-default-features sqlite::tests -- --nocapture }
+  Invoke-VerificationStep 'Ordinary desktop schema-v5 activation tests' { cargo test --manifest-path src-tauri/Cargo.toml --features desktop-schema-v5 schema_v5_founder_activation -- --nocapture }
   Invoke-VerificationStep 'Founder schema-v5 feature check' { cargo check --manifest-path src-tauri/Cargo.toml --features founder-schema-v5 }
   Invoke-VerificationStep 'Founder schema-v5 activation tests' { cargo test --manifest-path src-tauri/Cargo.toml --features founder-schema-v5 schema_v5_founder_activation -- --nocapture }
   Invoke-VerificationStep 'Founder schema-v5 runtime tests' { cargo test --manifest-path src-tauri/Cargo.toml --features founder-schema-v5 schema_v5_migration::runtime::tests -- --nocapture }

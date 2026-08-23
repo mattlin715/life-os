@@ -6,11 +6,11 @@ import { validateCandidateSource } from "./founder-schema-v5-candidate-package.m
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("isolated Founder schema-v5 candidate keeps ordinary identity and schema v4", async () => {
+test("isolated Founder schema-v5 candidate keeps its identity while ordinary activation reuses the same core", async () => {
   const result = await validateCandidateSource(root);
   assert.deepEqual(result, {
     identifier: "com.lifeos.founderdogfood",
     ordinaryIdentifier: "com.lifeos.app",
-    ordinarySchemaVersion: 4,
+    legacyV4SchemaVersion: 4,
   });
 });

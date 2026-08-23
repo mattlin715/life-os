@@ -28,7 +28,8 @@ mod reflection_write;
 #[path = "schema_v5_runtime.rs"]
 pub(crate) mod runtime;
 
-const APPLICATION_VERSION: &str = "0.2.0";
+const MINIMUM_APPLICATION_VERSION: &str = "0.2.0";
+const CURRENT_APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const SOURCE_SCHEMA_VERSION: i64 = 4;
 const TARGET_SCHEMA_VERSION: i64 = 5;
 const SCHEMA_V5_DDL: &str = include_str!("../schema/schema_v5.sql");
@@ -47,6 +48,33 @@ const EXPECTED_RUNTIME_V4_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
 const PROJECTION_GUARD_MARKER: &str =
     "-- Existing v4/current-state tables become guarded compatibility projections.";
 
+fn version_tuple(value: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = value.split('.');
+    let tuple = (
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse().ok()?,
+    );
+    if parts.next().is_some() {
+        None
+    } else {
+        Some(tuple)
+    }
+}
+
+fn receipt_application_version_supported(value: &str) -> bool {
+    let Some(value) = version_tuple(value) else {
+        return false;
+    };
+    let Some(minimum) = version_tuple(MINIMUM_APPLICATION_VERSION) else {
+        return false;
+    };
+    let Some(current) = version_tuple(CURRENT_APPLICATION_VERSION) else {
+        return false;
+    };
+    value >= minimum && value <= current
+}
+
 pub(crate) struct ExactV4CandidateVerifier;
 
 impl CandidateVerifier for ExactV4CandidateVerifier {
@@ -54,51 +82,66 @@ impl CandidateVerifier for ExactV4CandidateVerifier {
         &self,
         path: &Path,
     ) -> Result<crate::filesystem_safety::CandidateEvidence, SafetyError> {
-        let mut connection = connect(path, true)
+        let mut connection = connect_immutable_read_only(path)
             .await
             .map_err(|error| SafetyError::fail_closed(error.code))?;
-        let version = user_version(&mut connection)
-            .await
-            .map_err(|error| SafetyError::fail_closed(error.code))?;
-        if version != SOURCE_SCHEMA_VERSION {
-            return Err(SafetyError::fail_closed(
-                "source_schema_version_not_supported",
-            ));
+        let result = async {
+            let version = user_version(&mut connection)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            if version != SOURCE_SCHEMA_VERSION {
+                return Err(SafetyError::fail_closed(
+                    "source_schema_version_not_supported",
+                ));
+            }
+            let source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            integrity_checks(&mut connection)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            Ok(crate::filesystem_safety::CandidateEvidence {
+                source_manifest_digest: source_manifest_digest.clone(),
+                schema_version: version,
+                foreign_keys_valid: true,
+                integrity_valid: true,
+                exact_record_digest: source_manifest_digest,
+            })
         }
-        let source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
+        .await;
+        let close_result = connection
+            .close()
             .await
-            .map_err(|error| SafetyError::fail_closed(error.code))?;
-        integrity_checks(&mut connection)
-            .await
-            .map_err(|error| SafetyError::fail_closed(error.code))?;
-        Ok(crate::filesystem_safety::CandidateEvidence {
-            source_manifest_digest: source_manifest_digest.clone(),
-            schema_version: version,
-            foreign_keys_valid: true,
-            integrity_valid: true,
-            exact_record_digest: source_manifest_digest,
-        })
+            .map_err(|error| SafetyError::fail_closed(format!("source_close_failed:{error}")));
+        let evidence = result?;
+        close_result?;
+        Ok(evidence)
     }
 }
 
 pub(crate) async fn source_manifest_for_path(path: &Path) -> Result<String, MigrationError> {
-    let mut connection = connect(path, true).await?;
-    if user_version(&mut connection).await? != SOURCE_SCHEMA_VERSION {
-        return Err(MigrationError::fail_closed(
-            "source_schema_version_not_supported",
-        ));
+    let mut connection = connect_immutable_read_only(path).await?;
+    let result = async {
+        if user_version(&mut connection).await? != SOURCE_SCHEMA_VERSION {
+            return Err(MigrationError::fail_closed(
+                "source_schema_version_not_supported",
+            ));
+        }
+        manifest(&mut connection, &SOURCE_TABLE_MANIFESTS).await
     }
-    let result = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS).await;
-    connection.close().await.map_err(|error| {
+    .await;
+    let close_result = connection.close().await.map_err(|error| {
         MigrationError::recovery_required(format!("source_manifest_close_failed:{error}"))
-    })?;
-    result
+    });
+    let source_manifest = result?;
+    close_result?;
+    Ok(source_manifest)
 }
 
 pub(crate) async fn verify_any_committed_v5(
     path: &Path,
 ) -> Result<MigrationReceipt, MigrationError> {
-    let mut connection = connect(path, true).await?;
+    let mut connection = connect_immutable_read_only(path).await?;
     if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
         return Err(MigrationError::recovery_required(
             "durable_v5_version_mismatch",
@@ -131,20 +174,19 @@ pub(crate) async fn verify_any_committed_v5(
 }
 
 pub(crate) async fn verify_activated_v5_runtime(path: &Path) -> Result<(), MigrationError> {
-    let mut connection = connect(path, true).await?;
+    let mut connection = connect_immutable_read_only(path).await?;
     if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
         return Err(MigrationError::recovery_required(
             "runtime_v5_version_mismatch",
         ));
     }
-    let receipt_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM schema_migration_receipts WHERE from_version = 4 AND to_version = 5 AND state = 'committed' AND application_version = ?",
+    let receipt_versions: Vec<String> = sqlx::query_scalar(
+        "SELECT application_version FROM schema_migration_receipts WHERE from_version = 4 AND to_version = 5 AND state = 'committed'",
     )
-    .bind(APPLICATION_VERSION)
-    .fetch_one(&mut connection)
+    .fetch_all(&mut connection)
     .await
     .map_err(|error| MigrationError::recovery_required(format!("runtime_v5_receipt_unreadable:{error}")))?;
-    if receipt_count != 1 {
+    if receipt_versions.len() != 1 || !receipt_application_version_supported(&receipt_versions[0]) {
         return Err(MigrationError::recovery_required(
             "runtime_v5_receipt_count_mismatch",
         ));
@@ -158,7 +200,7 @@ pub(crate) async fn verify_activated_v5_runtime(path: &Path) -> Result<(), Migra
     if contract
         != (
             5,
-            APPLICATION_VERSION.into(),
+            MINIMUM_APPLICATION_VERSION.into(),
             "enabled".into(),
             "enabled".into(),
             "disabled".into(),
@@ -767,10 +809,32 @@ fn split_fixed_ddl() -> Result<(Vec<&'static str>, Vec<&'static str>), Migration
 }
 
 async fn connect(path: &Path, read_only: bool) -> Result<SqliteConnection, MigrationError> {
+    if read_only {
+        return connect_immutable_read_only(path).await;
+    }
     let options = SqliteConnectOptions::new()
         .filename(path)
         .create_if_missing(false)
-        .read_only(read_only)
+        .read_only(false)
+        .foreign_keys(true);
+    SqliteConnection::connect_with(&options)
+        .await
+        .map_err(|error| migration_error("database_open_failed", error))
+}
+
+async fn connect_immutable_read_only(path: &Path) -> Result<SqliteConnection, MigrationError> {
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let mut sidecar = path.as_os_str().to_os_string();
+        sidecar.push(suffix);
+        if Path::new(&sidecar).exists() {
+            return Err(MigrationError::recovery_required("sqlite_sidecar_present"));
+        }
+    }
+    let options = SqliteConnectOptions::new()
+        .filename(path)
+        .create_if_missing(false)
+        .read_only(true)
+        .immutable(true)
         .foreign_keys(true);
     SqliteConnection::connect_with(&options)
         .await
@@ -1961,7 +2025,7 @@ async fn attempt_disposable_v4_with_adapter<A: CommitOutcomeAdapter>(
                compatibility_projection, lifecycle_writes, export_v2, updated_at\
              ) VALUES (1, 5, ?, 'enabled', 'disabled', 'disabled', ?)",
         )
-        .bind(APPLICATION_VERSION)
+        .bind(MINIMUM_APPLICATION_VERSION)
         .bind(request.committed_at)
         .execute(&mut connection)
         .await
@@ -1986,7 +2050,7 @@ async fn attempt_disposable_v4_with_adapter<A: CommitOutcomeAdapter>(
              ) VALUES (?, 4, 5, 'committed', ?, ?, ?, ?, ?, ?)",
         )
         .bind(&migration_id)
-        .bind(APPLICATION_VERSION)
+        .bind(CURRENT_APPLICATION_VERSION)
         .bind(request.backup_id)
         .bind(&source_manifest)
         .bind(&target_manifest)
@@ -2047,7 +2111,11 @@ async fn attempt_disposable_v4_with_adapter<A: CommitOutcomeAdapter>(
         Ok(receipt) => receipt,
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|close_error| {
+                MigrationError::recovery_required(format!(
+                    "migration_connection_close_failed:{close_error}"
+                ))
+            })?;
             return Ok(MigrationAttemptOutcome::PreCommitFailed { error, rollback });
         }
     };
@@ -2069,7 +2137,9 @@ async fn attempt_disposable_v4_with_adapter<A: CommitOutcomeAdapter>(
             }
         }
     };
-    drop(connection);
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("migration_connection_close_failed:{error}"))
+    })?;
     Ok(outcome)
 }
 
@@ -2143,7 +2213,7 @@ async fn verify_durable_v4(
     path: &Path,
     expected_source_manifest: Option<&str>,
 ) -> Result<(), MigrationError> {
-    let mut connection = connect(path, true).await.map_err(|error| {
+    let mut connection = connect_immutable_read_only(path).await.map_err(|error| {
         MigrationError::recovery_required(format!("durable_v4_open_failed:{}", error.code))
     })?;
     let result = async {
@@ -2202,7 +2272,7 @@ async fn read_verified_durable_v5(
     expected_source_manifest: &str,
     expected_backup_id: &str,
 ) -> Result<MigrationReceipt, MigrationError> {
-    let mut connection = connect(path, true).await.map_err(|error| {
+    let mut connection = connect_immutable_read_only(path).await.map_err(|error| {
         MigrationError::recovery_required(format!("durable_v5_open_failed:{}", error.code))
     })?;
     if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
@@ -2238,7 +2308,7 @@ async fn read_verified_durable_v5(
     if from_version != SOURCE_SCHEMA_VERSION
         || to_version != TARGET_SCHEMA_VERSION
         || state != "committed"
-        || application_version != APPLICATION_VERSION
+        || !receipt_application_version_supported(&application_version)
         || backup_id.as_deref() != Some(expected_backup_id)
         || source_manifest_digest != expected_source_manifest
     {
@@ -2246,7 +2316,9 @@ async fn read_verified_durable_v5(
             "durable_v5_receipt_mismatch",
         ));
     }
-    drop(connection);
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("durable_v5_close_failed:{error}"))
+    })?;
     let receipt = MigrationReceipt {
         migration_id,
         backup_id,
@@ -2269,7 +2341,7 @@ async fn verify_committed_v5_with_lifecycle(
     expected: &MigrationReceipt,
     expected_lifecycle_writes: &str,
 ) -> Result<(), MigrationError> {
-    let mut connection = connect(path, true).await.map_err(|error| {
+    let mut connection = connect_immutable_read_only(path).await.map_err(|error| {
         MigrationError::recovery_required(format!("post_commit_open_failed:{}", error.code))
     })?;
     let result = async {
@@ -2278,8 +2350,8 @@ async fn verify_committed_v5_with_lifecycle(
                 "post_commit_version_mismatch",
             ));
         }
-        let receipts: Vec<(String, Option<String>, String, String)> = sqlx::query_as(
-            "SELECT migration_id, backup_id, source_manifest_digest, target_manifest_digest \
+        let receipts: Vec<(String, Option<String>, String, String, String)> = sqlx::query_as(
+            "SELECT migration_id, backup_id, source_manifest_digest, target_manifest_digest, application_version \
              FROM schema_migration_receipts WHERE state = 'committed'",
         )
         .fetch_all(&mut connection)
@@ -2293,13 +2365,11 @@ async fn verify_committed_v5_with_lifecycle(
             ));
         }
         let receipt = receipts.into_iter().next().unwrap();
-        if receipt
-            != (
-                expected.migration_id.clone(),
-                expected.backup_id.clone(),
-                expected.source_manifest_digest.clone(),
-                expected.target_manifest_digest.clone(),
-            )
+        if receipt.0 != expected.migration_id
+            || receipt.1 != expected.backup_id
+            || receipt.2 != expected.source_manifest_digest
+            || receipt.3 != expected.target_manifest_digest
+            || !receipt_application_version_supported(&receipt.4)
         {
             return Err(MigrationError::recovery_required(
                 "post_commit_receipt_mismatch",
@@ -2318,7 +2388,7 @@ async fn verify_committed_v5_with_lifecycle(
         if contract
             != (
                 5,
-                APPLICATION_VERSION.to_string(),
+                MINIMUM_APPLICATION_VERSION.to_string(),
                 "enabled".to_string(),
                 expected_lifecycle_writes.to_string(),
                 "disabled".to_string(),
@@ -2425,11 +2495,19 @@ pub(crate) async fn inspect_disposable_migration_restart<V: CandidateVerifier>(
         return recovery_from_safety(error);
     }
 
-    let version = match connect(&operation.live, true).await {
-        Ok(mut connection) => match user_version(&mut connection).await {
-            Ok(version) => version,
-            Err(error) => return MigrationRestartClassification::blocked(error.code),
-        },
+    let version = match connect_immutable_read_only(&operation.live).await {
+        Ok(mut connection) => {
+            let version = user_version(&mut connection).await;
+            let close = connection.close().await.map_err(|error| {
+                MigrationError::recovery_required(format!("restart_version_close_failed:{error}"))
+            });
+            match (version, close) {
+                (Ok(version), Ok(())) => version,
+                (Err(error), _) | (_, Err(error)) => {
+                    return MigrationRestartClassification::blocked(error.code)
+                }
+            }
+        }
         Err(error) => return MigrationRestartClassification::blocked(error.code),
     };
     match version {
@@ -2716,6 +2794,17 @@ mod tests {
     const CONTRACT: &str = include_str!("../tests/fixtures/schema_v5/contract.json");
     const STARTED_AT: &str = "2026-07-26T00:00:00.000Z";
     const COMMITTED_AT: &str = "2026-07-26T00:00:01.000Z";
+
+    #[test]
+    fn receipt_version_accepts_promoted_candidate_and_current_app_only() {
+        assert!(receipt_application_version_supported("0.2.0"));
+        assert!(receipt_application_version_supported(
+            CURRENT_APPLICATION_VERSION
+        ));
+        assert!(!receipt_application_version_supported("0.1.9"));
+        assert!(!receipt_application_version_supported("99.0.0"));
+        assert!(!receipt_application_version_supported("0.3.0-extra"));
+    }
 
     async fn create_fixture(sql: &str) -> (TempDir, std::path::PathBuf) {
         let directory = tempfile::tempdir().unwrap();

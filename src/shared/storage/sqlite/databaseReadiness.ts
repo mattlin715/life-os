@@ -1,9 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { isDesktopSchemaV5Active } from "./founderSchemaV5";
+
 export type DatabaseReadinessClassification =
   | "missing"
   | "older_supported"
   | "exact_v4"
+  | "exact_v5"
   | "newer_unsupported"
   | "malformed"
   | "unreadable"
@@ -20,7 +23,7 @@ export interface DatabaseReadinessResult {
   readonly rollbackJournalPresent: boolean | null;
   readonly quiescence: "not_proven";
   readonly operationEvidence: "none" | "present" | "unknown";
-  readonly schemaV5Available: false;
+  readonly schemaV5Available: boolean;
   readonly inspectedAtUnixMs: number;
 }
 
@@ -30,6 +33,7 @@ const classifications = new Set<DatabaseReadinessClassification>([
   "missing",
   "older_supported",
   "exact_v4",
+  "exact_v5",
   "newer_unsupported",
   "malformed",
   "unreadable",
@@ -55,17 +59,18 @@ function isNullableBoolean(value: unknown): value is boolean | null {
 }
 
 function failClosed(): DatabaseReadinessResult {
+  const supportedSchemaVersion = isDesktopSchemaV5Active ? 5 : 4;
   return {
     classification: "unreadable",
     databaseExists: null,
     detectedSchemaVersion: null,
-    supportedSchemaVersion: 4,
+    supportedSchemaVersion,
     walPresent: null,
     shmPresent: null,
     rollbackJournalPresent: null,
     quiescence: "not_proven",
     operationEvidence: "unknown",
-    schemaV5Available: false,
+    schemaV5Available: isDesktopSchemaV5Active,
     inspectedAtUnixMs: Date.now(),
   };
 }
@@ -79,13 +84,13 @@ export function validateDatabaseReadinessResult(value: unknown): DatabaseReadine
     || !classifications.has(result.classification as DatabaseReadinessClassification)
     || !isNullableBoolean(result.databaseExists)
     || !(result.detectedSchemaVersion === null || Number.isSafeInteger(result.detectedSchemaVersion))
-    || result.supportedSchemaVersion !== 4
+    || result.supportedSchemaVersion !== (isDesktopSchemaV5Active ? 5 : 4)
     || !isNullableBoolean(result.walPresent)
     || !isNullableBoolean(result.shmPresent)
     || !isNullableBoolean(result.rollbackJournalPresent)
     || result.quiescence !== "not_proven"
     || !["none", "present", "unknown"].includes(String(result.operationEvidence))
-    || result.schemaV5Available !== false
+    || result.schemaV5Available !== isDesktopSchemaV5Active
     || !Number.isSafeInteger(result.inspectedAtUnixMs)
     || Number(result.inspectedAtUnixMs) < 0
   ) {

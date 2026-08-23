@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.2
+version: 1.3
 owner: LIN MENGLUNG
-last_updated: 2026/08/13
+last_updated: 2026/08/18
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -47,7 +47,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Evidence | `docs/03_Principles.md` | `docs/06_Memory.md` | `docs/05_Identity.md`, `docs/Reflection.md`, `docs/07_Awareness.md` |
 | Memory | `docs/06_Memory.md` | `docs/Reflection.md` | `docs/05_Identity.md`, `docs/10_Privacy.md`, `docs/adr/ADR-0003-identity-is-emergent.md` |
 | Longitudinal Memory | `docs/06_Memory.md` | `docs/11_MVP.md` | `docs/10_Privacy.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` |
-| Artifact Lifecycle And Portable Provenance | `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md` | `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/02_Experience_Export_Boundary.md`, `docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md`, `docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md`, `docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md`, `docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md`, `docs/adr/ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md` |
+| Artifact Lifecycle And Portable Provenance | `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md` | `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md` | `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/02_Experience_Export_Boundary.md`, `docs/architecture/10_Historical_Question_Persistence_Vertical_Slice.md`, `docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md`, `docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md`, `docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md`, `docs/architecture/18_Desktop_Schema_v5_Ordinary_Production_Activation_R1.md`, `docs/adr/ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md` |
 | Historical Context Consent | `docs/10_Privacy.md` | `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md` | `docs/06_Memory.md`, `docs/09_AI.md`, `docs/appendix/Harness.md`, `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` |
 | Reflection | `docs/Reflection.md` | `docs/03_Principles.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/08_Growth.md` |
 | Cross-Experience Reflection | `docs/Reflection.md` | `docs/11_MVP.md` | `docs/06_Memory.md`, `docs/07_Awareness.md`, `docs/12_Roadmap.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/architecture/11_Cross_Experience_Reflection_Design_Gate.md` |
@@ -83,6 +83,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 4. `docs/architecture/00_MVP_Architecture.md`
 5. `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`
 6. `docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md`
+7. `docs/architecture/18_Desktop_Schema_v5_Ordinary_Production_Activation_R1.md`
 
 ### Design AI Or Harness Behavior
 
@@ -112,9 +113,10 @@ Lower levels must not override higher levels. When theory and implementation dif
 11. `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md`
 12. `docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md`
 13. `docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md`
-14. `docs/adr/ADR-0003-identity-is-emergent.md`
-15. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
-16. `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`
+14. `docs/architecture/18_Desktop_Schema_v5_Ordinary_Production_Activation_R1.md`
+15. `docs/adr/ADR-0003-identity-is-emergent.md`
+16. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+17. `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`
 
 ## ADR Index
 

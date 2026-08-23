@@ -27,6 +27,7 @@ use time::{Duration, OffsetDateTime};
 use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
 
 const FOUNDER_IDENTIFIER: &str = "com.lifeos.founderdogfood";
+const ORDINARY_IDENTIFIER: &str = "com.lifeos.app";
 const DATABASE_FILENAME: &str = "life-os.db";
 const V4_SCHEMA_VERSION: i64 = 4;
 const V5_SCHEMA_VERSION: i64 = 5;
@@ -238,16 +239,19 @@ impl QuiescenceProbe for Quiescent {
     }
 }
 
-fn require_founder_identity(app: &AppHandle) -> Result<(), String> {
-    if app.config().identifier == FOUNDER_IDENTIFIER {
+fn require_schema_v5_identity(app: &AppHandle) -> Result<(), String> {
+    let identifier = app.config().identifier.as_str();
+    let founder_allowed = cfg!(feature = "founder-schema-v5") && identifier == FOUNDER_IDENTIFIER;
+    let ordinary_allowed = cfg!(feature = "desktop-schema-v5") && identifier == ORDINARY_IDENTIFIER;
+    if founder_allowed || ordinary_allowed {
         Ok(())
     } else {
-        Err("founder_schema_v5_identity_refused".into())
+        Err("desktop_schema_v5_identity_refused".into())
     }
 }
 
 fn paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
-    require_founder_identity(app)?;
+    require_schema_v5_identity(app)?;
     let root = app
         .path()
         .app_data_dir()
@@ -339,10 +343,15 @@ async fn read_user_version(path: &Path) -> Result<i64, String> {
     let mut connection = SqliteConnection::connect_with(&options)
         .await
         .map_err(|_| "founder_database_unreadable")?;
-    sqlx::query_scalar("PRAGMA user_version")
+    let result = sqlx::query_scalar("PRAGMA user_version")
         .fetch_one(&mut connection)
         .await
-        .map_err(|_| "founder_database_malformed".into())
+        .map_err(|_| "founder_database_malformed".to_string());
+    connection
+        .close()
+        .await
+        .map_err(|_| "founder_database_close_failed".to_string())?;
+    result
 }
 
 async fn classify(root: &Path, live: &Path) -> FounderSchemaV5State {
@@ -560,7 +569,10 @@ async fn initialize_fresh(root: &Path, live: &Path) -> Result<(), String> {
             .execute(&mut connection)
             .await
             .map_err(|_| "founder_fresh_base_schema_failed".to_string())?;
-        drop(connection);
+        connection
+            .close()
+            .await
+            .map_err(|_| "founder_fresh_base_close_failed".to_string())?;
         let source_manifest = source_manifest_for_path(&staging)
             .await
             .map_err(|error| error.code)?;
@@ -1150,6 +1162,44 @@ mod tests {
         (directory, live)
     }
 
+    fn sidecar(path: &Path, suffix: &str) -> PathBuf {
+        PathBuf::from(format!("{}{}", path.display(), suffix))
+    }
+
+    async fn persistent_wal_v4_fixture() -> (TempDir, PathBuf) {
+        let directory = TempDir::new().unwrap();
+        let live = directory.path().join(DATABASE_FILENAME);
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&live)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        crate::sqlite::migrate_connection(&mut connection, false)
+            .await
+            .unwrap();
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode = WAL")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(journal_mode, "wal");
+        sqlx::query("PRAGMA user_version = 4")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .fetch_all(&mut connection)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+
+        let header = fs::read(&live).unwrap();
+        assert_eq!(&header[18..20], &[2, 2]);
+        assert!(!sidecar(&live, "-wal").exists());
+        assert!(!sidecar(&live, "-shm").exists());
+        assert!(!sidecar(&live, "-journal").exists());
+        (directory, live)
+    }
+
     #[tokio::test]
     async fn exact_v4_activation_uses_the_owned_canonical_live_identity() {
         let (directory, live) = exact_v4_fixture().await;
@@ -1239,6 +1289,107 @@ mod tests {
         assert_eq!(created.id, "runtime-v4-migrated-create");
         assert_eq!(created.body, "A post-migration runtime moment");
         verify_any_committed_v5(&live).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persistent_wal_exact_v4_migrates_with_verified_backup_without_source_sidecars() {
+        let (directory, live) = persistent_wal_v4_fixture().await;
+
+        let state = authorize_founder_schema_v5_migration_at(directory.path(), &live)
+            .await
+            .unwrap();
+
+        assert_eq!(state.state, "ready", "{state:?}");
+        assert_eq!(read_user_version(&live).await.unwrap(), V5_SCHEMA_VERSION);
+        assert!(!sidecar(&live, "-wal").exists());
+        assert!(!sidecar(&live, "-shm").exists());
+        assert!(!sidecar(&live, "-journal").exists());
+        let operations = operation_candidates(directory.path(), &live).unwrap();
+        assert_eq!(operations.len(), 1);
+        assert_eq!(
+            read_user_version(&operations[0].backup).await.unwrap(),
+            V4_SCHEMA_VERSION
+        );
+        verify_any_committed_v5(&live).await.unwrap();
+
+        assert!(crate::schema_v5_migration::runtime::list_experiences(&live)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(!sidecar(&live, "-wal").exists());
+        assert!(!sidecar(&live, "-shm").exists());
+
+        let created = crate::schema_v5_migration::runtime::create_experience(
+            &live,
+            "persistent-wal-runtime-create",
+            "A typed write after persistent-WAL migration",
+            "2026-08-23T00:00:00.000Z",
+            "persistent-wal-runtime-create-guard",
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.id, "persistent-wal-runtime-create");
+        assert_eq!(
+            crate::schema_v5_migration::runtime::list_experiences(&live)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(!sidecar(&live, "-wal").exists());
+        assert!(!sidecar(&live, "-shm").exists());
+        assert!(!sidecar(&live, "-journal").exists());
+    }
+
+    #[tokio::test]
+    async fn persistent_wal_with_uncheckpointed_sidecars_fails_closed_before_operation() {
+        let (directory, live) = persistent_wal_v4_fixture().await;
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&live)
+            .create_if_missing(false)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        sqlx::query(
+            "INSERT INTO experience_entries (id, content, created_at, updated_at) \
+             VALUES ('uncheckpointed', 'synthetic', 't', 't')",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        assert!(sidecar(&live, "-wal").exists());
+        assert!(sidecar(&live, "-shm").exists());
+
+        let state = classify(directory.path(), &live).await;
+        assert_eq!(state.state, "blocked");
+        assert_eq!(state.reason.as_deref(), Some("sqlite_sidecar_present"));
+        assert!(
+            authorize_founder_schema_v5_migration_at(directory.path(), &live)
+                .await
+                .is_err()
+        );
+        assert!(operation_candidates(directory.path(), &live)
+            .unwrap()
+            .is_empty());
+        connection.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_source_fails_closed_before_operation() {
+        let directory = TempDir::new().unwrap();
+        let live = directory.path().join(DATABASE_FILENAME);
+        fs::write(&live, b"not-a-sqlite-database").unwrap();
+
+        let state = classify(directory.path(), &live).await;
+        assert_eq!(state.state, "blocked");
+        assert!(
+            authorize_founder_schema_v5_migration_at(directory.path(), &live)
+                .await
+                .is_err()
+        );
+        assert!(operation_candidates(directory.path(), &live)
+            .unwrap()
+            .is_empty());
+        assert_eq!(fs::read(&live).unwrap(), b"not-a-sqlite-database");
     }
 
     #[cfg(windows)]

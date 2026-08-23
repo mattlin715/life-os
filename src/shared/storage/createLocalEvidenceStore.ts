@@ -5,11 +5,17 @@ import {
   createSqliteLocalEvidenceStore,
   initializeSqliteDatabaseConnection,
 } from "./sqlite/sqliteLocalEvidenceStore";
-import { initializeFounderSchemaV5Database, inspectFounderSchemaV5Startup, isFounderSchemaV5Candidate, type FounderSchemaV5State } from "./sqlite/founderSchemaV5";
+import {
+  initializeFounderSchemaV5Database,
+  inspectFounderSchemaV5Startup,
+  isDesktopSchemaV5Active,
+  isOrdinaryDesktopSchemaV5,
+  type FounderSchemaV5State,
+} from "./sqlite/founderSchemaV5";
 import { createFounderSchemaV5LocalEvidenceStore } from "./sqlite/founderSchemaV5LocalEvidenceStore";
 import type { LocalEvidenceStore } from "./types";
 
-const SUPPORTED_SCHEMA_VERSION = 4;
+const SUPPORTED_SCHEMA_VERSION = isDesktopSchemaV5Active ? 5 : 4;
 
 export type DatabaseStartupState =
   | {
@@ -96,9 +102,20 @@ export function createLocalEvidenceStoreRuntime(): LocalEvidenceStoreRuntime {
     state: DatabaseStartupState;
     store: LocalEvidenceStore | null;
   }> => {
-    if (isFounderSchemaV5Candidate) {
+    if (isDesktopSchemaV5Active) {
       try {
         let founder = await inspectFounderSchemaV5Startup();
+        if (
+          isOrdinaryDesktopSchemaV5
+          && founder.state === "blocked"
+          && founder.reason === "older_schema_unsupported"
+          && founder.detectedSchemaVersion !== null
+          && founder.detectedSchemaVersion >= 0
+          && founder.detectedSchemaVersion <= 3
+        ) {
+          await invoke("initialize_sqlite_database");
+          founder = await inspectFounderSchemaV5Startup();
+        }
         if (founder.state === "missing") founder = await initializeFounderSchemaV5Database();
         if (founder.state === "ready") {
           return {
@@ -163,6 +180,12 @@ export function createLocalEvidenceStoreRuntime(): LocalEvidenceStoreRuntime {
     if (!store) throw new Error("local_database_startup_blocked");
     return store;
   });
+  // Startup can intentionally remain blocked while the UI renders migration
+  // or recovery disclosure before any store method is called. Attach a
+  // rejection observer immediately so that bounded fail-closed startup is not
+  // reported as an unhandled promise; deferred methods still receive the same
+  // rejection when invoked.
+  void storePromise.catch(() => undefined);
 
   return {
     store: createDeferredStore(storePromise),

@@ -76,7 +76,7 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].databaseBlockedAction).toContain("不會自動修復、降版或寫入");
     expect(uiText.ja.databaseBlockedAction).toContain("自動修復、ダウングレード、書き込みは行いません");
   });
-  it("keeps the database readiness inspector explicit, read-only, and unavailable for migration in every language", () => {
+  it("keeps the database readiness inspector explicit and read-only without granting migration authority", () => {
     expect(uiText.en.databaseReadinessIntro).toContain("Check now");
     expect(uiText["zh-TW"].databaseReadinessIntro).toContain("立即檢查");
     expect(uiText.ja.databaseReadinessIntro).toContain("今すぐ確認");
@@ -86,7 +86,26 @@ describe("Context Recovery localization", () => {
     for (const locale of ["en", "zh-TW", "ja"] as const) {
       expect(uiText[locale].databaseReadinessRecoveryRequired).toBeTruthy();
       expect(uiText[locale].databaseReadinessQuiescenceUnknown).toBeTruthy();
+      expect(uiText[locale].databaseReadinessExactV5).toBeTruthy();
     }
+  });
+  it("keeps ordinary schema-v5 migration explicit and distinct from the isolated Founder profile", () => {
+    expect(uiText.en.ordinaryV5Title).toContain("local Life OS database");
+    expect(uiText["zh-TW"].ordinaryV5Title).toContain("Life OS 本機資料庫");
+    expect(uiText.ja.ordinaryV5Title).toContain("Life OS ローカルデータベース");
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      const copy = uiText[locale];
+      expect(copy.ordinaryV5Intro).toMatch(/schema(?:-| )v4/u);
+      expect(copy.ordinaryV5Purpose).toBeTruthy();
+      expect(copy.ordinaryV5BackupSensitivity).toBeTruthy();
+      expect(copy.ordinaryV5OlderBinaryBoundary).toMatch(/schema(?:-| )v4/u);
+      expect(copy.ordinaryV5BackupPurpose).not.toContain("Founder");
+      expect(copy.founderV5CancelBoundary).toBeTruthy();
+      expect(copy.founderV5ProviderBoundary).toBeTruthy();
+    }
+    expect(uiText.en.ordinaryV5Purpose).toContain("does not make AI output more true or authoritative");
+    expect(uiText["zh-TW"].ordinaryV5BackupSensitivity).toContain("相同的本機個人資料");
+    expect(uiText.ja.ordinaryV5OlderBinaryBoundary).toContain("書き込みを拒否");
   });
   it("keeps saved-date retrieval explicit, inclusive, and fail-closed in every language", () => {
     expect(uiText.en.historicalSavedDateFilterLabel).toContain("saved date");

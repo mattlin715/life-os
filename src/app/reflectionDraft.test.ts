@@ -6,13 +6,18 @@ import { createInMemoryLocalEvidenceStore } from "../shared/storage/inMemoryLoca
 import type { LocalEvidenceStore } from "../shared/storage/types";
 import { evidence, experience, reflection } from "../test/fixtures";
 import {
+  answerReflectionPromptIfChanged,
+  beginReflectionSave,
   canSaveReflectionDraft,
   clearReflectionDraftAfterSuccessfulSave,
   draftValue,
+  endReflectionSave,
   entryHasDirtyReflectionDraft,
+  isReflectionSaveInFlight,
   isReflectionDraftDirty,
   reconcileReflectionDrafts,
   removeReflectionDraftsForEntry,
+  type ReflectionSaveFlights,
   type ReflectionDrafts,
 } from "./reflectionDraft";
 
@@ -120,5 +125,45 @@ describe("reflection UI drafts", () => {
     });
     expect(draftValue(reconciled, "a:b", promptAB)).toBe("draft for a:b");
     expect(promptA.sourceEntryId).toBe("a");
+  });
+
+  it("rejects a duplicate in-flight save without conflating neighboring IDs", () => {
+    const flights: ReflectionSaveFlights = new Map();
+
+    expect(beginReflectionSave(flights, "a", "b:c")).toBe(true);
+    expect(beginReflectionSave(flights, "a", "b:c")).toBe(false);
+    expect(beginReflectionSave(flights, "a:b", "c")).toBe(true);
+    expect(isReflectionSaveInFlight(flights, "a", "b:c")).toBe(true);
+    expect(isReflectionSaveInFlight(flights, "a:b", "c")).toBe(true);
+
+    endReflectionSave(flights, "a", "b:c");
+    expect(isReflectionSaveInFlight(flights, "a", "b:c")).toBe(false);
+    expect(beginReflectionSave(flights, "a", "b:c")).toBe(true);
+  });
+
+  it("does not manufacture a correction when the submitted answer is already durable", () => {
+    const answered = answerReflectionPrompt(
+      reflection(),
+      "Already saved",
+      "2026-07-12T06:00:00.000Z",
+    );
+
+    expect(
+      answerReflectionPromptIfChanged(
+        answered,
+        "  Already saved  ",
+        "2026-07-12T07:00:00.000Z",
+      ),
+    ).toBe(answered);
+
+    const corrected = answerReflectionPromptIfChanged(
+      answered,
+      "A deliberate correction",
+      "2026-07-12T07:00:00.000Z",
+    );
+    expect(corrected).not.toBe(answered);
+    expect(corrected.response).toBe("A deliberate correction");
+    expect(corrected.updatedAt).toBe("2026-07-12T07:00:00.000Z");
+    expect(corrected.responseProvenance?.origin).toBe("user");
   });
 });

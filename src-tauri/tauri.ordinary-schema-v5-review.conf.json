@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Life OS Schema v5 Review",
+  "identifier": "com.lifeos.app",
+  "app": {
+    "windows": [
+      {
+        "title": "Life OS — Ordinary Schema v5 Review (Disposable Only)",
+        "width": 1000,
+        "height": 760,
+        "minWidth": 720,
+        "minHeight": 560
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": { "nsis": { "installMode": "currentUser" } }
+  }
+}

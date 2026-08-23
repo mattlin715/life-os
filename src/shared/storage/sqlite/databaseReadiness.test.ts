@@ -9,13 +9,13 @@ const exactV4 = {
   classification: "exact_v4",
   databaseExists: true,
   detectedSchemaVersion: 4,
-  supportedSchemaVersion: 4,
+  supportedSchemaVersion: 5,
   walPresent: false,
   shmPresent: false,
   rollbackJournalPresent: false,
   quiescence: "not_proven",
   operationEvidence: "none",
-  schemaV5Available: false,
+  schemaV5Available: true,
   inspectedAtUnixMs: 1_786_310_000_000,
 } as const;
 
@@ -32,6 +32,7 @@ describe("database readiness adapter", () => {
     "missing",
     "older_supported",
     "exact_v4",
+    "exact_v5",
     "newer_unsupported",
     "malformed",
     "unreadable",
@@ -46,14 +47,14 @@ describe("database readiness adapter", () => {
     null,
     {},
     { ...exactV4, classification: "ready_to_migrate" },
-    { ...exactV4, supportedSchemaVersion: 5 },
-    { ...exactV4, schemaV5Available: true },
+    { ...exactV4, supportedSchemaVersion: 4 },
+    { ...exactV4, schemaV5Available: false },
     { ...exactV4, walPresent: "no" },
     { ...exactV4, localPath: "C:\\private\\life-os.db" },
   ])("fails malformed or authority-expanding payloads closed", (value) => {
     const result = validateDatabaseReadinessResult(value);
     expect(result.classification).toBe("unreadable");
-    expect(result.schemaV5Available).toBe(false);
+    expect(result.schemaV5Available).toBe(true);
     expect(result.databaseExists).toBeNull();
   });
 

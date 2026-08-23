@@ -1,6 +1,6 @@
 [package]
 name = "life-os"
-version = "0.2.0"
+version = "0.3.0"
 description = "Life OS MVP shell"
 authors = ["LIN MENGLUNG"]
 edition = "2021"
@@ -10,7 +10,8 @@ name = "life_os_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-default = []
+default = ["desktop-schema-v5"]
+desktop-schema-v5 = []
 founder-schema-v5 = []
 
 [build-dependencies]

@@ -3,6 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 export const isFounderSchemaV5Candidate =
   import.meta.env.VITE_LIFE_OS_FOUNDER_SCHEMA_V5 === "1";
 
+export const isOrdinaryDesktopSchemaV5 =
+  !isFounderSchemaV5Candidate
+  && import.meta.env.VITE_LIFE_OS_DESKTOP_SCHEMA_V5 !== "0";
+
+export const isDesktopSchemaV5Active =
+  isFounderSchemaV5Candidate || isOrdinaryDesktopSchemaV5;
+
 export type FounderSchemaV5StateName = "missing" | "migration_required" | "ready" | "blocked";
 
 export interface FounderSchemaV5State {

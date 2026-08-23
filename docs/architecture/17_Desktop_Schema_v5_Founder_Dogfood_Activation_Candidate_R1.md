@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.7
+version: 0.8
 owner: product-and-engineering
-last_updated: 2026/08/16
+last_updated: 2026/08/18
 depends:
   - docs/00_Constitution.md
   - docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md
@@ -19,27 +19,35 @@ referenced_by:
 
 ## Status and authority
 
-This Book One boundary records the **implemented but not yet Founder-manually
-accepted or promoted** Desktop Schema-v5 Founder Dogfood Activation Candidate
-R1. It is production-reachable only when both immutable build gates are true:
+This Book One boundary records the **implemented, automated-verified,
+Founder-manually accepted, and promoted** Desktop Schema-v5 Founder Dogfood
+Activation Candidate R1. Candidate feature commit
+`dd6e0be5127e090e9b97b5a1c2788753c5e34115` was promoted by non-fast-forward
+merge `44ec6d56d645829488aa73d0b92bcf72b19487f4`. The exact promoted scope was
+62 files with 7056 insertions and 353 deletions, measured with
+`git diff-tree --no-commit-id --shortstat -r 9a226f7081aabc071571f4a745e1343dbdb7d927 dd6e0be5127e090e9b97b5a1c2788753c5e34115`.
+
+It remains reachable only when both immutable Candidate build gates are true:
 
 - Tauri application identity is exactly `com.lifeos.founderdogfood`;
 - the binary is compiled with `founder-schema-v5` and the frontend is compiled
   with `VITE_LIFE_OS_FOUNDER_SCHEMA_V5=1`.
 
-The ordinary `com.lifeos.app` build retains `SCHEMA_VERSION = 4`, does not
-register candidate commands, and cannot select this behavior through renderer
-input or a persisted preference.
+At the time of Candidate promotion, the ordinary `com.lifeos.app` build
+retained `SCHEMA_VERSION = 4` and could not select Candidate behavior through
+renderer input or a persisted preference. The later ordinary activation R1 is
+specified separately by architecture/18 and does not rewrite this Candidate's
+isolated identity or historical evidence.
 
 The following states remain distinct:
 
 | State | Current |
 | --- | --- |
 | Founder-authorized candidate implementation | yes |
-| Private/disposable automated evidence | implemented; verification pending final report |
+| Private/disposable automated evidence | verified |
 | Isolated Founder package production path | implemented |
-| Founder-manually verified | no |
-| Promoted | no |
+| Founder-manually verified | yes, isolated disposable profiles only |
+| Promoted | yes, `44ec6d56` |
 | Ordinary desktop production-enabled | no |
 | Real-user migrated | no |
 | Deployed or released | no |
@@ -241,11 +249,10 @@ installation, profile mutation, distribution, deployment, or release.
 
 ## Verification and Founder gate
 
-Automated evidence uses synthetic/disposable fixtures. Manual evidence must use
-only the isolated Founder profile and the unsigned candidate package. Until the
-Founder completes the manual migration/restart/recovery matrix and separately
-authorizes promotion, this document must not be described as promoted,
-ordinary-profile enabled, real-user verified, deployed, or released.
+Automated evidence used synthetic/disposable fixtures. Founder manual evidence
+used only the isolated Founder profile and unsigned Candidate package. That
+evidence and promotion do not make the Candidate ordinary-profile enabled,
+real-user verified, distributed, deployed, or released.
 
 Android Build Feasibility M0 remains parked behind the desktop sequencing gates
 recorded by the Founder. This document grants no Android authority.

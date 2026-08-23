@@ -247,6 +247,8 @@ impl BackupCreator for SystemVacuumInto {
         let options = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(source)
             .create_if_missing(false)
+            .read_only(true)
+            .immutable(true)
             .foreign_keys(true);
         let mut connection = sqlx::SqliteConnection::connect_with(&options)
             .await
@@ -2324,6 +2326,31 @@ mod tests {
         connection.close().await.unwrap();
     }
 
+    async fn create_persistent_wal_v4_database(path: &Path, content: &str) {
+        create_v4_database(path, content).await;
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(false)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode = WAL")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(journal_mode, "wal");
+        connection.execute("PRAGMA user_version = 4").await.unwrap();
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .fetch_all(&mut connection)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+        let header = fs::read(path).unwrap();
+        assert_eq!(&header[18..20], &[2, 2]);
+        assert!(!append_suffix(path, "-wal").exists());
+        assert!(!append_suffix(path, "-shm").exists());
+        assert!(!append_suffix(path, "-journal").exists());
+    }
+
     #[derive(Clone, Copy)]
     struct TableManifestSpec {
         name: &'static str,
@@ -2383,6 +2410,7 @@ mod tests {
         let options = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(path)
             .read_only(true)
+            .immutable(true)
             .foreign_keys(true);
         let mut connection = SqliteConnection::connect_with(&options)
             .await
@@ -2697,6 +2725,43 @@ mod tests {
         assert!(operation.backup.is_file());
         assert_eq!(fs::read(&live).unwrap(), live_before);
         assert_eq!(fs::read(&outside).unwrap(), b"outside");
+        assert_eq!(
+            expected.database_sha256,
+            sha256_file(&operation.backup).unwrap()
+        );
+        assert_eq!(
+            inspect_restart_state(&operation).unwrap(),
+            RestartInspection::BackupVerified
+        );
+    }
+
+    #[tokio::test]
+    async fn persistent_wal_source_backup_is_immutable_and_sidecar_free() {
+        let directory = tempfile::tempdir().unwrap();
+        let live = directory.path().join("life-os.db");
+        create_persistent_wal_v4_database(&live, "persistent-wal-source").await;
+        let live_before = fs::read(&live).unwrap();
+        let probe = MutableQuiescence::new(DatabaseActivity::Quiescent);
+        let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+        let operation =
+            prepare_operation(directory.path(), &live, &guard, &SystemVolumeProbe).unwrap();
+
+        let expected = create_owned_verified_backup(
+            &operation,
+            &guard,
+            &SystemVolumeProbe,
+            &SqliteV4Verifier::exact(),
+            &SystemVacuumInto,
+            &SystemDurability,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(fs::read(&live).unwrap(), live_before);
+        assert!(!append_suffix(&live, "-wal").exists());
+        assert!(!append_suffix(&live, "-shm").exists());
+        assert!(!append_suffix(&live, "-journal").exists());
+        assert!(operation.backup.is_file());
         assert_eq!(
             expected.database_sha256,
             sha256_file(&operation.backup).unwrap()
