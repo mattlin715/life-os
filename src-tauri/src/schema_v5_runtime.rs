@@ -1253,7 +1253,20 @@ mod tests {
         let source = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
             .await
             .unwrap();
+        let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode = WAL")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(journal_mode, "wal");
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .fetch_all(&mut connection)
+            .await
+            .unwrap();
         connection.close().await.unwrap();
+        assert_eq!(&std::fs::read(&path).unwrap()[18..20], &[2, 2]);
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(!std::path::PathBuf::from(format!("{}{}", path.display(), suffix)).exists());
+        }
         let receipt = migrate_disposable_v4(MigrationRequest {
             path: &path,
             expected_source_manifest_digest: source,
@@ -1267,6 +1280,9 @@ mod tests {
         activate_lifecycle_writes(&path, &receipt, AT)
             .await
             .unwrap();
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(!std::path::PathBuf::from(format!("{}{}", path.display(), suffix)).exists());
+        }
         (directory, path)
     }
 

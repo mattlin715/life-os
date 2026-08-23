@@ -68,3 +68,6 @@ jobs:
 
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Legacy schema-v4 compatibility check
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features

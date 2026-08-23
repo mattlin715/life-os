@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 26,
+  "last_event_id": "2026-08-18-desktop-schema-v5-ordinary-production-activation-r1:0026",
+  "last_event_hash": "c33efb1e0cfbd73b0437e105443181a4cee9e34da5e72a76c11ad85e672a034f",
+  "sprint_id": "2026-08-18-desktop-schema-v5-ordinary-production-activation-r1",
+  "mission_title": "Activate schema v5 for the ordinary desktop through explicit governed migration",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 3,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_tree_digest": "7fda57e5385e31835eed2dac4f54ce2c8e91653861dd0e66243438eef2fdc60b",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-18T12:00:52.385Z",
+      "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+      "working_tree_digest": "7fda57e5385e31835eed2dac4f54ce2c8e91653861dd0e66243438eef2fdc60b"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-18T10:50:39.055Z",
+  "updated_at": "2026-08-18T12:04:59.595Z"
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-08-23-ordinary-v5-manual-phase-a-closeout-r1",
+  "terminal_status": "completed",
+  "archived_at": "2026-08-22T22:19:23.572Z",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "working_tree_digest": "75ee2c6d177c45aad05d243567d3318f77551eb1d29f88347795fb8df33bb78c",
+  "last_event_id": "2026-08-23-ordinary-v5-manual-phase-a-closeout-r1:0014",
+  "last_event_hash": "46280b1b8ae51f6a3c2f9faf00a16f45718d7b6cc74ab815792885a4fe00f3cb",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

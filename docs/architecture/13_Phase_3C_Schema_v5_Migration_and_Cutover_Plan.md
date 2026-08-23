@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 5.1
+version: 5.2
 owner: product-and-engineering
-last_updated: 2026/08/15
+last_updated: 2026/08/18
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -2689,3 +2689,13 @@ unauthorized.
 > regression. The fixed DDL, schema objects, production `SCHEMA_VERSION = 4`,
 > ordinary profile, provider, consent, Phase 4, deployment, and release fences
 > remain unchanged.
+>
+> 2026/08/18 factual activation note: the isolated Candidate and Context
+> Recovery follow-up were Founder-manually accepted and promoted through
+> feature commit `dd6e0be5127e090e9b97b5a1c2788753c5e34115` and no-ff merge
+> `44ec6d56d645829488aa73d0b92bcf72b19487f4`. Ordinary desktop activation R1
+> now reuses the same fixed DDL, migration, backup/restore, typed writers, and
+> ADR-0009 parity under architecture/18. The legacy schema-v4
+> `sqlite.rs::SCHEMA_VERSION = 4` remains the old-binary and v2/v3
+> stabilization boundary; the schema-v5-capable build maximum is 5. No real
+> ordinary profile has been opened or migrated by automated work.

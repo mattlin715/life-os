@@ -2508,7 +2508,9 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
         Ok(prepared) => prepared,
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection.close().await.map_err(|close_error| {
+                recovery_error(format!("pattern_close_failed:{close_error}"))
+            })?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verify| {
@@ -2522,13 +2524,19 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     };
     match adapter.commit(&mut connection).await {
         CommitAttemptOutcome::Committed => {
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("pattern_close_failed:{error}")))?;
             verify_read_only(path, &prepared.operation_manifest).await?;
             Ok(prepared)
         }
         CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
             let rollback = adapter.rollback(&mut connection).await;
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("pattern_close_failed:{error}")))?;
             verify_read_only(path, &pre_manifest)
                 .await
                 .map_err(|verify| {
@@ -2542,7 +2550,10 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             )))
         }
         CommitAttemptOutcome::OutcomeUnknown { error_class } => {
-            drop(connection);
+            connection
+                .close()
+                .await
+                .map_err(|error| recovery_error(format!("pattern_close_failed:{error}")))?;
             if verify_read_only(path, &prepared.operation_manifest)
                 .await
                 .is_ok()

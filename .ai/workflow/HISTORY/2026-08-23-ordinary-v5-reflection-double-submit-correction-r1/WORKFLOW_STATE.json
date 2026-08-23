@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-23-ordinary-v5-reflection-double-submit-correction-r1:0014",
+  "last_event_hash": "cd31aabe8d44bde13a887530aa3352cb4ab192a20b0887b3677f04e1e4c6eca9",
+  "sprint_id": "2026-08-23-ordinary-v5-reflection-double-submit-correction-r1",
+  "mission_title": "Correct duplicate Reflection answer submission exposed by Founder Manual Phase A",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_tree_digest": "b9ead2d13de3924bc4a3a3cefac4e82f792f05b555ff8a57b3a5b69f61f9bf9f",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-22T20:21:40.757Z",
+      "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+      "working_tree_digest": "b9ead2d13de3924bc4a3a3cefac4e82f792f05b555ff8a57b3a5b69f61f9bf9f"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-22T20:11:21.113Z",
+  "updated_at": "2026-08-22T20:25:35.993Z"
+}

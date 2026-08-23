@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.4
+version: 0.5
 owner: product-and-engineering
-last_updated: 2026/08/13
+last_updated: 2026/08/18
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -408,3 +408,9 @@ tree and is not promoted, distributed, deployed, or released by this document.
 > 2026/08/13 factual note: the next bounded direction selected here now has an
 > implemented but unpromoted isolated schema-v5 Founder candidate in
 > architecture/17. Private Alpha distribution remains unauthorized.
+>
+> 2026/08/18 factual note: the isolated Candidate was subsequently
+> Founder-manually accepted and promoted. Architecture/18 records the current
+> unpromoted ordinary desktop activation implementation. Neither state
+> authorizes Private Alpha distribution, deployment, release, Phase 4, or
+> migration of the Founder's real ordinary profile.

@@ -17,6 +17,17 @@ use crate::filesystem_safety::{
 const SCHEMA_VERSION: i64 = 4;
 const NEWER_SCHEMA_ERROR: &str = "database_schema_newer_than_supported";
 
+fn readiness_supported_schema_version() -> i64 {
+    if cfg!(any(
+        feature = "desktop-schema-v5",
+        feature = "founder-schema-v5"
+    )) {
+        5
+    } else {
+        SCHEMA_VERSION
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseStartupState {
@@ -67,17 +78,18 @@ pub struct DatabaseReadinessResult {
 
 impl DatabaseReadinessResult {
     fn bounded(classification: &str) -> Self {
+        let supported_schema_version = readiness_supported_schema_version();
         Self {
             classification: classification.into(),
             database_exists: None,
             detected_schema_version: None,
-            supported_schema_version: SCHEMA_VERSION,
+            supported_schema_version,
             wal_present: None,
             shm_present: None,
             rollback_journal_present: None,
             quiescence: "not_proven".into(),
             operation_evidence: "unknown".into(),
-            schema_v5_available: false,
+            schema_v5_available: supported_schema_version >= 5,
             inspected_at_unix_ms: inspection_time_ms(),
         }
     }
@@ -295,6 +307,7 @@ async fn inspect_database_path(path: &Path) -> Result<DatabaseStartupState, Stri
 }
 
 async fn inspect_database_readiness_path(root: &Path, path: &Path) -> DatabaseReadinessResult {
+    let supported_schema_version = readiness_supported_schema_version();
     let filesystem = match inspect_readiness_filesystem(root, path) {
         Ok(snapshot) => snapshot,
         Err(ReadinessFilesystemFailure::PathUnsafe) => {
@@ -312,7 +325,7 @@ async fn inspect_database_readiness_path(root: &Path, path: &Path) -> DatabaseRe
         classification: "missing".into(),
         database_exists: Some(filesystem.database_exists),
         detected_schema_version: None,
-        supported_schema_version: SCHEMA_VERSION,
+        supported_schema_version,
         wal_present: Some(filesystem.wal_present),
         shm_present: Some(filesystem.shm_present),
         rollback_journal_present: Some(filesystem.rollback_journal_present),
@@ -322,7 +335,7 @@ async fn inspect_database_readiness_path(root: &Path, path: &Path) -> DatabaseRe
             ReadinessOperationEvidence::Present => "present",
         }
         .into(),
-        schema_v5_available: false,
+        schema_v5_available: supported_schema_version >= 5,
         inspected_at_unix_ms: inspection_time_ms(),
     };
 
@@ -367,6 +380,8 @@ async fn inspect_database_readiness_path(root: &Path, path: &Path) -> DatabaseRe
         "older_supported"
     } else if version == SCHEMA_VERSION {
         "exact_v4"
+    } else if version == 5 && supported_schema_version >= 5 {
+        "exact_v5"
     } else {
         "newer_unsupported"
     }
@@ -1556,9 +1571,11 @@ mod tests {
     async fn readiness_fixture(root: &Path, version: i64) -> std::path::PathBuf {
         let path = root.join("life-os.db");
         let mut conn = connect(&path).await.unwrap();
-        conn.execute("CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('preserve-me');")
-            .await
-            .unwrap();
+        conn.execute(
+            "CREATE TABLE marker (value TEXT NOT NULL); INSERT INTO marker VALUES ('preserve-me');",
+        )
+        .await
+        .unwrap();
         conn.execute(format!("PRAGMA user_version = {version}").as_str())
             .await
             .unwrap();
@@ -1578,15 +1595,24 @@ mod tests {
         assert_eq!(result.database_exists, Some(false));
         assert!(!root.exists());
         assert!(!path.exists());
-        assert!(!result.schema_v5_available);
+        assert_eq!(
+            result.schema_v5_available,
+            readiness_supported_schema_version() >= 5
+        );
     }
 
     #[tokio::test]
     async fn readiness_classifies_supported_exact_and_newer_versions_without_mutation() {
+        let expected_v5 = if readiness_supported_schema_version() >= 5 {
+            "exact_v5"
+        } else {
+            "newer_unsupported"
+        };
         for (version, expected) in [
             (3, "older_supported"),
             (4, "exact_v4"),
-            (5, "newer_unsupported"),
+            (5, expected_v5),
+            (6, "newer_unsupported"),
         ] {
             let root = tempfile::tempdir().unwrap();
             let path = readiness_fixture(root.path(), version).await;
@@ -1598,13 +1624,22 @@ mod tests {
 
             assert_eq!(first.classification, expected);
             assert_eq!(first.detected_schema_version, Some(version));
-            assert_eq!(first.supported_schema_version, 4);
+            assert_eq!(
+                first.supported_schema_version,
+                readiness_supported_schema_version()
+            );
             assert_eq!(first.quiescence, "not_proven");
             assert_eq!(first.operation_evidence, "none");
-            assert!(!first.schema_v5_available);
+            assert_eq!(
+                first.schema_v5_available,
+                readiness_supported_schema_version() >= 5
+            );
             assert_eq!(second.classification, expected);
             assert_eq!(std::fs::read(&path).unwrap(), before);
-            assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), modified_before);
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().modified().unwrap(),
+                modified_before
+            );
         }
         assert_eq!(SCHEMA_VERSION, 4);
     }
@@ -1650,7 +1685,9 @@ mod tests {
     async fn readiness_malformed_or_multiple_owned_operations_require_recovery_without_cleanup() {
         let root = tempfile::tempdir().unwrap();
         let path = readiness_fixture(root.path(), 4).await;
-        let first = root.path().join("life-os-0123456789abcdef0123456789abcdef.operation");
+        let first = root
+            .path()
+            .join("life-os-0123456789abcdef0123456789abcdef.operation");
         std::fs::create_dir(&first).unwrap();
 
         let missing_state = inspect_database_readiness_path(root.path(), &path).await;
@@ -1660,9 +1697,14 @@ mod tests {
         std::fs::write(first.join("state.json"), b"{malformed").unwrap();
         let malformed = inspect_database_readiness_path(root.path(), &path).await;
         assert_eq!(malformed.classification, "recovery_required");
-        assert_eq!(std::fs::read(first.join("state.json")).unwrap(), b"{malformed");
+        assert_eq!(
+            std::fs::read(first.join("state.json")).unwrap(),
+            b"{malformed"
+        );
 
-        let second = root.path().join("life-os-1123456789abcdef0123456789abcdef.operation");
+        let second = root
+            .path()
+            .join("life-os-1123456789abcdef0123456789abcdef.operation");
         std::fs::create_dir(&second).unwrap();
         let multiple = inspect_database_readiness_path(root.path(), &path).await;
         assert_eq!(multiple.classification, "recovery_required");

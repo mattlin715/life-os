@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 46,
+  "last_event_id": "2026-08-23-ordinary-v5-real-profile-phase-b-blocked-r1:0046",
+  "last_event_hash": "1940a92eb5c9149ed801383cbcd27ad8322f384477d84a38a6e3415e02c423d4",
+  "sprint_id": "2026-08-23-ordinary-v5-real-profile-phase-b-blocked-r1",
+  "mission_title": "Record and analyze the fail-closed real-profile Phase B pre-backup migration outcome without retry or repair",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 3,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "Option A",
+    "selected_option": "Option A",
+    "authorized_scope": "Separate disposable persistent-WAL exact-v4 verifier correction sprint only: sidecar-free immutable source inspection with explicit close; production-shaped exact-v4 regression through the real backup/migration command boundary; malformed and uncheckpointed states fail closed; factual architecture/18 and dev/10 synchronization; focused tests, Clippy, canonical verification, one ignored unsigned ordinary review installer, and stop at Founder diff/manual disposable review. The current real com.lifeos.app profile, prepared operation, staging file, WAL/SHM, and personal data remain untouched. No cleanup, checkpoint, repair, restore, backup creation, retry, second real-profile migration attempt, staging, commit, push, merge, PR, deployment, distribution, release, provider/ContextPacket/consent changes, Phase 4, or Android.",
+    "decided_at": "2026-08-22T22:56:41.658Z",
+    "evidence_reference": ".ai/workflow/DECISION_REQUIRED.md#ORDINARY-V5-PHASEB-WAL-VERIFIER-CORRECTION-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_tree_digest": "61528d40bd3cde137c51aabc0bc3be2be80ad2af9bbab001d94db20925d024f0",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-23T14:54:56.293Z",
+      "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+      "working_tree_digest": "61528d40bd3cde137c51aabc0bc3be2be80ad2af9bbab001d94db20925d024f0"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-22T22:43:21.322Z",
+  "updated_at": "2026-08-23T14:58:46.576Z"
+}

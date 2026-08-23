@@ -13,7 +13,7 @@ const state = {
 
 describe("Founder schema-v5 backup disclosure", () => {
   it.each(["en", "zh-TW", "ja"] as const)("discloses exact-owned backup and explicit actions in %s", (language) => {
-    const html = renderToStaticMarkup(<FounderSchemaV5BackupPanel copy={uiText[language]} state={state} pending={false} error={false} onDelete={() => {}} onRestore={() => {}} />);
+    const html = renderToStaticMarkup(<FounderSchemaV5BackupPanel copy={uiText[language]} state={state} ordinary={false} pending={false} error={false} onDelete={() => {}} onRestore={() => {}} />);
     expect(html).toContain("life-os-test.operation/backup.db");
     expect(html).toContain("2026-09-12");
     expect((html.match(/<button/g) ?? [])).toHaveLength(2);
@@ -21,10 +21,17 @@ describe("Founder schema-v5 backup disclosure", () => {
 
   it.each(["en", "zh-TW", "ja"] as const)("offers only explicit restore for exact blocked recovery in %s", (language) => {
     const recovery = { ...state, state: "blocked", reason: "post_commit_schema_manifest_mismatch", restoreAvailable: true } as const;
-    const html = renderToStaticMarkup(<FounderSchemaV5BackupPanel copy={uiText[language]} state={recovery} pending={false} error={false} onDelete={() => {}} onRestore={() => {}} />);
+    const html = renderToStaticMarkup(<FounderSchemaV5BackupPanel copy={uiText[language]} state={recovery} ordinary={false} pending={false} error={false} onDelete={() => {}} onRestore={() => {}} />);
     expect(html).toContain(uiText[language].founderV5RecoveryRestoreAvailable);
     expect(html).toContain(uiText[language].founderV5RestoreBackup);
     expect(html).not.toContain(uiText[language].founderV5DeleteBackup);
     expect((html.match(/<button/g) ?? [])).toHaveLength(1);
+  });
+
+  it.each(["en", "zh-TW", "ja"] as const)("uses ordinary backup disclosure in %s", (language) => {
+    const copy = uiText[language];
+    const html = renderToStaticMarkup(<FounderSchemaV5BackupPanel copy={copy} state={state} ordinary pending={false} error={false} onDelete={() => {}} onRestore={() => {}} />);
+    expect(html).toContain(copy.ordinaryV5BackupTitle);
+    expect(html).toContain(copy.ordinaryV5BackupPurpose);
   });
 });

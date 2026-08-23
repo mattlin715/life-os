@@ -4,6 +4,7 @@ import type { UiCopy } from "./i18n";
 interface Props {
   readonly copy: UiCopy;
   readonly state: FounderSchemaV5State;
+  readonly ordinary: boolean;
   readonly pending: boolean;
   readonly cancelled: boolean;
   readonly error: string | null;
@@ -11,17 +12,23 @@ interface Props {
   readonly onCancel: () => void;
 }
 
-export function FounderSchemaV5MigrationPanel({ copy, state, pending, cancelled, error, onAuthorize, onCancel }: Props) {
+export function FounderSchemaV5MigrationPanel({ copy, state, ordinary, pending, cancelled, error, onAuthorize, onCancel }: Props) {
+  const title = ordinary ? copy.ordinaryV5Title : copy.founderV5Title;
+  const intro = ordinary ? copy.ordinaryV5Intro : copy.founderV5Intro;
+  const localOnly = ordinary ? copy.ordinaryV5LocalOnly : copy.founderV5LocalOnly;
   return (
-    <section className="welcome-card founder-v5-migration" aria-label={copy.founderV5Title}>
+    <section className="welcome-card founder-v5-migration" aria-label={title}>
       <div className="welcome-copy">
         <p className="soft-label">{copy.databaseLocalLabel}</p>
-        <h1>{copy.founderV5Title}</h1>
-        <p className="welcome-subtitle">{copy.founderV5Intro}</p>
+        <h1>{title}</h1>
+        <p className="welcome-subtitle">{intro}</p>
         <ul>
-          <li>{copy.founderV5LocalOnly}</li>
+          <li>{localOnly}</li>
+          {ordinary ? <li>{copy.ordinaryV5Purpose}</li> : null}
           <li>{copy.founderV5BackupDisclosure(state.backupRetentionDays)}</li>
+          {ordinary ? <li>{copy.ordinaryV5BackupSensitivity}</li> : null}
           <li>{copy.founderV5ProviderBoundary}</li>
+          {ordinary ? <li>{copy.ordinaryV5OlderBinaryBoundary}</li> : null}
           <li>{copy.founderV5CancelBoundary}</li>
         </ul>
         {cancelled ? <p className="summary-note" role="status">{copy.founderV5Cancelled}</p> : null}

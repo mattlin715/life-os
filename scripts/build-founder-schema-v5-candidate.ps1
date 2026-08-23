@@ -29,7 +29,7 @@ try {
     & pnpm run build
     if ($LASTEXITCODE -ne 0) { throw 'Candidate frontend build failed.' }
     $env:TAURI_CONFIG = Get-Content -Raw -Encoding UTF8 $configPath
-    & cargo rustc --manifest-path (Join-Path $repositoryRoot 'src-tauri\Cargo.toml') --release --bin life-os --features 'tauri/custom-protocol,founder-schema-v5' -- -C 'link-arg=/SUBSYSTEM:WINDOWS' -C 'link-arg=/ENTRY:mainCRTStartup'
+    & cargo rustc --manifest-path (Join-Path $repositoryRoot 'src-tauri\Cargo.toml') --release --bin life-os --no-default-features --features 'tauri/custom-protocol,founder-schema-v5' -- -C 'link-arg=/SUBSYSTEM:WINDOWS' -C 'link-arg=/ENTRY:mainCRTStartup'
     if ($LASTEXITCODE -ne 0) { throw 'Candidate binary build failed.' }
   } finally {
     if ($null -eq $previousGate) { Remove-Item Env:VITE_LIFE_OS_FOUNDER_SCHEMA_V5 -ErrorAction SilentlyContinue } else { $env:VITE_LIFE_OS_FOUNDER_SCHEMA_V5 = $previousGate }

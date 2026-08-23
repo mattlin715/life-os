@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 19,
+  "last_event_id": "2026-08-23-ordinary-v5-disclosure-manual-correction-r1:0019",
+  "last_event_hash": "beb4f92cc6822f6d59567a47b34c9207e37ac0bf3c407fc9aa02f3ba0a32f532",
+  "sprint_id": "2026-08-23-ordinary-v5-disclosure-manual-correction-r1",
+  "mission_title": "Correct the bounded ordinary schema-v5 pre-migration disclosure exposed by Founder Manual Phase A",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I resolve ORDINARY-V5-DISCLOSURE-CORRECTION-001 by selecting Option A. I authorize one separate bounded ordinary schema-v5 disclosure-only correction cycle: add English, Traditional Chinese, and Japanese pre-migration statements explaining the bounded schema-v5 purpose, the equal sensitivity of the verified local backup, and older schema-v4 write refusal after migration; render them only for the ordinary migration-required panel; preserve Founder Candidate copy and all migration, backup, restore, schema, provider, ContextPacket, consent, Phase 4, Android, and runtime behavior; add focused panel/i18n tests; synchronize architecture/18 factually; run focused and canonical verification; rebuild one ignored unsigned ordinary review installer; and resume only at Manual Phase A Step 6A. I do not authorize any Rust, schema, DDL, migration-policy, backup/restore, real-profile, provider, Phase 4, Android, staging, commit, push, merge, PR, deployment, distribution, or release change.",
+    "selected_option": "A",
+    "authorized_scope": "Disclosure-only UI and i18n correction in the ordinary migration-required panel, focused tests, factual architecture/18 sync, verification, one ignored unsigned review installer rebuild, and resume only at Manual Phase A Step 6A; no Rust, schema, migration, backup/restore, runtime-policy, real-profile, provider, Phase 4, Android, Git promotion, deployment, distribution, or release.",
+    "decided_at": "2026-08-22T19:29:00.733Z",
+    "evidence_reference": "ORDINARY-V5-DISCLOSURE-CORRECTION-001"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_tree_digest": "6a8307bbbb9934d1de8638fc1e1e9234d13dcbfdc46f872c406386e07cb3811d",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-22T19:34:53.827Z",
+      "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+      "working_tree_digest": "6a8307bbbb9934d1de8638fc1e1e9234d13dcbfdc46f872c406386e07cb3811d"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-22T19:21:29.202Z",
+  "updated_at": "2026-08-22T19:38:28.089Z"
+}

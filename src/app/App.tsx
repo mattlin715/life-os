@@ -40,7 +40,7 @@ import { createContextPacket, type RequestedAiTask } from "../ai/harness/context
 import { decideContextGate } from "../ai/harness/gateDecision";
 import { decidePatternAvailability, type PatternAvailabilityReason } from "../ai/harness/patternAvailability";
 import { addSuggestedRecoveryTurn, answerRecoveryTurn, skipRecoveryTurnRecord } from "../ai/harness/recoveryTurn";
-import { answerReflectionPrompt, skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
+import { skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
 import { createGenerationSnapshot, isGenerationSnapshotCurrent } from "../ai/harness/generationSnapshot";
 import { HARNESS_VERSION, PROMPT_VERSION } from "../ai/harness/version";
 import {
@@ -91,15 +91,20 @@ import {
   type HistoricalTransmissionEvent,
 } from "../historicalContext/governedPacket";
 import {
+  answerReflectionPromptIfChanged,
+  beginReflectionSave,
   canSaveReflectionDraft,
   clearReflectionDraftAfterSuccessfulSave,
   draftValue,
+  endReflectionSave,
   entryHasDirtyReflectionDraft,
   isReflectionDraftDirty,
+  isReflectionSaveInFlight,
   reconcileReflectionDrafts,
   removeReflectionDraftsForEntry,
   setReflectionDraft,
   type ReflectionDrafts,
+  type ReflectionSaveFlights,
 } from "./reflectionDraft";
 import type {
   CandidateStatus,
@@ -147,6 +152,7 @@ import { HistoricalContextEntryPoint } from "./HistoricalContextEntryPoint";
 import { HistoricalCandidateRelevance } from "./HistoricalCandidateRelevance";
 import { focusContextRecovery } from "./contextRecoveryNavigation";
 import { authorizeFounderSchemaV5Migration, deleteFounderSchemaV5Backup, restoreFounderSchemaV4Backup } from "../shared/storage/sqlite/founderSchemaV5";
+import { isOrdinaryDesktopSchemaV5 } from "../shared/storage/sqlite/founderSchemaV5";
 import { FounderSchemaV5MigrationPanel } from "./FounderSchemaV5MigrationPanel";
 import { FounderSchemaV5BackupPanel } from "./FounderSchemaV5BackupPanel";
 import { ContextRecoveryPanel } from "./ContextRecoveryPanel";
@@ -620,6 +626,9 @@ export function App() {
     Record<string, boolean>
   >({});
   const [reflectionDrafts, setReflectionDrafts] = useState<ReflectionDrafts>({});
+  const reflectionSaveFlightsRef = useRef<ReflectionSaveFlights>(new Map());
+  const [reflectionSaveFlights, setReflectionSaveFlights] =
+    useState<ReflectionSaveFlights>(() => new Map());
   const [historicalContextOpenPanels, setHistoricalContextOpenPanels] =
     useState<HistoricalContextOpenPanels>(() => new Set());
   const [historicalCandidatesByCurrentExperienceId, setHistoricalCandidatesByCurrentExperienceId] =
@@ -926,18 +935,18 @@ export function App() {
   }, []);
 
   const deleteFounderBackup = useCallback(async () => {
-    if (!window.confirm(copy.founderV5DeleteConfirm)) return;
+    if (!window.confirm(isOrdinaryDesktopSchemaV5 ? copy.ordinaryV5DeleteConfirm : copy.founderV5DeleteConfirm)) return;
     setFounderBackupPending(true); setFounderBackupError(false);
     try { await deleteFounderSchemaV5Backup(); window.location.reload(); }
     catch { setFounderBackupError(true); setFounderBackupPending(false); }
-  }, [copy.founderV5DeleteConfirm]);
+  }, [copy.founderV5DeleteConfirm, copy.ordinaryV5DeleteConfirm]);
 
   const restoreFounderBackup = useCallback(async () => {
-    if (!window.confirm(copy.founderV5RestoreConfirm)) return;
+    if (!window.confirm(isOrdinaryDesktopSchemaV5 ? copy.ordinaryV5RestoreConfirm : copy.founderV5RestoreConfirm)) return;
     setFounderBackupPending(true); setFounderBackupError(false);
     try { await restoreFounderSchemaV4Backup(); window.location.reload(); }
     catch { setFounderBackupError(true); setFounderBackupPending(false); }
-  }, [copy.founderV5RestoreConfirm]);
+  }, [copy.founderV5RestoreConfirm, copy.ordinaryV5RestoreConfirm]);
 
   const cancelEdit = useCallback(() => {
     setEditingEntryId(null);
@@ -1125,23 +1134,38 @@ export function App() {
     const prompt = reflectionPromptsByEntryId[entryId]?.find((item) => item.id === promptId);
     const submittedDraft = prompt ? draftValue(reflectionDrafts, entryId, prompt) : "";
     if (!canSaveReflectionDraft(submittedDraft)) return;
-    const committed = await runArtifactMutation(entryId, (current) => ({ ...current, reflections: current.reflections.map((item) => item.id === promptId ? answerReflectionPrompt(item, submittedDraft) : item), patterns: [] }), copy.reflectionSaved);
-    setReflectionDrafts((drafts) =>
-      clearReflectionDraftAfterSuccessfulSave(
-        drafts,
-        entryId,
-        promptId,
-        submittedDraft,
-        Boolean(committed),
-      ),
-    );
-    if (committed) {
-      clearPatternSetAside(entryId);
-      const hasUnresolved = committed.reflections.some((item) => item.status === "suggested");
-      const hasOtherDirty = committed.reflections.some(
-        (item) => item.id !== promptId && isReflectionDraftDirty(reflectionDrafts, entryId, item),
+    if (!beginReflectionSave(reflectionSaveFlightsRef.current, entryId, promptId)) return;
+    setReflectionSaveFlights(new Map(reflectionSaveFlightsRef.current));
+    try {
+      const committed = await runArtifactMutation(entryId, (current) => ({
+        ...current,
+        reflections: current.reflections.map((item) =>
+          item.id === promptId
+            ? answerReflectionPromptIfChanged(item, submittedDraft)
+            : item,
+        ),
+        patterns: [],
+      }), copy.reflectionSaved);
+      setReflectionDrafts((drafts) =>
+        clearReflectionDraftAfterSuccessfulSave(
+          drafts,
+          entryId,
+          promptId,
+          submittedDraft,
+          Boolean(committed),
+        ),
       );
-      openJourneyStage(entryId, !hasUnresolved && !hasOtherDirty ? "completion" : "reflection");
+      if (committed) {
+        clearPatternSetAside(entryId);
+        const hasUnresolved = committed.reflections.some((item) => item.status === "suggested");
+        const hasOtherDirty = committed.reflections.some(
+          (item) => item.id !== promptId && isReflectionDraftDirty(reflectionDrafts, entryId, item),
+        );
+        openJourneyStage(entryId, !hasUnresolved && !hasOtherDirty ? "completion" : "reflection");
+      }
+    } finally {
+      endReflectionSave(reflectionSaveFlightsRef.current, entryId, promptId);
+      setReflectionSaveFlights(new Map(reflectionSaveFlightsRef.current));
     }
   }, [clearPatternSetAside, copy.reflectionSaved, openJourneyStage, reflectionDrafts, reflectionPromptsByEntryId, runArtifactMutation]);
   const skipReflectionPrompt = useCallback(async (entryId: string, promptId: string) => {
@@ -1507,7 +1531,7 @@ export function App() {
         : databaseStartup.reason === "initialization_failed"
           ? copy.databaseInitializationFailed
           : databaseStartup.reason === "founder_v5_blocked"
-            ? copy.founderV5Blocked(databaseStartup.founderSchemaV5?.reason ?? "recovery_required")
+            ? (isOrdinaryDesktopSchemaV5 ? copy.ordinaryV5Blocked : copy.founderV5Blocked)(databaseStartup.founderSchemaV5?.reason ?? "recovery_required")
           : copy.databaseInspectionFailed;
 
     return (
@@ -1538,6 +1562,7 @@ export function App() {
             <FounderSchemaV5MigrationPanel
               copy={copy}
               state={founderMigration}
+              ordinary={isOrdinaryDesktopSchemaV5}
               pending={founderMigrationPending}
               cancelled={founderMigrationCancelled}
               error={founderMigrationError}
@@ -1567,6 +1592,7 @@ export function App() {
               <FounderSchemaV5BackupPanel
                 copy={copy}
                 state={founderRecovery}
+                ordinary={isOrdinaryDesktopSchemaV5}
                 pending={founderBackupPending}
                 error={founderBackupError}
                 onDelete={() => void deleteFounderBackup()}
@@ -1640,6 +1666,7 @@ export function App() {
           <FounderSchemaV5BackupPanel
             copy={copy}
             state={databaseStartup.founderSchemaV5}
+            ordinary={isOrdinaryDesktopSchemaV5}
             pending={founderBackupPending}
             error={founderBackupError}
             onDelete={() => void deleteFounderBackup()}
@@ -2257,6 +2284,11 @@ export function App() {
                               );
                               const isAnswered = prompt.status === "answered";
                               const isSkipped = prompt.status === "skipped";
+                              const isSavingAnswer = isReflectionSaveInFlight(
+                                reflectionSaveFlights,
+                                entry.id,
+                                prompt.id,
+                              );
 
                               return (
                                 <article
@@ -2299,7 +2331,8 @@ export function App() {
                                     <button
                                       type="button"
                                       className="primary-button compact"
-                                      disabled={!canSaveReflectionDraft(response) || !isDirty || isSkipped}
+                                      aria-busy={isSavingAnswer}
+                                      disabled={!canSaveReflectionDraft(response) || !isDirty || isSkipped || isSavingAnswer}
                                       onClick={() =>
                                         saveReflectionPromptAnswer(
                                           entry.id,

@@ -8,20 +8,23 @@ export const TITLE = "Life OS — Founder Schema v5 Candidate (Private)";
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
 export async function validateCandidateSource(root) {
-  const [base, config, cargo, adapter, ordinary] = await Promise.all([
+  const [base, config, cargo, adapter, ordinary, buildScript] = await Promise.all([
     readFile(path.join(root, "src-tauri", "tauri.conf.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "tauri.founder-dogfood-v5-candidate.conf.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "Cargo.toml"), "utf8"),
     readFile(path.join(root, "src", "shared", "storage", "sqlite", "founderSchemaV5.ts"), "utf8"),
     readFile(path.join(root, "src-tauri", "src", "sqlite.rs"), "utf8"),
+    readFile(path.join(root, "scripts", "build-founder-schema-v5-candidate.ps1"), "utf8"),
   ]);
   assert(base.identifier === "com.lifeos.app", "Ordinary identity drifted.");
   assert(config.identifier === IDENTIFIER, "Candidate identity drifted.");
   assert(config.app.windows?.[0]?.title === TITLE, "Candidate private title drifted.");
   assert(cargo.includes("founder-schema-v5 = []"), "Candidate Cargo feature is missing.");
+  assert(cargo.includes('default = ["desktop-schema-v5"]'), "Ordinary desktop schema-v5 default feature is missing.");
+  assert(buildScript.includes("--no-default-features") && buildScript.includes("founder-schema-v5"), "Candidate build must exclude the ordinary default feature.");
   assert(adapter.includes('VITE_LIFE_OS_FOUNDER_SCHEMA_V5 === "1"'), "Candidate build-time renderer gate is missing.");
   assert(/const\s+SCHEMA_VERSION\s*:\s*i64\s*=\s*4\s*;/.test(ordinary), "Ordinary SCHEMA_VERSION must remain 4.");
-  return { identifier: config.identifier, ordinaryIdentifier: base.identifier, ordinarySchemaVersion: 4 };
+  return { identifier: config.identifier, ordinaryIdentifier: base.identifier, legacyV4SchemaVersion: 4 };
 }
 
 export async function validateCandidateBinary(binaryPath) {

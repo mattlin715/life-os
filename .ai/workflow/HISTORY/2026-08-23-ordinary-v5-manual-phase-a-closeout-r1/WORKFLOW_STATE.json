@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 14,
+  "last_event_id": "2026-08-23-ordinary-v5-manual-phase-a-closeout-r1:0014",
+  "last_event_hash": "46280b1b8ae51f6a3c2f9faf00a16f45718d7b6cc74ab815792885a4fe00f3cb",
+  "sprint_id": "2026-08-23-ordinary-v5-manual-phase-a-closeout-r1",
+  "mission_title": "Record disposable ordinary schema-v5 Manual Phase A evidence and prepare Founder diff review",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 0,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": null,
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-schema-v5-ordinary-production-activation-r1",
+  "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+  "working_tree_digest": "75ee2c6d177c45aad05d243567d3318f77551eb1d29f88347795fb8df33bb78c",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "not_required",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-08-22T22:17:57.235Z",
+      "repository_head": "44ec6d56d645829488aa73d0b92bcf72b19487f4",
+      "working_tree_digest": "75ee2c6d177c45aad05d243567d3318f77551eb1d29f88347795fb8df33bb78c"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-08-22T22:11:30.969Z",
+  "updated_at": "2026-08-22T22:19:23.064Z"
+}
