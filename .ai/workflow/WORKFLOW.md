@@ -110,6 +110,25 @@ claims, and git state. Reports must be corrected if they disagree with
 repository reality. Run the canonical verification path. Record manual checks as
 passed only when actually performed.
 
+### Resolved-decision verification refresh
+
+`record-verification` remains limited to `validation`. A resolved
+`human_decision_required` gate may use the narrower
+`refresh-verification-for-resume` operation only when its recorded
+`resume_phase` is `theory_alignment_review`. The command requires the current
+event sequence, the exact stored decision evidence reference, `passed` status,
+exit code `0`, and the canonical repository verification command. It records
+the current HEAD, branch, and non-workflow working-tree digest in one explicit
+`resume_verification_refreshed` event and the state projection.
+
+The operation leaves the workflow at `human_decision_required`, preserves the
+active decision IDs, exact resolution evidence, and resume phase, and rolls
+back the event/state pair on a write or validation failure. It cannot be used
+for an unresolved decision, another resume phase, failed/skipped verification,
+or arbitrary post-decision state rewriting. The subsequent `transition` still
+requires the recorded decision reference and fresh repository evidence; this
+refresh grants no new Founder authority.
+
 ## Phase 5: Theory Alignment Review
 
 Apply the Chief Product Theorist role to the actual diff and completed

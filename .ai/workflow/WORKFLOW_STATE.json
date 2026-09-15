@@ -1,44 +1,54 @@
 {
   "schema_version": "1.1",
-  "state_revision": 0,
-  "last_event_id": null,
-  "last_event_hash": null,
-  "sprint_id": null,
-  "mission_title": null,
-  "status": "idle",
-  "current_phase": "intake",
+  "state_revision": 121,
+  "last_event_id": "2026-08-27-desktop-schema-v5-prepared-state-recovery-r2:0121",
+  "last_event_hash": "bae0248c3d749225fc5da704e0e9b6e15f004e22009f7b3e6fcbd10d5b4fb2da",
+  "sprint_id": "2026-08-27-desktop-schema-v5-prepared-state-recovery-r2",
+  "mission_title": "Desktop Schema-v5 Prepared-State Recovery and Real-Profile Migration R2",
+  "status": "human_decision_required",
+  "current_phase": "human_decision_required",
   "current_role": "orchestrator",
-  "review_cycle": 0,
+  "review_cycle": 1,
   "max_review_cycles": 3,
-  "human_approval_required": false,
-  "blocking_reason": null,
-  "blocked_phase": null,
-  "resume_phase": null,
-  "active_decision_ids": [],
-  "decision_resolution": null,
-  "last_completed_phase": null,
-  "next_action": null,
+  "human_approval_required": true,
+  "blocking_reason": "Founder diff review and separate local Promotion Authorization are required; no promotion is authorized",
+  "blocked_phase": "theory_alignment_review",
+  "resume_phase": "theory_alignment_review",
+  "active_decision_ids": [
+    "DESKTOP-V5-PREPARED-RECOVERY-R2B-PROMOTION-001"
+  ],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "I select Option A. I authorize one bounded local R2B promotion cycle for the exact reviewed 43-path diff: reverify the branch, HEAD, clean index, exact path set and remote ancestry; stage only those 43 paths; create one feature commit; switch to a clean local develop branch; perform one non-fast-forward merge; run canonical verification; and report the resulting commits and Git state. I do not authorize push, PR, deployment, distribution, release, application launch, real-profile access or mutation, recovery, retry, restore, repair, checkpoint, schema decrement, backup deletion, migration, Phase 4, or Android.",
+    "selected_option": "A",
+    "authorized_scope": "One bounded local R2B promotion cycle for the exact reviewed 43-path diff: reverify branch, HEAD, clean index, exact path set and remote ancestry; stage only those 43 paths; create one feature commit; switch to a clean local develop branch; perform one non-fast-forward merge; run canonical verification; and report the resulting commits and Git state. No push, PR, deployment, distribution, release, application launch, real-profile access or mutation, recovery, retry, restore, repair, checkpoint, schema decrement, backup deletion, migration, Phase 4, or Android is authorized.",
+    "decided_at": "2026-09-15T17:22:01.051Z",
+    "evidence_reference": "Founder exact Option A response in current task on 2026-09-16"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": "Founder must explicitly select Option A or Option B for DESKTOP-V5-PREPARED-RECOVERY-R2B-PROMOTION-001; do not promote without that response",
   "base_branch": "develop",
-  "working_branch": null,
-  "repository_head": null,
-  "working_tree_digest": null,
+  "working_branch": "codex/desktop-schema-v5-real-profile-recovery-r2",
+  "repository_head": "8173d4fe76eeb6498fb8e5d5e3d6169c97e0b899",
+  "working_tree_digest": "5e64bd6e11d171f46ade1b9e1abdd0934a8b7e824800eb678a3860ffaa80a865",
   "artifacts": {
-    "current_mission": "idle",
-    "product_review": "pending",
-    "engineering_plan": "pending",
-    "engineering_report": "pending",
-    "theory_alignment_review": "pending",
-    "decision_required": "not_required",
-    "sprint_report": "pending"
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
   },
   "verification": {
     "repository_verify": {
-      "status": "not_run",
-      "command": null,
-      "exit_code": null,
-      "completed_at": null,
-      "repository_head": null,
-      "working_tree_digest": null
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-09-14T12:01:47.825Z",
+      "repository_head": "8173d4fe76eeb6498fb8e5d5e3d6169c97e0b899",
+      "working_branch": "codex/desktop-schema-v5-real-profile-recovery-r2",
+      "working_tree_digest": "5e64bd6e11d171f46ade1b9e1abdd0934a8b7e824800eb678a3860ffaa80a865"
     },
     "manual_ui": {
       "status": "not_run",
@@ -47,6 +57,6 @@
       "evidence_reference": null
     }
   },
-  "created_at": null,
-  "updated_at": null
+  "created_at": "2026-08-26T15:42:44.900Z",
+  "updated_at": "2026-09-15T17:22:01.051Z"
 }

@@ -107,6 +107,16 @@ describe("Context Recovery localization", () => {
     expect(uiText["zh-TW"].ordinaryV5BackupSensitivity).toContain("相同的本機個人資料");
     expect(uiText.ja.ordinaryV5OlderBinaryBoundary).toContain("書き込みを拒否");
   });
+  it("keeps recovery close-command failure distinct from recovery failure in every language", () => {
+    for (const locale of ["en", "zh-TW", "ja"] as const) {
+      const closeFailure = uiText[locale].preparedRecoveryCloseFailed("window_close_refused");
+      expect(closeFailure).toContain("window_close_refused");
+      expect(closeFailure).not.toBe(uiText[locale].preparedRecoveryFailed("window_close_refused"));
+    }
+    expect(uiText.en.preparedRecoveryCloseFailed("x")).toContain("native window close");
+    expect(uiText["zh-TW"].preparedRecoveryCloseFailed("x")).toContain("原生關閉");
+    expect(uiText.ja.preparedRecoveryCloseFailed("x")).toContain("標準の閉じる操作");
+  });
   it("keeps saved-date retrieval explicit, inclusive, and fail-closed in every language", () => {
     expect(uiText.en.historicalSavedDateFilterLabel).toContain("saved date");
     expect(uiText["zh-TW"].historicalSavedDateFilterLabel).toContain("儲存日期");

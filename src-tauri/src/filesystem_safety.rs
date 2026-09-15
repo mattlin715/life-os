@@ -181,6 +181,15 @@ pub(crate) struct OwnedOperation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreparedOperationRecoveryFacts {
+    pub(crate) operation_id: String,
+    pub(crate) state_size: u64,
+    pub(crate) state_sha256: String,
+    pub(crate) staging_size: u64,
+    pub(crate) staging_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExpectedCandidate {
     pub(crate) database_sha256: String,
     pub(crate) source_manifest_digest: String,
@@ -1871,6 +1880,88 @@ pub(crate) fn read_migration_state_evidence(
     })
 }
 
+pub(crate) fn inspect_exact_prepared_operation_for_recovery(
+    operation: &OwnedOperation,
+) -> Result<PreparedOperationRecoveryFacts, SafetyError> {
+    validate_operation_paths(operation, BackupPathRequirement::Absent)?;
+
+    let mut names = fs::read_dir(&operation.root)
+        .map_err(|error| {
+            SafetyError::recovery_required(format!(
+                "prepared_operation_directory_unreadable:{}",
+                error.kind()
+            ))
+        })?
+        .map(|entry| {
+            entry.map(|value| value.file_name()).map_err(|error| {
+                SafetyError::recovery_required(format!(
+                    "prepared_operation_entry_unreadable:{}",
+                    error.kind()
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    names.sort();
+    let mut expected = vec![
+        operation.state.file_name().unwrap().to_os_string(),
+        operation.staging.file_name().unwrap().to_os_string(),
+    ];
+    expected.sort();
+    if names != expected {
+        return Err(SafetyError::recovery_required(
+            "prepared_operation_file_set_mismatch",
+        ));
+    }
+
+    let state = read_owned_state(operation)?;
+    if !state_matches_operation(&state, operation)
+        || state.phase != OperationPhase::Prepared
+        || state.live_before_sha256.is_some()
+        || state.expected_database_sha256.is_some()
+        || state.backup_source_manifest_digest.is_some()
+        || state.backup_schema_version.is_some()
+        || state.backup_foreign_keys_valid.is_some()
+        || state.backup_integrity_valid.is_some()
+        || state.backup_exact_record_digest.is_some()
+        || state.migration_id.is_some()
+        || state.migration_source_manifest_digest.is_some()
+        || state.migration_target_manifest_digest.is_some()
+        || state.outcome_class.is_some()
+    {
+        return Err(SafetyError::recovery_required(
+            "prepared_operation_state_not_exact",
+        ));
+    }
+
+    let state_size = fs::metadata(&operation.state)
+        .map_err(|error| {
+            SafetyError::recovery_required(format!(
+                "prepared_state_metadata_failed:{}",
+                error.kind()
+            ))
+        })?
+        .len();
+    let staging_size = fs::metadata(&operation.staging)
+        .map_err(|error| {
+            SafetyError::recovery_required(format!(
+                "prepared_staging_metadata_failed:{}",
+                error.kind()
+            ))
+        })?
+        .len();
+    if staging_size != 0 {
+        return Err(SafetyError::recovery_required("prepared_staging_not_empty"));
+    }
+
+    Ok(PreparedOperationRecoveryFacts {
+        operation_id: operation.operation_id.clone(),
+        state_size,
+        state_sha256: sha256_file(&operation.state)?,
+        staging_size,
+        staging_sha256: sha256_file(&operation.staging)?,
+    })
+}
+
 pub(crate) fn record_migration_state(
     operation: &OwnedOperation,
     phase: MigrationOperationPhase,
@@ -1900,6 +1991,7 @@ pub(crate) fn record_migration_state(
                 | MigrationOperationPhase::CommitOutcomeUnknown
                 | MigrationOperationPhase::V5Verifying
                 | MigrationOperationPhase::V5Ready
+                | MigrationOperationPhase::V5BlockedRestoreAvailable
         ),
         MigrationOperationPhase::V4ReadyWithBackup => matches!(
             current,

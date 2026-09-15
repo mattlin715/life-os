@@ -31,6 +31,10 @@ const state = (name: "missing" | "migration_required" | "ready" | "blocked", ver
   backupRetentionDays: 30,
   backupCreatedAt: null,
   backupExpiresAt: null,
+  preparedRecoveryReceiptAvailable: false,
+  preparedRecoveryReceiptRelativePath: null,
+  preparedRecoveryReceiptOperationId: null,
+  preparedRecoveryReceiptRecoveredAt: null,
 });
 
 describe("ordinary desktop schema-v5 startup", () => {

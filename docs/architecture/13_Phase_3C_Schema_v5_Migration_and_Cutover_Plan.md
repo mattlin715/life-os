@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 5.2
+version: 5.4
 owner: product-and-engineering
-last_updated: 2026/08/18
+last_updated: 2026/09/14
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -2699,3 +2699,36 @@ unauthorized.
 > `sqlite.rs::SCHEMA_VERSION = 4` remains the old-binary and v2/v3
 > stabilization boundary; the schema-v5-capable build maximum is 5. No real
 > ordinary profile has been opened or migrated by automated work.
+>
+> 2026/09/01 factual R2 note: architecture/19 implements two explicit-open,
+> exact-predicate recovery paths: the retained R1 pre-backup prepared state and
+> the Founder-selected post-migration `v5_ready` state containing only the exact
+> empty WAL/matching zero-frame SHM left by historical-v4 refusal. Neither opens
+> the database writable or checkpoints SQLite. Each quarantines only its proven
+> technical files after bound TOCTOU revalidation, and disposable Manual Phase A
+> now passes both paths and corrected close/restart behavior. Recovery consent is
+> not migration consent. Real-profile disposition, a second migration, promotion,
+> Android and Phase 4 remain separate Founder gates.
+
+> 2026/09/02 factual R2B note: after separately authorized real Phase B and one
+> Phase C attempt, the database reached committed schema v5 but remained fail
+> closed before lifecycle activation because the older verifier did not accept
+> the exact historical frontend-created schema-v4 SQL representation. The R2B
+> repository correction accepts only that fixed third source/derived manifest,
+> rejects unknown source representations pre-commit, and adds one explicit
+> exact-state post-commit completion path. It performs no DDL, migration,
+> restore, checkpoint, schema decrement or backup deletion. No new real-profile
+> action, promotion, release, Phase 4 or Android action is authorized.
+
+> 2026/09/14 factual R2B Founder-evidence note: the complete disposable-only
+> BF1-BF8 matrix now passes and the Founder accepted that manual evidence. The
+> matrix covers historical-v4 fixture construction, one bounded blocked
+> migration, three-language recovery disclosure and write-free Cancel review,
+> exact post-commit recovery completion, restart reconstruction, managed-backup
+> preservation, and one persisted synthetic schema-v5 Experience with revision
+> 1, SQL NULL predecessor, user authorship, and no provider metadata or
+> transmission. This closes only the disposable R2B manual-review condition.
+> The real profile remains in its preserved committed-schema-v5,
+> `post_commit_schema_manifest_mismatch`, lifecycle-writes-disabled state; no
+> real recovery, retry, restore, repair, checkpoint, schema decrement, backup
+> deletion, migration, promotion, release, Phase 4, or Android action follows.

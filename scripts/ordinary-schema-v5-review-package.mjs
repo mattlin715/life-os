@@ -9,9 +9,10 @@ export const VERSION = "0.3.0";
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
 export async function validateOrdinaryReviewSource(root) {
-  const [base, review, cargo, pkg, adapter, rust, lib, viteEnv] = await Promise.all([
+  const [base, review, capability, cargo, pkg, adapter, rust, lib, viteEnv] = await Promise.all([
     readFile(path.join(root, "src-tauri", "tauri.conf.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "tauri.ordinary-schema-v5-review.conf.json"), "utf8").then(JSON.parse),
+    readFile(path.join(root, "src-tauri", "capabilities", "default.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "Cargo.toml"), "utf8"),
     readFile(path.join(root, "package.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src", "shared", "storage", "sqlite", "founderSchemaV5.ts"), "utf8"),
@@ -22,6 +23,10 @@ export async function validateOrdinaryReviewSource(root) {
   assert(base.identifier === IDENTIFIER && review.identifier === IDENTIFIER, "Ordinary identity drifted.");
   assert(base.version === VERSION && pkg.version === VERSION, "Ordinary application version drifted.");
   assert(review.app.windows?.[0]?.title === TITLE, "Disposable review title drifted.");
+  assert(
+    capability.windows?.includes("main") && capability.permissions?.includes("core:window:allow-close"),
+    "The main recovery window must be allowed to execute its explicit close control.",
+  );
   assert(cargo.includes('version = "0.3.0"'), "Rust application version drifted.");
   assert(cargo.includes('default = ["desktop-schema-v5"]'), "Ordinary schema-v5 feature must be a default desktop capability.");
   assert(adapter.includes("isOrdinaryDesktopSchemaV5"), "Ordinary frontend build policy is missing.");

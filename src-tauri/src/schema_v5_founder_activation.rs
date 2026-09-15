@@ -116,7 +116,7 @@ PRAGMA user_version = 4;
 "#;
 static EXCLUSIVE_OPERATION: AtomicBool = AtomicBool::new(false);
 
-struct OperationLock;
+pub(crate) struct OperationLock;
 impl Drop for OperationLock {
     fn drop(&mut self) {
         EXCLUSIVE_OPERATION.store(false, Ordering::Release);
@@ -138,6 +138,10 @@ pub struct FounderSchemaV5State {
     backup_retention_days: u16,
     backup_created_at: Option<String>,
     backup_expires_at: Option<String>,
+    prepared_recovery_receipt_available: bool,
+    prepared_recovery_receipt_relative_path: Option<String>,
+    prepared_recovery_receipt_operation_id: Option<String>,
+    prepared_recovery_receipt_recovered_at: Option<String>,
 }
 
 impl FounderSchemaV5State {
@@ -155,6 +159,10 @@ impl FounderSchemaV5State {
             backup_retention_days: 30,
             backup_created_at: None,
             backup_expires_at: None,
+            prepared_recovery_receipt_available: false,
+            prepared_recovery_receipt_relative_path: None,
+            prepared_recovery_receipt_operation_id: None,
+            prepared_recovery_receipt_recovered_at: None,
         }
     }
 
@@ -172,6 +180,10 @@ impl FounderSchemaV5State {
             backup_retention_days: 30,
             backup_created_at: None,
             backup_expires_at: None,
+            prepared_recovery_receipt_available: false,
+            prepared_recovery_receipt_relative_path: None,
+            prepared_recovery_receipt_operation_id: None,
+            prepared_recovery_receipt_recovered_at: None,
         }
     }
 
@@ -190,6 +202,17 @@ impl FounderSchemaV5State {
 
     fn with_restore_available(mut self) -> Self {
         self.restore_available = self.backup_available;
+        self
+    }
+
+    #[cfg(feature = "desktop-schema-v5")]
+    fn with_prepared_recovery_receipt(mut self, root: &Path) -> Self {
+        if let Some(summary) = crate::schema_v5_prepared_recovery::recovery_receipt_summary(root) {
+            self.prepared_recovery_receipt_available = true;
+            self.prepared_recovery_receipt_relative_path = Some(summary.relative_path);
+            self.prepared_recovery_receipt_operation_id = Some(summary.operation_id);
+            self.prepared_recovery_receipt_recovered_at = Some(summary.recovered_at);
+        }
         self
     }
 }
@@ -250,7 +273,7 @@ fn require_schema_v5_identity(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-fn paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
+pub(crate) fn paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     require_schema_v5_identity(app)?;
     let root = app
         .path()
@@ -259,7 +282,7 @@ fn paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), String> {
     Ok((root.clone(), root.join(DATABASE_FILENAME)))
 }
 
-fn operation_lock() -> Result<OperationLock, String> {
+pub(crate) fn operation_lock() -> Result<OperationLock, String> {
     EXCLUSIVE_OPERATION
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .map(|_| OperationLock)
@@ -300,7 +323,10 @@ fn ensure_disk_capacity(_root: &Path, _source: Option<&Path>) -> Result<(), Stri
     Ok(())
 }
 
-fn operation_candidates(root: &Path, live: &Path) -> Result<Vec<OwnedOperation>, String> {
+pub(crate) fn operation_candidates(
+    root: &Path,
+    live: &Path,
+) -> Result<Vec<OwnedOperation>, String> {
     if !root.exists() {
         return Ok(Vec::new());
     }
@@ -318,15 +344,16 @@ fn operation_candidates(root: &Path, live: &Path) -> Result<Vec<OwnedOperation>,
             .and_then(|value| value.strip_suffix(".operation"))
             .ok_or("founder_operation_identity_invalid")?
             .to_string();
+        let canonical_operation_root = fs::canonicalize(&operation_root)
+            .map_err(|_| "founder_operation_evidence_unreadable")?;
         operations.push(OwnedOperation {
             operation_id,
             owned_root: fs::canonicalize(root).map_err(|_| "founder_owned_root_invalid")?,
-            root: fs::canonicalize(&operation_root)
-                .map_err(|_| "founder_operation_evidence_unreadable")?,
+            root: canonical_operation_root.clone(),
             live: fs::canonicalize(live).unwrap_or_else(|_| live.to_path_buf()),
-            backup: operation_root.join("backup.db"),
-            staging: operation_root.join("staging.db"),
-            state: operation_root.join("state.json"),
+            backup: canonical_operation_root.join("backup.db"),
+            staging: canonical_operation_root.join("staging.db"),
+            state: canonical_operation_root.join("state.json"),
         });
     }
     operations.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
@@ -354,7 +381,7 @@ async fn read_user_version(path: &Path) -> Result<i64, String> {
     result
 }
 
-async fn classify(root: &Path, live: &Path) -> FounderSchemaV5State {
+async fn classify_inner(root: &Path, live: &Path) -> FounderSchemaV5State {
     if !root.exists() {
         return FounderSchemaV5State::state("missing", None);
     }
@@ -422,107 +449,137 @@ async fn classify(root: &Path, live: &Path) -> FounderSchemaV5State {
                 FounderSchemaV5State::state("migration_required", Some(version))
             }
         }
-        V5_SCHEMA_VERSION => match verify_any_committed_v5(live).await {
-            Ok(receipt) => {
-                let mut state = FounderSchemaV5State::state("ready", Some(version));
-                if let Some(operation) = operation {
-                    let evidence = match read_migration_state_evidence(operation) {
-                        Ok(value) => value,
-                        Err(_) => {
-                            return FounderSchemaV5State::blocked(
-                                "operation_evidence_malformed",
-                                Some(version),
-                            )
-                            .with_backup(operation)
-                        }
-                    };
-                    if evidence.phase != MigrationOperationPhase::V5Ready
-                        || evidence.migration_id.as_deref() != Some(receipt.migration_id.as_str())
-                        || evidence.migration_source_manifest_digest.as_deref()
-                            != Some(receipt.source_manifest_digest.as_str())
-                        || evidence.migration_target_manifest_digest.as_deref()
-                            != Some(receipt.target_manifest_digest.as_str())
-                        || receipt.backup_id.as_deref() != Some(operation.operation_id.as_str())
-                    {
-                        return FounderSchemaV5State::blocked(
-                            "operation_evidence_contradictory",
-                            Some(version),
-                        )
-                        .with_backup(operation);
-                    }
-                    let expected = match evidence.verified_backup {
-                        Some(value) => value,
-                        None => {
-                            return FounderSchemaV5State::blocked(
-                                "migration_backup_evidence_missing",
-                                Some(version),
-                            )
-                        }
-                    };
-                    if crate::filesystem_safety::verify_owned_backup_for_migration(
-                        operation,
-                        &expected,
-                        &ExactV4CandidateVerifier,
-                    )
-                    .await
-                    .is_err()
-                    {
-                        return FounderSchemaV5State::blocked(
-                            "migration_backup_verification_failed",
-                            Some(version),
-                        )
-                        .with_backup(operation);
-                    }
-                    state = state.with_backup(operation);
-                    match backup_dates(live).await {
-                        Ok((created, expires)) => {
-                            state.backup_created_at = Some(created);
-                            state.backup_expires_at = Some(expires);
-                        }
-                        Err(reason) => {
-                            return FounderSchemaV5State::blocked(reason, Some(version))
-                                .with_backup(operation)
-                        }
-                    }
-                } else if receipt.backup_id.is_some() {
+        V5_SCHEMA_VERSION => {
+            #[cfg(feature = "desktop-schema-v5")]
+            if let Some(operation) = operation {
+                if crate::schema_v5_prepared_recovery::exact_post_commit_manifest_recovery_available(
+                    root, live,
+                )
+                .await
+                {
                     return FounderSchemaV5State::blocked(
-                        "migration_backup_operation_missing",
+                        "post_commit_schema_manifest_recovery_available",
                         Some(version),
-                    );
+                    )
+                    .with_backup(operation);
                 }
-                state
             }
-            Err(error) => {
-                let mut state = FounderSchemaV5State::blocked(error.code.clone(), Some(version))
-                    .with_optional_backup(operation);
-                if let Some(operation) = operation {
-                    if let Ok(evidence) = read_migration_state_evidence(operation) {
-                        let exact_blocked_restore = evidence.phase
-                            == MigrationOperationPhase::V5BlockedRestoreAvailable
-                            && evidence.migration_id.is_some()
-                            && evidence.migration_source_manifest_digest.is_some()
-                            && evidence.migration_target_manifest_digest.is_some()
-                            && evidence.outcome_class.is_some();
-                        if exact_blocked_restore {
-                            if let Some(expected) = evidence.verified_backup {
-                                if crate::filesystem_safety::verify_owned_backup_for_migration(
-                                    operation,
-                                    &expected,
-                                    &ExactV4CandidateVerifier,
+            match verify_any_committed_v5(live).await {
+                Ok(receipt) => {
+                    let mut state = FounderSchemaV5State::state("ready", Some(version));
+                    if let Some(operation) = operation {
+                        let evidence = match read_migration_state_evidence(operation) {
+                            Ok(value) => value,
+                            Err(_) => {
+                                return FounderSchemaV5State::blocked(
+                                    "operation_evidence_malformed",
+                                    Some(version),
                                 )
-                                .await
-                                .is_ok()
-                                {
-                                    state = state.with_restore_available();
+                                .with_backup(operation)
+                            }
+                        };
+                        if evidence.phase != MigrationOperationPhase::V5Ready
+                            || evidence.migration_id.as_deref()
+                                != Some(receipt.migration_id.as_str())
+                            || evidence.migration_source_manifest_digest.as_deref()
+                                != Some(receipt.source_manifest_digest.as_str())
+                            || evidence.migration_target_manifest_digest.as_deref()
+                                != Some(receipt.target_manifest_digest.as_str())
+                            || receipt.backup_id.as_deref() != Some(operation.operation_id.as_str())
+                        {
+                            return FounderSchemaV5State::blocked(
+                                "operation_evidence_contradictory",
+                                Some(version),
+                            )
+                            .with_backup(operation);
+                        }
+                        let expected = match evidence.verified_backup {
+                            Some(value) => value,
+                            None => {
+                                return FounderSchemaV5State::blocked(
+                                    "migration_backup_evidence_missing",
+                                    Some(version),
+                                )
+                            }
+                        };
+                        if crate::filesystem_safety::verify_owned_backup_for_migration(
+                            operation,
+                            &expected,
+                            &ExactV4CandidateVerifier,
+                        )
+                        .await
+                        .is_err()
+                        {
+                            return FounderSchemaV5State::blocked(
+                                "migration_backup_verification_failed",
+                                Some(version),
+                            )
+                            .with_backup(operation);
+                        }
+                        state = state.with_backup(operation);
+                        match backup_dates(live).await {
+                            Ok((created, expires)) => {
+                                state.backup_created_at = Some(created);
+                                state.backup_expires_at = Some(expires);
+                            }
+                            Err(reason) => {
+                                return FounderSchemaV5State::blocked(reason, Some(version))
+                                    .with_backup(operation)
+                            }
+                        }
+                    } else if receipt.backup_id.is_some() {
+                        return FounderSchemaV5State::blocked(
+                            "migration_backup_operation_missing",
+                            Some(version),
+                        );
+                    }
+                    state
+                }
+                Err(error) => {
+                    let mut state =
+                        FounderSchemaV5State::blocked(error.code.clone(), Some(version))
+                            .with_optional_backup(operation);
+                    if let Some(operation) = operation {
+                        if let Ok(evidence) = read_migration_state_evidence(operation) {
+                            let exact_blocked_restore = evidence.phase
+                                == MigrationOperationPhase::V5BlockedRestoreAvailable
+                                && evidence.migration_id.is_some()
+                                && evidence.migration_source_manifest_digest.is_some()
+                                && evidence.migration_target_manifest_digest.is_some()
+                                && evidence.outcome_class.is_some();
+                            if exact_blocked_restore {
+                                if let Some(expected) = evidence.verified_backup {
+                                    if crate::filesystem_safety::verify_owned_backup_for_migration(
+                                        operation,
+                                        &expected,
+                                        &ExactV4CandidateVerifier,
+                                    )
+                                    .await
+                                    .is_ok()
+                                    {
+                                        state = state.with_restore_available();
+                                    }
                                 }
                             }
                         }
                     }
+                    state
                 }
-                state
             }
-        },
+        }
         _ => FounderSchemaV5State::blocked("newer_schema_unsupported", Some(version)),
+    }
+}
+
+pub(crate) async fn classify(root: &Path, live: &Path) -> FounderSchemaV5State {
+    let state = classify_inner(root, live).await;
+    #[cfg(feature = "desktop-schema-v5")]
+    {
+        state.with_prepared_recovery_receipt(root)
+    }
+    #[cfg(not(feature = "desktop-schema-v5"))]
+    {
+        state
     }
 }
 
@@ -660,7 +717,7 @@ pub fn authorize_founder_schema_v5_migration(
     })
 }
 
-async fn authorize_founder_schema_v5_migration_at(
+pub(crate) async fn authorize_founder_schema_v5_migration_at(
     root: &Path,
     live: &Path,
 ) -> Result<FounderSchemaV5State, String> {
@@ -1162,6 +1219,32 @@ mod tests {
         (directory, live)
     }
 
+    async fn historical_frontend_v4_fixture() -> (TempDir, PathBuf) {
+        let directory = TempDir::new().unwrap();
+        let live = directory.path().join(DATABASE_FILENAME);
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&live)
+            .create_if_missing(true)
+            .foreign_keys(true);
+        let mut connection = SqliteConnection::connect_with(&options).await.unwrap();
+        sqlx::raw_sql(
+            r#"CREATE TABLE IF NOT EXISTS experience_entries (
+      id TEXT PRIMARY KEY NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )"#,
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        crate::sqlite::migrate_connection(&mut connection, false)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+        (directory, live)
+    }
+
     fn sidecar(path: &Path, suffix: &str) -> PathBuf {
         PathBuf::from(format!("{}{}", path.display(), suffix))
     }
@@ -1288,6 +1371,36 @@ mod tests {
         .unwrap();
         assert_eq!(created.id, "runtime-v4-migrated-create");
         assert_eq!(created.body, "A post-migration runtime moment");
+        verify_any_committed_v5(&live).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn historical_frontend_v4_schema_manifest_migrates_and_supports_typed_writes() {
+        let (directory, live) = historical_frontend_v4_fixture().await;
+
+        let state = authorize_founder_schema_v5_migration_at(directory.path(), &live)
+            .await
+            .unwrap();
+
+        assert_eq!(state.state, "ready");
+        assert_eq!(read_user_version(&live).await.unwrap(), V5_SCHEMA_VERSION);
+        verify_any_committed_v5(&live).await.unwrap();
+        let operations = operation_candidates(directory.path(), &live).unwrap();
+        assert_eq!(operations.len(), 1);
+        assert_eq!(
+            read_user_version(&operations[0].backup).await.unwrap(),
+            V4_SCHEMA_VERSION
+        );
+        let created = crate::schema_v5_migration::runtime::create_experience(
+            &live,
+            "historical-frontend-v4-create",
+            "A synthetic typed write after exact historical migration",
+            "2026-09-02T00:00:00.000Z",
+            "historical-frontend-v4-create-guard-0123456789abcdef",
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.id, "historical-frontend-v4-create");
         verify_any_committed_v5(&live).await.unwrap();
     }
 

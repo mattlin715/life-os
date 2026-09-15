@@ -10,9 +10,11 @@ interface Props {
   readonly error: string | null;
   readonly onAuthorize: () => void;
   readonly onCancel: () => void;
+  readonly recoveryReceiptPending?: boolean;
+  readonly onDeleteRecoveryReceipt?: () => void;
 }
 
-export function FounderSchemaV5MigrationPanel({ copy, state, ordinary, pending, cancelled, error, onAuthorize, onCancel }: Props) {
+export function FounderSchemaV5MigrationPanel({ copy, state, ordinary, pending, cancelled, error, onAuthorize, onCancel, recoveryReceiptPending = false, onDeleteRecoveryReceipt }: Props) {
   const title = ordinary ? copy.ordinaryV5Title : copy.founderV5Title;
   const intro = ordinary ? copy.ordinaryV5Intro : copy.founderV5Intro;
   const localOnly = ordinary ? copy.ordinaryV5LocalOnly : copy.founderV5LocalOnly;
@@ -31,6 +33,28 @@ export function FounderSchemaV5MigrationPanel({ copy, state, ordinary, pending, 
           {ordinary ? <li>{copy.ordinaryV5OlderBinaryBoundary}</li> : null}
           <li>{copy.founderV5CancelBoundary}</li>
         </ul>
+        {ordinary && state.preparedRecoveryReceiptAvailable ? (
+          <details className="secondary-tools prepared-recovery-receipt">
+            <summary>{copy.preparedRecoveryReceiptTitle}</summary>
+            <p>{copy.preparedRecoveryReceiptPurpose}</p>
+            <dl>
+              <dt>{copy.founderV5BackupLocation}</dt>
+              <dd>{state.preparedRecoveryReceiptRelativePath}</dd>
+              <dt>{copy.preparedRecoveryOperation}</dt>
+              <dd>{state.preparedRecoveryReceiptOperationId}</dd>
+              <dt>{copy.founderV5BackupCreated}</dt>
+              <dd>{state.preparedRecoveryReceiptRecoveredAt}</dd>
+            </dl>
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={recoveryReceiptPending || pending}
+              onClick={onDeleteRecoveryReceipt}
+            >
+              {copy.preparedRecoveryReceiptDelete}
+            </button>
+          </details>
+        ) : null}
         {cancelled ? <p className="summary-note" role="status">{copy.founderV5Cancelled}</p> : null}
         {error ? <p className="inline-error" role="alert">{copy.founderV5Failed}</p> : null}
         <div className="candidate-actions">

@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.6
+version: 0.8
 owner: product-and-engineering
-last_updated: 2026/08/23
+last_updated: 2026/09/14
 depends:
   - docs/00_Constitution.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
@@ -14,6 +14,7 @@ depends:
 referenced_by:
   - docs/00_Index.md
   - docs/dev/10_Windows_Ordinary_Schema_v5_Review_Package_R1.md
+  - docs/architecture/19_Desktop_Schema_v5_Prepared_State_Recovery_and_Real_Profile_Migration_R2.md
 ---
 
 # 18 Desktop Schema-v5 Ordinary Production Activation R1
@@ -347,12 +348,28 @@ the database sidecar-free. The final disposable timeline contained two records.
 No third implementation correction was required; workflow cycle 3 only
 synchronized the completed Founder evidence and refreshed canonical verification.
 
-Neither correction cycle nor the completed disposable review retried the real profile. Its prepared operation,
-zero-byte staging file, WAL/SHM evidence, database, and personal data remain
-untouched. A new ignored unsigned installer may be used only for the separate
-disposable Founder review. Any real-profile cleanup, checkpoint, retry,
-restore, backup creation, or second migration action requires another explicit
-Founder gate.
+The later R2 Manual Phase A historical-compatibility check refined the meaning
+of older-version refusal. The exact installed historical legacy-v4 executable
+displayed the schema-v5 refusal and preserved the database, current operation
+state, and verified backup bytes, but created a zero-byte WAL plus matching
+zero-frame SHM before normal close. Therefore that historical executable was
+database-write-refusing but not filesystem-write-free. Current source uses the
+immutable readiness path; the historical sidecar evidence is nevertheless a
+real interoperability boundary and is preserved rather than silently deleted,
+ignored, checkpointed, or repaired. Architecture/19 records the separate
+Founder decision required for any exact sidecar-quarantine correction.
+
+Neither correction cycle nor the completed disposable review retried the real
+profile. Later, separate Founder authorizations completed the exact real Phase
+B prepared-state recovery and one Phase C migration attempt. Phase C created a
+verified schema-v4 backup and committed schema v5, then stopped fail closed at
+`post_commit_schema_manifest_mismatch` before lifecycle writes were enabled.
+The retained database, operation and backup now form a different exact state;
+they are not authorized for any further action by the earlier gates. A new
+ignored unsigned installer may be used only for the separate disposable
+Founder review. Any real-profile recovery, checkpoint, retry, repair, restore,
+backup deletion or further migration action requires another explicit Founder
+gate.
 
 ## Rollback
 
@@ -361,3 +378,40 @@ automatic. After a v5 migration, an older binary remains read-only/refused;
 there is no destructive schema decrement. The only local data rollback is the
 separately explicit verified-backup restore. A shipped rollback would require
 a forward fix or read-only compatible build, not a down migration.
+
+## R2 successor boundary
+
+Architecture/19 adds only an explicit-open recovery contract for the exact
+retained pre-backup prepared state. It does not reinterpret the R1 evidence,
+authorize real-profile action, or combine recovery with a second migration.
+The database identity and digest remain Founder-reviewed external evidence
+rather than repository constants.
+
+Founder-selected A-R3 adds one second explicit-open predicate only for an
+internally valid `v5_ready` operation, unchanged verified schema-v4 backup,
+valid earlier prepared-recovery evidence, zero-byte WAL, and matching
+zero-frame SHM created by historical-v4 refusal. It quarantines only those two
+sidecars and preserves the live database and all protected evidence. Disposable
+Manual Phase A completed both R2 paths plus corrected native close/restart
+behavior on 2026/09/01. This evidence still grants no real-profile, second
+migration, promotion, deployment, distribution, release, Phase 4, or Android
+authority.
+
+R2B adds a third explicit-open predicate only for that exact historical
+frontend-created source representation and exact post-commit blocked state. It
+accepts three fixed source/derived schema manifests, rejects unknown source
+representations before migration, and can change only lifecycle writes plus
+the bound operation state after explicit authorization. It performs no DDL,
+migration, restore, checkpoint, schema decrement or backup deletion and shows
+no migration/restore/delete control. Repository implementation, automation and
+one ignored unsigned disposable package do not authorize installation, launch,
+real-profile access, promotion, release, Phase 4 or Android.
+
+Disposable R2B Founder review completed through BF8 on 2026/09/14. It proved
+the bounded recovery panel and write-free Cancel path, a separate exact
+completion action, post-recovery restart, managed-backup reconstruction and one
+persisted synthetic schema-v5 Experience with no provider transmission. The
+Founder accepted only that disposable evidence. The real profile remains the
+preserved blocked post-commit profile with lifecycle writes disabled, and
+repository promotion remains an unresolved separate decision. No real-profile,
+release, Phase 4 or Android authority is implied.

@@ -30,7 +30,7 @@ sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO"] }
 
 [dev-dependencies]
 tempfile = "3"

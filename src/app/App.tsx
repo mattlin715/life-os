@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   createExperienceExportFilename,
   serializeExperienceExportJson,
@@ -151,11 +152,22 @@ import {
 import { HistoricalContextEntryPoint } from "./HistoricalContextEntryPoint";
 import { HistoricalCandidateRelevance } from "./HistoricalCandidateRelevance";
 import { focusContextRecovery } from "./contextRecoveryNavigation";
-import { authorizeFounderSchemaV5Migration, deleteFounderSchemaV5Backup, restoreFounderSchemaV4Backup } from "../shared/storage/sqlite/founderSchemaV5";
+import {
+  authorizeFounderSchemaV5Migration,
+  deleteFounderSchemaV5Backup,
+  deletePreparedRecoveryReceipt,
+  executePreparedStateRecovery,
+  inspectPreparedStateRecovery,
+  restoreFounderSchemaV4Backup,
+  type PreparedRecoveryInspection,
+  type PreparedRecoveryResult,
+} from "../shared/storage/sqlite/founderSchemaV5";
 import { isOrdinaryDesktopSchemaV5 } from "../shared/storage/sqlite/founderSchemaV5";
 import { FounderSchemaV5MigrationPanel } from "./FounderSchemaV5MigrationPanel";
 import { FounderSchemaV5BackupPanel } from "./FounderSchemaV5BackupPanel";
 import { ContextRecoveryPanel } from "./ContextRecoveryPanel";
+import { PreparedStateRecoveryPanel } from "./PreparedStateRecoveryPanel";
+import { requestLifeOsClose } from "./closeLifeOs";
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -597,6 +609,13 @@ export function App() {
   const [founderMigrationPending, setFounderMigrationPending] = useState(false);
   const [founderMigrationCancelled, setFounderMigrationCancelled] = useState(false);
   const [founderMigrationError, setFounderMigrationError] = useState<string | null>(null);
+  const [preparedRecoveryOpen, setPreparedRecoveryOpen] = useState(false);
+  const [preparedRecoveryInspection, setPreparedRecoveryInspection] = useState<PreparedRecoveryInspection | null>(null);
+  const [preparedRecoveryResult, setPreparedRecoveryResult] = useState<PreparedRecoveryResult | null>(null);
+  const [preparedRecoveryPending, setPreparedRecoveryPending] = useState(false);
+  const [preparedRecoveryError, setPreparedRecoveryError] = useState<string | null>(null);
+  const [preparedRecoveryCloseError, setPreparedRecoveryCloseError] = useState<string | null>(null);
+  const [preparedRecoveryReceiptPending, setPreparedRecoveryReceiptPending] = useState(false);
   const [language, setLanguage] = useState<AppLanguage>(() =>
     readInitialLanguage(),
   );
@@ -933,6 +952,61 @@ export function App() {
       setFounderMigrationPending(false);
     }
   }, []);
+
+  const openPreparedRecovery = useCallback(async () => {
+    setPreparedRecoveryOpen(true);
+    setPreparedRecoveryPending(true);
+    setPreparedRecoveryError(null);
+    setPreparedRecoveryCloseError(null);
+    try {
+      setPreparedRecoveryInspection(await inspectPreparedStateRecovery());
+    } catch (error) {
+      setPreparedRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPreparedRecoveryPending(false);
+    }
+  }, []);
+
+  const prepareRecovery = useCallback(async () => {
+    if (!preparedRecoveryInspection) return;
+    setPreparedRecoveryPending(true);
+    setPreparedRecoveryError(null);
+    try {
+      setPreparedRecoveryResult(await executePreparedStateRecovery(preparedRecoveryInspection));
+    } catch (error) {
+      setPreparedRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPreparedRecoveryPending(false);
+    }
+  }, [preparedRecoveryInspection]);
+
+  const closeLifeOs = useCallback(async () => {
+    setPreparedRecoveryCloseError(null);
+    try {
+      await requestLifeOsClose({
+        isDesktop: isTauri(),
+        closeDesktop: () => getCurrentWindow().close(),
+        closeBrowser: () => window.close(),
+      });
+    } catch (error) {
+      setPreparedRecoveryCloseError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  const deleteRecoveryReceipt = useCallback(async () => {
+    const relativePath = databaseStartup.state === "blocked"
+      ? databaseStartup.founderSchemaV5?.preparedRecoveryReceiptRelativePath
+      : null;
+    if (!relativePath || !window.confirm(copy.preparedRecoveryReceiptDeleteConfirm)) return;
+    setPreparedRecoveryReceiptPending(true);
+    try {
+      await deletePreparedRecoveryReceipt(relativePath);
+      window.location.reload();
+    } catch (error) {
+      setFounderMigrationError(error instanceof Error ? error.message : String(error));
+      setPreparedRecoveryReceiptPending(false);
+    }
+  }, [copy.preparedRecoveryReceiptDeleteConfirm, databaseStartup]);
 
   const deleteFounderBackup = useCallback(async () => {
     if (!window.confirm(isOrdinaryDesktopSchemaV5 ? copy.ordinaryV5DeleteConfirm : copy.founderV5DeleteConfirm)) return;
@@ -1521,6 +1595,14 @@ export function App() {
       && databaseStartup.founderSchemaV5?.restoreAvailable
       ? databaseStartup.founderSchemaV5
       : null;
+    const canReviewPreparedRecovery = databaseStartup.state === "blocked"
+      && databaseStartup.reason === "founder_v5_blocked"
+      && isOrdinaryDesktopSchemaV5
+      && [
+        "sqlite_sidecar_present",
+        "migration_prepared",
+        "post_commit_schema_manifest_recovery_available",
+      ].includes(databaseStartup.founderSchemaV5?.reason ?? "");
     const blockedMessage = databaseStartup.state === "checking"
       ? copy.databaseChecking
       : databaseStartup.reason === "newer_schema"
@@ -1558,7 +1640,19 @@ export function App() {
               </select>
             </label>
           </header>
-          {founderMigration ? (
+          {preparedRecoveryOpen && preparedRecoveryInspection ? (
+            <PreparedStateRecoveryPanel
+              copy={copy}
+              inspection={preparedRecoveryInspection}
+              result={preparedRecoveryResult}
+              pending={preparedRecoveryPending}
+              error={preparedRecoveryError}
+              closeError={preparedRecoveryCloseError}
+              onPrepare={() => void prepareRecovery()}
+              onCancel={() => setPreparedRecoveryOpen(false)}
+              onClose={() => void closeLifeOs()}
+            />
+          ) : founderMigration ? (
             <FounderSchemaV5MigrationPanel
               copy={copy}
               state={founderMigration}
@@ -1568,6 +1662,8 @@ export function App() {
               error={founderMigrationError}
               onAuthorize={() => void authorizeFounderMigration()}
               onCancel={() => setFounderMigrationCancelled(true)}
+              recoveryReceiptPending={preparedRecoveryReceiptPending}
+              onDeleteRecoveryReceipt={() => void deleteRecoveryReceipt()}
             />
           ) : <>
             <section
@@ -1585,6 +1681,16 @@ export function App() {
                 <p className="welcome-subtitle">{blockedMessage}</p>
                 {databaseStartup.state === "blocked" ? (
                   <p className="summary-note">{copy.databaseBlockedAction}</p>
+                ) : null}
+                {canReviewPreparedRecovery ? (
+                  <button type="button" className="primary-button" disabled={preparedRecoveryPending} onClick={() => void openPreparedRecovery()}>
+                    {copy.preparedRecoveryReview}
+                  </button>
+                ) : null}
+                {preparedRecoveryOpen && preparedRecoveryError ? (
+                  <p className="inline-error" role="alert">
+                    {copy.preparedRecoveryFailed(preparedRecoveryError)}
+                  </p>
                 ) : null}
               </div>
             </section>

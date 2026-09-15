@@ -45,6 +45,20 @@ const EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
 // every other object name/body combination remains fail closed.
 const EXPECTED_RUNTIME_V4_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
     "ed833be6efd8227bc367d9fe0e996a11c3f2240aafa85397e24a7964b7049d4e";
+// The earliest frontend-owned schema-v4 initializer stored the
+// `experience_entries` CREATE TABLE statement as multiline SQL while the
+// remaining ten objects were later created by the Rust runtime. That exact
+// historical representation is still structurally identical, but produces a
+// third fixed full-schema digest after schema-v5 DDL is applied. Keep this an
+// exact allowlist entry; do not replace it with generic SQL normalization.
+pub(crate) const EXPECTED_HISTORICAL_FRONTEND_V4_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
+    "2dc9f712464806e84ab05bf0bfde31761b1b8de5a9756c819a9de3a95f91019e";
+const EXPECTED_FIXTURE_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
+    "c35b721b2018c32a004c64b7b30af010032e76c0d4271cad1fd5870c01539e45";
+const EXPECTED_RUNTIME_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
+    "a25591798330b12fbf1a57a0b3529c8c70044ff8d917b9582ff6eb6bcdfc3f90";
+pub(crate) const EXPECTED_HISTORICAL_FRONTEND_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256: &str =
+    "be8fc63b18e6ef578a4728171fbb5c8bfd976b5891c9f1d02e79dbe97d6b5016";
 const PROJECTION_GUARD_MARKER: &str =
     "-- Existing v4/current-state tables become guarded compatibility projections.";
 
@@ -94,6 +108,14 @@ impl CandidateVerifier for ExactV4CandidateVerifier {
                     "source_schema_version_not_supported",
                 ));
             }
+            let source_schema_manifest = schema_object_manifest(&mut connection)
+                .await
+                .map_err(|error| SafetyError::fail_closed(error.code))?;
+            if !is_expected_v4_source_schema_object_manifest(&source_schema_manifest) {
+                return Err(SafetyError::fail_closed(
+                    "source_schema_object_manifest_not_supported",
+                ));
+            }
             let source_manifest_digest = manifest(&mut connection, &SOURCE_TABLE_MANIFESTS)
                 .await
                 .map_err(|error| SafetyError::fail_closed(error.code))?;
@@ -141,7 +163,35 @@ pub(crate) async fn source_manifest_for_path(path: &Path) -> Result<String, Migr
 pub(crate) async fn verify_any_committed_v5(
     path: &Path,
 ) -> Result<MigrationReceipt, MigrationError> {
-    let mut connection = connect_immutable_read_only(path).await?;
+    verify_any_committed_v5_with_connection_policy(path, false).await
+}
+
+pub(crate) async fn verify_exact_historical_frontend_post_commit_v5(
+    path: &Path,
+    expected: &MigrationReceipt,
+    expected_lifecycle_writes: &str,
+) -> Result<(), MigrationError> {
+    verify_committed_v5_with_lifecycle_and_manifest(
+        path,
+        expected,
+        expected_lifecycle_writes,
+        SchemaManifestExpectation::ExactHistoricalFrontendV4,
+    )
+    .await
+}
+
+pub(crate) async fn verify_any_committed_v5_after_empty_sidecar_proof(
+    path: &Path,
+) -> Result<MigrationReceipt, MigrationError> {
+    verify_any_committed_v5_with_connection_policy(path, true).await
+}
+
+async fn verify_any_committed_v5_with_connection_policy(
+    path: &Path,
+    sidecars_preverified_empty: bool,
+) -> Result<MigrationReceipt, MigrationError> {
+    let mut connection =
+        connect_immutable_read_only_with_policy(path, sidecars_preverified_empty).await?;
     if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
         return Err(MigrationError::recovery_required(
             "durable_v5_version_mismatch",
@@ -169,12 +219,20 @@ pub(crate) async fn verify_any_committed_v5(
         source_manifest_digest,
         target_manifest_digest,
     };
-    verify_activated_v5_runtime(path).await?;
+    verify_activated_v5_runtime_with_connection_policy(path, sidecars_preverified_empty).await?;
     Ok(receipt)
 }
 
 pub(crate) async fn verify_activated_v5_runtime(path: &Path) -> Result<(), MigrationError> {
-    let mut connection = connect_immutable_read_only(path).await?;
+    verify_activated_v5_runtime_with_connection_policy(path, false).await
+}
+
+async fn verify_activated_v5_runtime_with_connection_policy(
+    path: &Path,
+    sidecars_preverified_empty: bool,
+) -> Result<(), MigrationError> {
+    let mut connection =
+        connect_immutable_read_only_with_policy(path, sidecars_preverified_empty).await?;
     if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
         return Err(MigrationError::recovery_required(
             "runtime_v5_version_mismatch",
@@ -239,19 +297,64 @@ pub(crate) async fn activate_lifecycle_writes(
     expected: &MigrationReceipt,
     occurred_at: &str,
 ) -> Result<(), MigrationError> {
-    verify_committed_v5(path, expected).await?;
+    activate_lifecycle_writes_with_manifest(
+        path,
+        expected,
+        occurred_at,
+        SchemaManifestExpectation::Accepted,
+    )
+    .await
+}
+
+pub(crate) async fn activate_exact_historical_frontend_lifecycle_writes(
+    path: &Path,
+    expected: &MigrationReceipt,
+    occurred_at: &str,
+) -> Result<(), MigrationError> {
+    activate_lifecycle_writes_with_manifest(
+        path,
+        expected,
+        occurred_at,
+        SchemaManifestExpectation::ExactHistoricalFrontendV4,
+    )
+    .await
+}
+
+async fn activate_lifecycle_writes_with_manifest(
+    path: &Path,
+    expected: &MigrationReceipt,
+    occurred_at: &str,
+    schema_manifest_expectation: SchemaManifestExpectation,
+) -> Result<(), MigrationError> {
     let mut connection = connect(path, false).await?;
     raw_sql("BEGIN IMMEDIATE")
         .execute(&mut connection)
         .await
         .map_err(|error| migration_error("lifecycle_activation_begin_failed", error))?;
+    if let Err(error) = verify_committed_v5_connection(
+        &mut connection,
+        expected,
+        "disabled",
+        schema_manifest_expectation,
+    )
+    .await
+    {
+        let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+        let _ = connection.close().await;
+        return Err(error);
+    }
     let guard_token = format!("founder-v5-activation-{}", expected.migration_id);
-    sqlx::query("INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)")
-        .bind(&guard_token)
-        .bind(occurred_at)
-        .execute(&mut connection)
-        .await
-        .map_err(|error| migration_error("lifecycle_activation_guard_failed", error))?;
+    if let Err(error) =
+        sqlx::query("INSERT INTO v5_compatibility_write_guard (token, created_at) VALUES (?, ?)")
+            .bind(&guard_token)
+            .bind(occurred_at)
+            .execute(&mut connection)
+            .await
+    {
+        let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+        let _ = connection.close().await;
+        return Err(migration_error("lifecycle_activation_guard_failed", error));
+    }
     let result = sqlx::query(
         "UPDATE database_contract SET lifecycle_writes = 'enabled' WHERE singleton = 1 AND lifecycle_writes = 'disabled' AND export_v2 = 'disabled'",
     )
@@ -274,8 +377,18 @@ pub(crate) async fn activate_lifecycle_writes(
     let removed = sqlx::query("DELETE FROM v5_compatibility_write_guard WHERE token = ?")
         .bind(&guard_token)
         .execute(&mut connection)
-        .await
-        .map_err(|error| migration_error("lifecycle_activation_guard_cleanup_failed", error))?;
+        .await;
+    let removed = match removed {
+        Ok(removed) => removed,
+        Err(error) => {
+            let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
+            let _ = connection.close().await;
+            return Err(migration_error(
+                "lifecycle_activation_guard_cleanup_failed",
+                error,
+            ));
+        }
+    };
     if removed.rows_affected() != 1 {
         let _ = raw_sql("ROLLBACK").execute(&mut connection).await;
         return Err(MigrationError::recovery_required(
@@ -293,7 +406,13 @@ pub(crate) async fn activate_lifecycle_writes(
     connection.close().await.map_err(|error| {
         MigrationError::recovery_required(format!("lifecycle_activation_close_failed:{error}"))
     })?;
-    verify_committed_v5_with_lifecycle(path, expected, "enabled").await
+    verify_committed_v5_with_lifecycle_and_manifest(
+        path,
+        expected,
+        "enabled",
+        schema_manifest_expectation,
+    )
+    .await
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -823,11 +942,20 @@ async fn connect(path: &Path, read_only: bool) -> Result<SqliteConnection, Migra
 }
 
 async fn connect_immutable_read_only(path: &Path) -> Result<SqliteConnection, MigrationError> {
-    for suffix in ["-wal", "-shm", "-journal"] {
-        let mut sidecar = path.as_os_str().to_os_string();
-        sidecar.push(suffix);
-        if Path::new(&sidecar).exists() {
-            return Err(MigrationError::recovery_required("sqlite_sidecar_present"));
+    connect_immutable_read_only_with_policy(path, false).await
+}
+
+async fn connect_immutable_read_only_with_policy(
+    path: &Path,
+    sidecars_preverified_empty: bool,
+) -> Result<SqliteConnection, MigrationError> {
+    if !sidecars_preverified_empty {
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let mut sidecar = path.as_os_str().to_os_string();
+            sidecar.push(suffix);
+            if Path::new(&sidecar).exists() {
+                return Err(MigrationError::recovery_required("sqlite_sidecar_present"));
+            }
         }
     }
     let options = SqliteConnectOptions::new()
@@ -902,6 +1030,13 @@ async fn schema_object_manifest(
 fn is_expected_schema_object_manifest(manifest: &str) -> bool {
     manifest == EXPECTED_SCHEMA_OBJECT_MANIFEST_SHA256
         || manifest == EXPECTED_RUNTIME_V4_SCHEMA_OBJECT_MANIFEST_SHA256
+        || manifest == EXPECTED_HISTORICAL_FRONTEND_V4_SCHEMA_OBJECT_MANIFEST_SHA256
+}
+
+fn is_expected_v4_source_schema_object_manifest(manifest: &str) -> bool {
+    manifest == EXPECTED_FIXTURE_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256
+        || manifest == EXPECTED_RUNTIME_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256
+        || manifest == EXPECTED_HISTORICAL_FRONTEND_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256
 }
 
 async fn integrity_checks(connection: &mut SqliteConnection) -> Result<(), MigrationError> {
@@ -2336,16 +2471,56 @@ async fn verify_committed_v5(
     verify_committed_v5_with_lifecycle(path, expected, "disabled").await
 }
 
+#[derive(Clone, Copy)]
+enum SchemaManifestExpectation {
+    Accepted,
+    ExactHistoricalFrontendV4,
+}
+
 async fn verify_committed_v5_with_lifecycle(
     path: &Path,
     expected: &MigrationReceipt,
     expected_lifecycle_writes: &str,
 ) -> Result<(), MigrationError> {
+    verify_committed_v5_with_lifecycle_and_manifest(
+        path,
+        expected,
+        expected_lifecycle_writes,
+        SchemaManifestExpectation::Accepted,
+    )
+    .await
+}
+
+async fn verify_committed_v5_with_lifecycle_and_manifest(
+    path: &Path,
+    expected: &MigrationReceipt,
+    expected_lifecycle_writes: &str,
+    schema_manifest_expectation: SchemaManifestExpectation,
+) -> Result<(), MigrationError> {
     let mut connection = connect_immutable_read_only(path).await.map_err(|error| {
         MigrationError::recovery_required(format!("post_commit_open_failed:{}", error.code))
     })?;
+    let result = verify_committed_v5_connection(
+        &mut connection,
+        expected,
+        expected_lifecycle_writes,
+        schema_manifest_expectation,
+    )
+    .await;
+    connection.close().await.map_err(|error| {
+        MigrationError::recovery_required(format!("post_commit_close_failed:{error}"))
+    })?;
+    result
+}
+
+async fn verify_committed_v5_connection(
+    connection: &mut SqliteConnection,
+    expected: &MigrationReceipt,
+    expected_lifecycle_writes: &str,
+    schema_manifest_expectation: SchemaManifestExpectation,
+) -> Result<(), MigrationError> {
     let result = async {
-        if user_version(&mut connection).await? != TARGET_SCHEMA_VERSION {
+        if user_version(&mut *connection).await? != TARGET_SCHEMA_VERSION {
             return Err(MigrationError::recovery_required(
                 "post_commit_version_mismatch",
             ));
@@ -2354,7 +2529,7 @@ async fn verify_committed_v5_with_lifecycle(
             "SELECT migration_id, backup_id, source_manifest_digest, target_manifest_digest, application_version \
              FROM schema_migration_receipts WHERE state = 'committed'",
         )
-        .fetch_all(&mut connection)
+        .fetch_all(&mut *connection)
         .await
         .map_err(|error| {
             MigrationError::recovery_required(format!("post_commit_receipt_missing:{error}"))
@@ -2380,7 +2555,7 @@ async fn verify_committed_v5_with_lifecycle(
              compatibility_projection, lifecycle_writes, export_v2 \
              FROM database_contract WHERE singleton = 1",
         )
-        .fetch_one(&mut connection)
+        .fetch_one(&mut *connection)
         .await
         .map_err(|error| {
             MigrationError::recovery_required(format!("post_commit_contract_missing:{error}"))
@@ -2400,7 +2575,7 @@ async fn verify_committed_v5_with_lifecycle(
         }
         let guard_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM v5_compatibility_write_guard")
-                .fetch_one(&mut connection)
+                .fetch_one(&mut *connection)
                 .await
                 .map_err(|error| {
                     MigrationError::recovery_required(format!(
@@ -2412,33 +2587,40 @@ async fn verify_committed_v5_with_lifecycle(
                 "post_commit_guard_not_empty",
             ));
         }
-        if !is_expected_schema_object_manifest(&schema_object_manifest(&mut connection).await?) {
+        let schema_manifest = schema_object_manifest(&mut *connection).await?;
+        let schema_manifest_matches = match schema_manifest_expectation {
+            SchemaManifestExpectation::Accepted => {
+                is_expected_schema_object_manifest(&schema_manifest)
+            }
+            SchemaManifestExpectation::ExactHistoricalFrontendV4 => {
+                schema_manifest
+                    == EXPECTED_HISTORICAL_FRONTEND_V4_SCHEMA_OBJECT_MANIFEST_SHA256
+            }
+        };
+        if !schema_manifest_matches {
             return Err(MigrationError::recovery_required(
                 "post_commit_schema_manifest_mismatch",
             ));
         }
-        if manifest(&mut connection, &SOURCE_TABLE_MANIFESTS).await?
+        if manifest(&mut *connection, &SOURCE_TABLE_MANIFESTS).await?
             != expected.source_manifest_digest
         {
             return Err(MigrationError::recovery_required(
                 "post_commit_source_manifest_mismatch",
             ));
         }
-        if manifest(&mut connection, &TARGET_TABLE_MANIFESTS).await?
+        if manifest(&mut *connection, &TARGET_TABLE_MANIFESTS).await?
             != expected.target_manifest_digest
         {
             return Err(MigrationError::recovery_required(
                 "post_commit_target_manifest_mismatch",
             ));
         }
-        current_content_checks(&mut connection).await?;
-        integrity_checks(&mut connection).await?;
+        current_content_checks(&mut *connection).await?;
+        integrity_checks(&mut *connection).await?;
         Ok(())
     }
     .await;
-    connection.close().await.map_err(|error| {
-        MigrationError::recovery_required(format!("post_commit_close_failed:{error}"))
-    })?;
     result.map_err(|error| {
         if error.recovery_required {
             error
@@ -3107,6 +3289,33 @@ mod tests {
                 .unwrap_err()
                 .code,
             "deterministic_id_collision"
+        );
+    }
+
+    #[tokio::test]
+    async fn exact_v4_candidate_verifier_binds_the_source_schema_representation() {
+        let (_directory, path) = create_fixture(V4_FIXTURE).await;
+        let mut connection = connect_immutable_read_only(&path).await.unwrap();
+        assert_eq!(
+            schema_object_manifest(&mut connection).await.unwrap(),
+            EXPECTED_FIXTURE_V4_SOURCE_SCHEMA_OBJECT_MANIFEST_SHA256
+        );
+        connection.close().await.unwrap();
+        ExactV4CandidateVerifier.inspect(&path).await.unwrap();
+
+        let mut connection = connect(&path, false).await.unwrap();
+        sqlx::query("CREATE INDEX unexpected_v4_representation ON experience_entries(updated_at)")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+        assert_eq!(
+            ExactV4CandidateVerifier
+                .inspect(&path)
+                .await
+                .unwrap_err()
+                .code,
+            "source_schema_object_manifest_not_supported"
         );
     }
 

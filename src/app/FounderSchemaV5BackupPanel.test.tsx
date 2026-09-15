@@ -9,6 +9,8 @@ const state = {
   restoreAvailable: false,
   backupRelativePath: "life-os-test.operation/backup.db", backupRetentionDays: 30,
   backupCreatedAt: "2026-08-13T00:00:00.000Z", backupExpiresAt: "2026-09-12T00:00:00.000Z",
+  preparedRecoveryReceiptAvailable: false, preparedRecoveryReceiptRelativePath: null,
+  preparedRecoveryReceiptOperationId: null, preparedRecoveryReceiptRecoveredAt: null,
 } as const;
 
 describe("Founder schema-v5 backup disclosure", () => {

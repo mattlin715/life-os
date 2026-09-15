@@ -93,6 +93,63 @@ function completeOpenDecision(root, sprintId) {
   writeFileSync(join(root, ".ai", "workflow", "DECISION_REQUIRED.md"), `${content}\n`);
 }
 
+function runWorkflow(root, ...args) {
+  return spawnSync(process.execPath, [join(root, "scripts", "ai-workflow.mjs"), ...args], {
+    cwd: root,
+    encoding: "utf8",
+  });
+}
+
+function readState(root) {
+  return JSON.parse(readFileSync(join(root, ".ai", "workflow", "WORKFLOW_STATE.json"), "utf8"));
+}
+
+function prepareResolvedTheoryDecision(root, options = {}) {
+  const id = options.sprintId ?? "2026-09-14-resolved-theory-decision";
+  const decisionReference = options.decisionReference ?? "founder-message-resolved-theory";
+  const founderResponse = options.founderResponse ?? "Approve the exact bounded decision only";
+  const resumePhase = options.resumePhase ?? "theory_alignment_review";
+  const run = (...args) => {
+    const result = runWorkflow(root, ...args);
+    assert.equal(result.status, 0, result.stderr);
+  };
+
+  run("start", "--sprint-id", id, "--mission-title", "Resolved theory decision fixture");
+  completeCurrentMission(root);
+  run("record-artifact", "--artifact", "current_mission", "--status", "ready", "--expected-sequence", "1");
+  run("transition", "--to", "product_review", "--expected-sequence", "2");
+  completeArtifact(root, "PRODUCT_REVIEW.md", "approved", id);
+  run("record-artifact", "--artifact", "product_review", "--status", "approved", "--expected-sequence", "3");
+  run("transition", "--to", "engineering_planning", "--expected-sequence", "4");
+  completeArtifact(root, "ENGINEERING_PLAN.md", "approved", id);
+  run("record-artifact", "--artifact", "engineering_plan", "--status", "approved", "--expected-sequence", "5");
+  run("transition", "--to", "implementation", "--expected-sequence", "6");
+  completeArtifact(root, "ENGINEERING_REPORT.md", "completed", id);
+  run("record-artifact", "--artifact", "engineering_report", "--status", "completed", "--expected-sequence", "7");
+  run("transition", "--to", "validation", "--expected-sequence", "8");
+  run("record-verification", "--status", "passed", "--exit-code", "0", "--expected-sequence", "9");
+  run("transition", "--to", "theory_alignment_review", "--expected-sequence", "10");
+  completeArtifact(root, "THEORY_ALIGNMENT_REVIEW.md", "human_decision_required", id);
+  run("record-artifact", "--artifact", "theory_alignment_review", "--status", "human_decision_required", "--expected-sequence", "11");
+  completeOpenDecision(root, id);
+  run("record-artifact", "--artifact", "decision_required", "--status", "open", "--expected-sequence", "12");
+  run("transition", "--to", "human_decision_required", "--resume-phase", resumePhase, "--decision-ids", "decision-old", "--reason", "Founder authority required", "--expected-sequence", "13");
+  if (options.resolved !== false) {
+    run("resolve-decision", "--decision-reference", decisionReference, "--founder-response", founderResponse, "--selected-option", "A", "--authorized-scope", "Exact bounded scope", "--expected-sequence", "14");
+  }
+  return { decisionReference, founderResponse, id };
+}
+
+function refreshVerificationArgs(state, decisionReference, overrides = {}) {
+  return [
+    "refresh-verification-for-resume",
+    "--status", overrides.status ?? "passed",
+    "--exit-code", String(overrides.exitCode ?? 0),
+    "--decision-reference", overrides.decisionReference ?? decisionReference,
+    "--expected-sequence", String(overrides.expectedSequence ?? state.state_revision),
+  ];
+}
+
 function capturePlanningTransitionSnapshots(root, sprintId) {
   const script = join(root, "scripts", "ai-workflow.mjs");
   const run = (...args) => {
@@ -332,6 +389,205 @@ test("CLI records exact founder decision evidence before resuming", () => {
     assert.match(decision, /Approve option A only/);
     assert.doesNotMatch(decision, /Required after resolution/);
     assert.deepEqual(validateWorkflow(root), []);
+  });
+});
+
+test("resolved theory gate reproduces the stale-verification deadlock through the old command", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    writeFileSync(join(root, "manual-evidence.md"), "new repository evidence\n");
+    const state = readState(root);
+
+    const staleResume = runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", decisionReference, "--expected-sequence", String(state.state_revision));
+    assert.notEqual(staleResume.status, 0);
+    assert.match(staleResume.stderr, /verification evidence is missing or stale/);
+
+    const oldCommand = runWorkflow(root, "record-verification", "--status", "passed", "--exit-code", "0", "--expected-sequence", String(state.state_revision));
+    assert.notEqual(oldCommand.status, 0);
+    assert.match(oldCommand.stderr, /only be recorded during validation/);
+  });
+});
+
+test("resolved theory gate records fresh canonical verification and resumes", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    writeFileSync(join(root, "manual-evidence.md"), "new repository evidence\n");
+    const before = readState(root);
+    const refresh = runWorkflow(root, ...refreshVerificationArgs(before, decisionReference));
+    assert.equal(refresh.status, 0, refresh.stderr);
+
+    const refreshed = readState(root);
+    assert.equal(refreshed.status, "human_decision_required");
+    assert.equal(refreshed.resume_phase, "theory_alignment_review");
+    assert.equal(refreshed.verification.repository_verify.status, "passed");
+    assert.equal(refreshed.verification.repository_verify.exit_code, 0);
+    assert.equal(
+      refreshed.verification.repository_verify.working_branch,
+      execFileSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" }).trim(),
+    );
+    const event = readFileSync(join(root, ".ai", "workflow", "EVENTS.jsonl"), "utf8").trim().split(/\r?\n/).map(JSON.parse).at(-1);
+    assert.equal(event.event_type, "resume_verification_refreshed");
+    assert.equal(event.decision_reference, decisionReference);
+    assert.deepEqual(validateWorkflow(root, { checkRepositoryFreshness: true }), []);
+
+    const resume = runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", decisionReference, "--expected-sequence", String(refreshed.state_revision));
+    assert.equal(resume.status, 0, resume.stderr);
+    assert.equal(readState(root).status, "theory_alignment_review");
+  });
+});
+
+test("verification refresh rejects an unresolved decision", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root, { resolved: false });
+    const state = readState(root);
+    const result = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference));
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /requires a resolved decision/);
+  });
+});
+
+test("verification refresh rejects a resolved decision with another resume phase", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root, { resumePhase: "implementation" });
+    const state = readState(root);
+    const result = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference));
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /limited to a theory_alignment_review resume/);
+  });
+});
+
+test("verification refresh accepts only passed status with exit code zero", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    const state = readState(root);
+    for (const status of ["failed", "skipped"]) {
+      const result = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference, { status }));
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /requires --status passed/);
+    }
+    const nonzero = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference, { exitCode: 1 }));
+    assert.notEqual(nonzero.status, 0);
+    assert.match(nonzero.stderr, /requires --exit-code 0/);
+  });
+});
+
+test("failed and skipped validation evidence cannot satisfy theory review freshness", () => {
+  for (const [status, exitCode] of [["failed", "1"], ["skipped", "0"]]) {
+    withGitWorkflow((root) => {
+      const script = join(root, "scripts", "ai-workflow.mjs");
+      const run = (...args) => {
+        const result = spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: "utf8" });
+        assert.equal(result.status, 0, result.stderr);
+      };
+      const id = `2026-09-14-${status}-verification`;
+      run("start", "--sprint-id", id, "--mission-title", "Non-passing verification fixture");
+      completeCurrentMission(root);
+      run("record-artifact", "--artifact", "current_mission", "--status", "ready", "--expected-sequence", "1");
+      run("transition", "--to", "product_review", "--expected-sequence", "2");
+      completeArtifact(root, "PRODUCT_REVIEW.md", "approved", id);
+      run("record-artifact", "--artifact", "product_review", "--status", "approved", "--expected-sequence", "3");
+      run("transition", "--to", "engineering_planning", "--expected-sequence", "4");
+      completeArtifact(root, "ENGINEERING_PLAN.md", "approved", id);
+      run("record-artifact", "--artifact", "engineering_plan", "--status", "approved", "--expected-sequence", "5");
+      run("transition", "--to", "implementation", "--expected-sequence", "6");
+      completeArtifact(root, "ENGINEERING_REPORT.md", "completed", id);
+      run("record-artifact", "--artifact", "engineering_report", "--status", "completed", "--expected-sequence", "7");
+      run("transition", "--to", "validation", "--expected-sequence", "8");
+      run("record-verification", "--status", status, "--exit-code", exitCode, "--expected-sequence", "9");
+      const transition = runWorkflow(root, "transition", "--to", "theory_alignment_review", "--expected-sequence", "10");
+      assert.notEqual(transition.status, 0);
+      assert.match(transition.stderr, /verification evidence is missing or stale/);
+    });
+  }
+});
+
+test("verification refresh rejects stale sequence and decision-reference mismatch", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    const state = readState(root);
+    const stale = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference, { expectedSequence: state.state_revision - 1 }));
+    assert.notEqual(stale.status, 0);
+    assert.match(stale.stderr, /Expected sequence/);
+    const mismatch = runWorkflow(root, ...refreshVerificationArgs(state, decisionReference, { decisionReference: "different-founder-evidence" }));
+    assert.notEqual(mismatch.status, 0);
+    assert.match(mismatch.stderr, /exactly match/);
+  });
+});
+
+test("repository mutation after resolved-gate verification remains stale", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    let state = readState(root);
+    assert.equal(runWorkflow(root, ...refreshVerificationArgs(state, decisionReference)).status, 0);
+    writeFileSync(join(root, "post-verification-change.md"), "changed after verification\n");
+    state = readState(root);
+    const resume = runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", decisionReference, "--expected-sequence", String(state.state_revision));
+    assert.notEqual(resume.status, 0);
+    assert.match(resume.stderr, /verification evidence is missing or stale/);
+  });
+});
+
+test("verification refresh preserves the resolved decision and exact Founder response", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference } = prepareResolvedTheoryDecision(root);
+    const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+    const decisionPath = join(root, ".ai", "workflow", "DECISION_REQUIRED.md");
+    const before = readState(root);
+    const decisionBefore = readFileSync(decisionPath, "utf8");
+    assert.equal(runWorkflow(root, ...refreshVerificationArgs(before, decisionReference)).status, 0);
+    const after = readState(root);
+    assert.deepEqual(after.decision_resolution, before.decision_resolution);
+    assert.deepEqual(after.active_decision_ids, before.active_decision_ids);
+    assert.equal(after.resume_phase, before.resume_phase);
+    assert.equal(readFileSync(decisionPath, "utf8"), decisionBefore);
+    assert.notEqual(readFileSync(statePath, "utf8"), `${JSON.stringify(before, null, 2)}\n`);
+  });
+});
+
+test("verification refresh rolls back the workflow pair on either atomic rename failure", () => {
+  for (const failAt of [1, 2]) {
+    withGitWorkflow((root) => {
+      const { decisionReference } = prepareResolvedTheoryDecision(root, { sprintId: `2026-09-14-refresh-atomic-${failAt}` });
+      const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+      const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+      const beforeState = readFileSync(statePath, "utf8");
+      const beforeEvents = readFileSync(eventsPath, "utf8");
+      const state = readState(root);
+      const result = spawnSync(process.execPath, [join(root, "scripts", "ai-workflow.mjs"), ...refreshVerificationArgs(state, decisionReference)], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, NODE_ENV: "test", LIFE_OS_AI_WORKFLOW_TEST_FAIL_ATOMIC_RENAME_AT: String(failAt) },
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, new RegExp(`Injected atomic rename failure at attempt ${failAt}`));
+      assert.equal(readFileSync(statePath, "utf8"), beforeState);
+      assert.equal(readFileSync(eventsPath, "utf8"), beforeEvents);
+      assert.deepEqual(readdirSync(join(root, ".ai", "workflow")).filter((name) => name.includes(".tmp-")), []);
+      assert.deepEqual(validateWorkflow(root), []);
+    });
+  }
+});
+
+test("resumed theory review can open a new decision that still requires a new Founder response", () => {
+  withGitWorkflow((root) => {
+    const { decisionReference, id } = prepareResolvedTheoryDecision(root);
+    let state = readState(root);
+    assert.equal(runWorkflow(root, ...refreshVerificationArgs(state, decisionReference)).status, 0);
+    state = readState(root);
+    assert.equal(runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", decisionReference, "--expected-sequence", String(state.state_revision)).status, 0);
+    completeOpenDecision(root, id);
+    state = readState(root);
+    assert.equal(runWorkflow(root, "record-artifact", "--artifact", "decision_required", "--status", "open", "--expected-sequence", String(state.state_revision)).status, 0);
+    state = readState(root);
+    assert.equal(runWorkflow(root, "transition", "--to", "human_decision_required", "--resume-phase", "theory_alignment_review", "--decision-ids", "decision-new", "--reason", "New Founder authority required", "--expected-sequence", String(state.state_revision)).status, 0);
+    state = readState(root);
+    assert.deepEqual(state.active_decision_ids, ["decision-new"]);
+    assert.equal(state.decision_resolution, null);
+
+    const missingResponse = runWorkflow(root, "resolve-decision", "--decision-reference", "new-founder-message", "--selected-option", "A", "--authorized-scope", "New bounded scope", "--expected-sequence", String(state.state_revision));
+    assert.notEqual(missingResponse.status, 0);
+    assert.match(missingResponse.stderr, /--founder-response is required/);
+    assert.equal(readState(root).decision_resolution, null);
   });
 });
 
