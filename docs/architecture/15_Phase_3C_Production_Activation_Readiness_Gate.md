@@ -1,8 +1,8 @@
 ---
 status: Founder-approved
-version: 0.5
+version: 0.7
 owner: product-and-engineering
-last_updated: 2026/08/18
+last_updated: 2026/09/14
 depends:
   - docs/00_Constitution.md
   - docs/03_Principles.md
@@ -416,3 +416,32 @@ changes, Phase 4, Harness expansion, deployment, or release.
 > the compiled feature: 5 for schema-v5-capable desktop builds and 4 for the
 > no-default-feature legacy compatibility build. It still provides no migrate,
 > backup, restore, repair, cleanup, retry, or other write control.
+>
+> 2026/09/01 factual R2 note: architecture/19 narrows recovery readiness to two
+> exact predicates only: the pre-backup prepared-v4 state and the separately
+> Founder-selected `v5_ready` historical-refusal state with only a zero-byte WAL
+> and matching zero-frame SHM. Every other sidecar or operation state remains
+> refused. Disposable Manual Phase A now passes both paths, exact evidence,
+> corrected close controls and restart reconstruction. Automation and disposable
+> review do not authorize the real profile. Recovery disposition, migration and
+> promotion remain distinct Founder decisions.
+>
+> 2026/09/02 factual R2B note: the consumed real Phase C attempt is not a
+> successful activation claim. It committed schema v5 and retained a verified
+> v4 backup, but stopped at the exact historical-source schema-manifest
+> mismatch with lifecycle writes disabled. Readiness now requires disposable
+> review of the fixed-manifest post-commit recovery, a separate future Founder
+> authorization for any real action, successful restart/typed-write evidence,
+> and the unchanged promotion gate. Restore, retry, repair, checkpoint, schema
+> decrement, backup deletion, release, Phase 4 and Android remain outside this
+> correction.
+
+> 2026/09/14 factual R2B readiness note: the disposable BF1-BF8 review
+> condition is now satisfied and Founder-accepted. The evidence proves bounded
+> recovery disclosure/Cancel behavior, exact lifecycle activation, restart and
+> one typed synthetic write while preserving the verified v4 backup, migration
+> receipt, prior recovery evidence, retained profiles, and installed binary.
+> This does not activate the real profile and does not satisfy the separate
+> repository-promotion or Android sequencing gates. The real profile remains
+> fail closed with lifecycle writes disabled until a new exact Founder
+> authorization is given.

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.3
+version: 1.5
 owner: LIN MENGLUNG
-last_updated: 2026/08/18
+last_updated: 2026/09/14
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -84,6 +84,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 5. `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`
 6. `docs/architecture/17_Desktop_Schema_v5_Founder_Dogfood_Activation_Candidate_R1.md`
 7. `docs/architecture/18_Desktop_Schema_v5_Ordinary_Production_Activation_R1.md`
+8. `docs/architecture/19_Desktop_Schema_v5_Prepared_State_Recovery_and_Real_Profile_Migration_R2.md`
 
 ### Design AI Or Harness Behavior
 
@@ -114,9 +115,10 @@ Lower levels must not override higher levels. When theory and implementation dif
 12. `docs/architecture/13_Phase_3C_Schema_v5_Migration_and_Cutover_Plan.md`
 13. `docs/architecture/15_Phase_3C_Production_Activation_Readiness_Gate.md`
 14. `docs/architecture/18_Desktop_Schema_v5_Ordinary_Production_Activation_R1.md`
-15. `docs/adr/ADR-0003-identity-is-emergent.md`
-16. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
-17. `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`
+15. `docs/architecture/19_Desktop_Schema_v5_Prepared_State_Recovery_and_Real_Profile_Migration_R2.md`
+16. `docs/adr/ADR-0003-identity-is-emergent.md`
+17. `docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md`
+18. `docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md`
 
 ## ADR Index
 

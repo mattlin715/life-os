@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(scriptDirectory, "..");
+const canonicalVerificationCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1";
 const mutableWorkflowPaths = new Set([
   ".ai/workflow/WORKFLOW_STATE.json",
   ".ai/workflow/EVENTS.jsonl",
@@ -173,6 +174,8 @@ function validateEventChain(events, contract, errors) {
       if (event.from_status !== event.to_status || event.role !== contract.artifact_roles[event.artifact_key] || !contract.artifact_files[event.artifact_key] || !contract.artifact_statuses[event.artifact_key]?.includes(event.artifact_status)) errors.push(`event ${event.event_id ?? "unknown"}: invalid artifact record event`);
     } else if (event.event_type === "verification_recorded") {
       if (event.role !== "orchestrator" || event.from_status !== event.to_status || !["passed", "failed", "skipped"].includes(event.verification_status)) errors.push(`event ${event.event_id ?? "unknown"}: invalid verification record event`);
+    } else if (event.event_type === "resume_verification_refreshed") {
+      if (event.role !== "orchestrator" || event.from_status !== "human_decision_required" || event.to_status !== "human_decision_required" || event.verification_status !== "passed" || !event.decision_reference || !Array.isArray(event.decision_ids) || event.decision_ids.length === 0) errors.push(`event ${event.event_id ?? "unknown"}: invalid resolved-decision verification refresh event`);
     } else if (event.event_type !== "transition") {
       errors.push(`event ${event.event_id ?? "unknown"}: unknown event_type ${event.event_type}`);
     } else {
@@ -487,6 +490,60 @@ function commandRecordVerification(root, args) {
   }
 }
 
+function commandRefreshVerificationForResume(root, args) {
+  if (args.status !== "passed") throw new Error("Resolved-decision verification refresh requires --status passed");
+  if (args.exit_code === undefined || Number(args.exit_code) !== 0) throw new Error("passed verification requires --exit-code 0");
+  if (args.expected_sequence === undefined) throw new Error("--expected-sequence is required");
+  if (!args.decision_reference) throw new Error("--decision-reference is required");
+  if (args.command && args.command !== canonicalVerificationCommand) throw new Error(`Resolved-decision verification refresh requires the canonical command: ${canonicalVerificationCommand}`);
+
+  const paths = workflowPaths(root);
+  const contract = loadContract(root);
+  const state = readJson(paths.state);
+  if (state.status !== "human_decision_required") throw new Error("Resolved-decision verification refresh requires human_decision_required status");
+  if (Number(args.expected_sequence) !== state.state_revision) throw new Error(`Expected sequence ${args.expected_sequence}, found ${state.state_revision}`);
+  if (state.decision_resolution?.status !== "resolved") throw new Error("Resolved-decision verification refresh requires a resolved decision");
+  const recordedReference = state.decision_resolution.evidence_reference;
+  if (typeof recordedReference !== "string" || !recordedReference.trim()) throw new Error("Resolved decision requires an exact evidence reference");
+  if (args.decision_reference !== recordedReference) throw new Error("--decision-reference must exactly match the recorded resolution evidence reference");
+  if (state.resume_phase !== "theory_alignment_review") throw new Error("Resolved-decision verification refresh is limited to a theory_alignment_review resume");
+  if (!Array.isArray(state.active_decision_ids) || state.active_decision_ids.length === 0) throw new Error("Resolved-decision verification refresh requires the active resolved decision ID");
+
+  const snapshot = repositorySnapshot(root);
+  const next = structuredClone(state);
+  const now = new Date().toISOString();
+  next.verification.repository_verify = {
+    status: "passed",
+    command: canonicalVerificationCommand,
+    exit_code: 0,
+    completed_at: now,
+    repository_head: snapshot.head,
+    working_branch: snapshot.branch,
+    working_tree_digest: snapshot.working_tree_digest,
+  };
+  next.updated_at = now;
+  const event = buildEvent(state, next, snapshot, contract, {
+    eventType: "resume_verification_refreshed",
+    reason: "Canonical verification refreshed for resolved decision resume",
+    decisionReference: recordedReference,
+    verificationStatus: "passed",
+    idempotencyKey: args.idempotency_key,
+  });
+  event.role = "orchestrator";
+  event.event_hash = sha256(stable(Object.fromEntries(Object.entries(event).filter(([key]) => key !== "event_hash"))));
+  const previousState = readFileSync(paths.state, "utf8");
+  const previousEvents = existsSync(paths.events) ? readFileSync(paths.events, "utf8") : "";
+  try {
+    appendEventAndState(root, state, next, event);
+    const errors = validateWorkflow(root, { checkRepositoryFreshness: false });
+    if (errors.length) throw new Error(errors.join("\n"));
+  } catch (error) {
+    writeAtomic(paths.events, previousEvents);
+    writeAtomic(paths.state, previousState);
+    throw new Error(`Resolved-decision verification refresh rejected and rolled back: ${error.message}`);
+  }
+}
+
 function commandRecordArtifact(root, args) {
   if (!args.artifact || !args.status) throw new Error("--artifact and --status are required");
   if (args.expected_sequence === undefined) throw new Error("--expected-sequence is required");
@@ -645,7 +702,7 @@ function commandArchive(root) {
 }
 
 function usage() {
-  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
+  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
 }
 
 async function main() {
@@ -659,6 +716,7 @@ async function main() {
   else if (command === "record-artifact") commandRecordArtifact(root, args);
   else if (command === "resolve-decision") commandResolveDecision(root, args);
   else if (command === "record-verification") commandRecordVerification(root, args);
+  else if (command === "refresh-verification-for-resume") commandRefreshVerificationForResume(root, args);
   else if (command === "archive") commandArchive(root);
   else throw new Error(usage());
 }

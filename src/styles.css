@@ -1161,6 +1161,27 @@ summary:focus-visible {
   font-size: 1rem;
 }
 
+.prepared-recovery {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.prepared-recovery .welcome-copy,
+.prepared-recovery-details,
+.prepared-recovery-details dl,
+.prepared-recovery-details dd {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.prepared-recovery-details dd {
+  margin-inline-start: 0;
+}
+
+.prepared-recovery-details .technical-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .secondary-diagnostics {
   border-top: 1px solid rgba(83, 68, 51, 0.1);
   padding-top: 18px;

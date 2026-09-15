@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { uiText } from "./i18n";
 import { FounderSchemaV5MigrationPanel } from "./FounderSchemaV5MigrationPanel";
 
-const state = { state: "migration_required", reason: null, detectedSchemaVersion: 4, supportedSchemaVersion: 5, initializationRequired: false, migrationAvailable: true, backupAvailable: false, restoreAvailable: false, backupRelativePath: null, backupRetentionDays: 30, backupCreatedAt: null, backupExpiresAt: null } as const;
+const state = { state: "migration_required", reason: null, detectedSchemaVersion: 4, supportedSchemaVersion: 5, initializationRequired: false, migrationAvailable: true, backupAvailable: false, restoreAvailable: false, backupRelativePath: null, backupRetentionDays: 30, backupCreatedAt: null, backupExpiresAt: null, preparedRecoveryReceiptAvailable: false, preparedRecoveryReceiptRelativePath: null, preparedRecoveryReceiptOperationId: null, preparedRecoveryReceiptRecoveredAt: null } as const;
 
 describe("Founder schema-v5 migration disclosure", () => {
   it.each(["en", "zh-TW", "ja"] as const)("shows explicit migrate and cancel controls in %s", (language) => {
@@ -33,5 +33,18 @@ describe("Founder schema-v5 migration disclosure", () => {
     expect(html).not.toContain(copy.ordinaryV5Purpose);
     expect(html).not.toContain(copy.ordinaryV5BackupSensitivity);
     expect(html).not.toContain(copy.ordinaryV5OlderBinaryBoundary);
+  });
+  it("shows a content-free recovery receipt with separate deletion in ordinary migration", () => {
+    const withReceipt = {
+      ...state,
+      preparedRecoveryReceiptAvailable: true,
+      preparedRecoveryReceiptRelativePath: "prepared-recovery-abc.receipt.json",
+      preparedRecoveryReceiptOperationId: "abc",
+      preparedRecoveryReceiptRecoveredAt: "2026-08-27T00:00:00Z",
+    } as const;
+    const html = renderToStaticMarkup(<FounderSchemaV5MigrationPanel copy={uiText.en} state={withReceipt} ordinary pending={false} cancelled={false} error={null} onAuthorize={vi.fn()} onCancel={vi.fn()} onDeleteRecoveryReceipt={vi.fn()} />);
+    expect(html).toContain(uiText.en.preparedRecoveryReceiptTitle);
+    expect(html).toContain("prepared-recovery-abc.receipt.json");
+    expect(html).toContain(uiText.en.preparedRecoveryReceiptDelete);
   });
 });

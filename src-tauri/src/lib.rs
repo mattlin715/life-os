@@ -4,6 +4,8 @@ mod filesystem_safety;
 mod schema_v5_founder_activation;
 #[allow(dead_code)]
 mod schema_v5_migration;
+#[cfg(feature = "desktop-schema-v5")]
+mod schema_v5_prepared_recovery;
 mod sqlite;
 use serde::Serialize;
 use serde_json::json;
@@ -324,6 +326,12 @@ pub fn run() {
             schema_v5_founder_activation::delete_founder_schema_v5_backup,
             #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::restore_founder_schema_v4_backup,
+            #[cfg(feature = "desktop-schema-v5")]
+            schema_v5_prepared_recovery::inspect_prepared_state_recovery,
+            #[cfg(feature = "desktop-schema-v5")]
+            schema_v5_prepared_recovery::execute_prepared_state_recovery,
+            #[cfg(feature = "desktop-schema-v5")]
+            schema_v5_prepared_recovery::delete_prepared_recovery_receipt,
             #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
             schema_v5_founder_activation::list_founder_v5_experiences,
             #[cfg(any(feature = "desktop-schema-v5", feature = "founder-schema-v5"))]
