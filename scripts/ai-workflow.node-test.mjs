@@ -223,6 +223,26 @@ test("copied test workflow resets an active repository state to idle", () => {
   });
 });
 
+test("validator treats LF and CRLF artifact line endings equivalently", () => {
+  withGitWorkflow((root) => {
+    const id = "2026-09-17-crlf-artifact-validation";
+    assert.equal(runWorkflow(root, "start", "--sprint-id", id, "--mission-title", "CRLF artifact validation").status, 0);
+    completeCurrentMission(root);
+
+    const missionPath = join(root, ".ai", "workflow", "CURRENT_MISSION.md");
+    const headingOnlyMission = readFileSync(missionPath, "utf8")
+      .replace(`- Sprint ID: ${id}`, `## Sprint ID\n\n${id}`);
+    writeFileSync(missionPath, headingOnlyMission);
+    assert.equal(runWorkflow(root, "record-artifact", "--artifact", "current_mission", "--status", "ready", "--expected-sequence", "1").status, 0);
+    assert.deepEqual(validateWorkflow(root), []);
+
+    const crlfMission = readFileSync(missionPath, "utf8").replace(/\r?\n/g, "\r\n");
+    writeFileSync(missionPath, crlfMission);
+    assert.match(crlfMission, new RegExp(`## Sprint ID\\r\\n\\r\\n${id}`));
+    assert.deepEqual(validateWorkflow(root), []);
+  });
+});
+
 test("contract rejects a direct intake to implementation transition", () => {
   const contract = loadContract(repositoryRoot);
   const state = idleState(repositoryRoot);

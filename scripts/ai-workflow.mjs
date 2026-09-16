@@ -235,7 +235,7 @@ export function validateWorkflow(root = defaultRoot, options = {}) {
   for (const [key, filename] of Object.entries(contract.artifact_files)) {
     const path = artifactPath(root, filename);
     if (!existsSync(path)) { errors.push(`missing workflow artifact: ${filename}`); continue; }
-    const content = readFileSync(path, "utf8");
+    const content = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
     const status = markdownStatus(content);
     const allowed = contract.artifact_statuses[key] ?? [];
     if (!status || !allowed.includes(status)) errors.push(`${filename}: invalid or missing Status`);
