@@ -43,6 +43,7 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1/",
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-console-correction/",
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction/",
+  ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/",
 ];
 const ACTIVE_SUCCESSOR_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
@@ -152,6 +153,16 @@ function normalizeRepositoryPath(value) {
   return value.replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
+export function isFounderPackageChangedPathAllowed(value) {
+  const item = normalizeRepositoryPath(value);
+  return (
+    SOURCE_ALLOWLIST.has(item) ||
+    ACTIVE_SUCCESSOR_ALLOWLIST.has(item) ||
+    HISTORY_PREFIXES.some((prefix) => item.startsWith(prefix)) ||
+    ACTIVE_SUCCESSOR_PREFIXES.some((prefix) => item.startsWith(prefix))
+  );
+}
+
 export async function sha256File(filePath) {
   await access(filePath);
   return new Promise((resolve, reject) => {
@@ -241,13 +252,7 @@ export async function validateSourceContract(root, { inspectGit = true } = {}) {
       .split(/\r?\n/)
       .filter(Boolean);
     const paths = [...new Set([...changed, ...untracked].map(normalizeRepositoryPath))].sort();
-    const outside = paths.filter(
-      (item) =>
-        !SOURCE_ALLOWLIST.has(item) &&
-        !ACTIVE_SUCCESSOR_ALLOWLIST.has(item) &&
-        !HISTORY_PREFIXES.some((prefix) => item.startsWith(prefix)) &&
-        !ACTIVE_SUCCESSOR_PREFIXES.some((prefix) => item.startsWith(prefix)),
-    );
+    const outside = paths.filter((item) => !isFounderPackageChangedPathAllowed(item));
     assert(outside.length === 0, `Changed paths outside the Founder package allowlist: ${outside.join(", ")}`);
     const ignoreCheck = spawnSync(
       "git",

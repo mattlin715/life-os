@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   FOUNDER_IDENTIFIER,
   createManifest,
+  isFounderPackageChangedPathAllowed,
   readWindowsSubsystem,
   validateManifest,
   validateFounderBinary,
@@ -15,6 +16,7 @@ import {
 
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const TARGET = "x86_64-pc-windows-msvc";
+const R2B_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/";
 
 async function fixtureRoot() {
   const root = await mkdtemp(path.join(tmpdir(), "life-os-founder-package-"));
@@ -203,6 +205,16 @@ test("rejects manifest path leakage, extra fields, size drift, and digest drift"
   await assert.rejects(validateManifest({ ...valid, userPath: "C:\\private" }, expected), /unexpected keys/);
   await assert.rejects(validateManifest({ ...valid, artifactSize: valid.artifactSize + 1 }, expected), /size mismatch/);
   await assert.rejects(validateManifest({ ...valid, sha256: "0".repeat(64) }, expected), /SHA-256 mismatch/);
+});
+
+test("allows only the exact R2B workflow archive prefix", () => {
+  assert.equal(isFounderPackageChangedPathAllowed(`${R2B_ARCHIVE_PREFIX}WORKFLOW_STATE.json`), true);
+  assert.equal(
+    isFounderPackageChangedPathAllowed(
+      ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2-neighbor/WORKFLOW_STATE.json",
+    ),
+    false,
+  );
 });
 
 test("the real repository satisfies the package source contract", async () => {
