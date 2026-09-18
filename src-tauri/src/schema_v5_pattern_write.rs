@@ -135,7 +135,6 @@ fn validate_legacy_pattern_provenance(
     raw: Option<&Value>,
     normalized: &Value,
     source_id: &str,
-    exact_sources: &BTreeSet<String>,
 ) -> Result<&'static str, MigrationError> {
     let normalized = normalized
         .as_object()
@@ -192,7 +191,11 @@ fn validate_legacy_pattern_provenance(
             "legacy_raw_provenance_sources",
             false,
         )?;
-        if raw_sources != normalized_sources || raw_sources != *exact_sources {
+        // Legacy v4 provenance is immutable historical evidence. Some frontend
+        // records predate complete sourceArtifactIds, so preserve that omission
+        // when raw and canonical provenance agree. Callers separately bind the
+        // declared sources to the exact normalized dependency rows.
+        if raw_sources != normalized_sources {
             return Err(recovery_error("pattern_legacy_provenance_sources_mismatch"));
         }
         for key in [
@@ -297,21 +300,16 @@ fn validate_legacy_pattern_candidate(
             "pattern_legacy_authority_projection_mismatch",
         ));
     }
-    let evidence = exact_id_set(object.get("sourceEvidenceIds"), "legacy_evidence_ids", true)?;
-    let reflections = exact_id_set(
+    exact_id_set(object.get("sourceEvidenceIds"), "legacy_evidence_ids", true)?;
+    exact_id_set(
         object.get("sourceReflectionPromptIds"),
         "legacy_reflection_ids",
         false,
     )?;
-    let exact_sources = evidence
-        .union(&reflections)
-        .cloned()
-        .collect::<BTreeSet<_>>();
     let expected_authorship = validate_legacy_pattern_provenance(
         object.get("provenance"),
         &current.generated_provenance,
         source_id,
-        &exact_sources,
     )?;
     if current.authorship != expected_authorship {
         return Err(recovery_error("pattern_legacy_authorship_mismatch"));
@@ -1349,8 +1347,7 @@ async fn verify_pattern_projection(
                         "legacy_raw_provenance_sources",
                         false,
                     )?;
-                    if declared_sources != provenance_sources
-                        || declared_sources != raw_sources
+                    if provenance_sources != raw_sources
                         || raw_provenance.get("origin") != provenance_value.get("origin")
                         || raw_provenance.get("sourceEntryId")
                             != provenance_value.get("sourceEntryId")
@@ -2704,7 +2701,12 @@ mod tests {
         (directory, path)
     }
 
-    fn legacy_pattern_payload(id: &str, include_provenance: bool, extra_field: bool) -> String {
+    fn legacy_pattern_payload_with_sources(
+        id: &str,
+        include_provenance: bool,
+        extra_field: bool,
+        provenance_source_ids: &[&str],
+    ) -> String {
         let mut payload = json!({
             "createdAt": "2026-01-01T00:00:03.000Z",
             "id": id,
@@ -2725,7 +2727,7 @@ mod tests {
                     "origin": "local_mock",
                     "promptVersion": "single-experience-pattern-v1",
                     "provider": "mock",
-                    "sourceArtifactIds": ["legacy-pattern-evidence"],
+                    "sourceArtifactIds": provenance_source_ids,
                     "sourceEntryId": SOURCE_ID
                 }),
             );
@@ -2739,10 +2741,20 @@ mod tests {
         serde_json::to_string_pretty(&payload).unwrap()
     }
 
-    async fn exact_v5_legacy_pattern_fixture(
+    fn legacy_pattern_payload(id: &str, include_provenance: bool, extra_field: bool) -> String {
+        legacy_pattern_payload_with_sources(
+            id,
+            include_provenance,
+            extra_field,
+            &["legacy-pattern-evidence"],
+        )
+    }
+
+    async fn exact_v5_legacy_pattern_fixture_with_sources(
         id: &str,
         include_provenance: bool,
         extra_field: bool,
+        provenance_source_ids: &[&str],
     ) -> (TempDir, std::path::PathBuf, String) {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("life-os.db");
@@ -2791,7 +2803,12 @@ mod tests {
         .await
         .unwrap();
 
-        let raw = legacy_pattern_payload(id, include_provenance, extra_field);
+        let raw = legacy_pattern_payload_with_sources(
+            id,
+            include_provenance,
+            extra_field,
+            provenance_source_ids,
+        );
         sqlx::query(
             "INSERT INTO persisted_artifacts \
              (id, source_entry_id, artifact_kind, payload, created_at, updated_at) \
@@ -2805,12 +2822,14 @@ mod tests {
         .await
         .unwrap();
 
-        let mut imported_review_payload: Value = serde_json::from_str(&legacy_pattern_payload(
-            "legacy-imported-review-pattern",
-            true,
-            false,
-        ))
-        .unwrap();
+        let mut imported_review_payload: Value =
+            serde_json::from_str(&legacy_pattern_payload_with_sources(
+                "legacy-imported-review-pattern",
+                true,
+                false,
+                provenance_source_ids,
+            ))
+            .unwrap();
         imported_review_payload["status"] = Value::String("confirmed".into());
         let imported_review_raw = serde_json::to_string_pretty(&imported_review_payload).unwrap();
         sqlx::query(
@@ -2842,6 +2861,20 @@ mod tests {
         let mut read_only = connect(&path, true).await.unwrap();
         verify_exact_pattern_v5(&mut read_only).await.unwrap();
         (directory, path, raw)
+    }
+
+    async fn exact_v5_legacy_pattern_fixture(
+        id: &str,
+        include_provenance: bool,
+        extra_field: bool,
+    ) -> (TempDir, std::path::PathBuf, String) {
+        exact_v5_legacy_pattern_fixture_with_sources(
+            id,
+            include_provenance,
+            extra_field,
+            &["legacy-pattern-evidence"],
+        )
+        .await
     }
 
     async fn legacy_pattern_refs(path: &Path, id: &str) -> (String, ArtifactRevisionRef) {
@@ -4263,6 +4296,153 @@ mod tests {
                 assert_eq!(operation_manifest(&mut connection).await.unwrap(), before);
             }
         }
+    }
+
+    #[test]
+    fn legacy_pattern_provenance_preserves_incomplete_sources_but_rejects_drift() {
+        let raw = json!({
+            "generatedAt": "2026-01-01T00:00:03.000Z",
+            "harnessVersion": "harness-v1",
+            "model": null,
+            "origin": "local_mock",
+            "promptVersion": "single-experience-pattern-v1",
+            "provider": "mock",
+            "sourceArtifactIds": [],
+            "sourceEntryId": SOURCE_ID
+        });
+        assert_eq!(
+            validate_legacy_pattern_provenance(Some(&raw), &raw, SOURCE_ID).unwrap(),
+            "local_mock"
+        );
+
+        let mut source_drift = raw.clone();
+        source_drift["sourceArtifactIds"] = json!(["legacy-pattern-evidence"]);
+        assert!(
+            validate_legacy_pattern_provenance(Some(&raw), &source_drift, SOURCE_ID)
+                .unwrap_err()
+                .code
+                .contains("pattern_legacy_provenance_sources_mismatch")
+        );
+
+        let mut field_drift = raw.clone();
+        field_drift["model"] = Value::String("unexpected-model".into());
+        assert!(
+            validate_legacy_pattern_provenance(Some(&raw), &field_drift, SOURCE_ID)
+                .unwrap_err()
+                .code
+                .contains("pattern_legacy_provenance_field_mismatch:model")
+        );
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_pattern_accepts_incomplete_matching_historical_provenance() {
+        let id = "legacy-pattern-incomplete-provenance";
+        let (_directory, path, raw) =
+            exact_v5_legacy_pattern_fixture_with_sources(id, true, false, &[]).await;
+        let (revision, evidence) = legacy_pattern_refs(&path, id).await;
+        let before: (String, String, i64) = {
+            let mut connection = connect(&path, true).await.unwrap();
+            sqlx::query_as(
+                "SELECT c.payload, p.canonical_payload, \
+                   (SELECT COUNT(*) FROM artifact_dependencies d \
+                    WHERE d.dependent_revision_id=r.id AND d.relationship_type='uses_evidence') \
+                 FROM artifact_revisions r \
+                 JOIN artifact_revision_content c ON c.revision_id=r.id \
+                 JOIN artifact_revision_provenance rp \
+                   ON rp.artifact_revision_id=r.id AND rp.role='content' \
+                 JOIN provenance_records p ON p.id=rp.provenance_id \
+                 WHERE r.id=?",
+            )
+            .bind(&revision)
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
+        };
+        assert_eq!(before.0, raw);
+        assert_eq!(
+            serde_json::from_str::<Value>(&before.1).unwrap()["sourceArtifactIds"],
+            json!([])
+        );
+        assert_eq!(before.2, 1);
+
+        execute_disposable(
+            &path,
+            PatternWriteCommand::ConfirmPending {
+                source_id: SOURCE_ID.into(),
+                artifact_id: id.into(),
+                expected_source_revision_id: source_revision(&path).await,
+                expected_artifact_revision_id: revision.clone(),
+                expected_evidence: vec![evidence],
+                expected_reflections: Vec::new(),
+            },
+            context(
+                "2026-08-09T01:59:00.000Z",
+                "guard-legacy-incomplete-provenance-0001",
+                PatternWriteFailurePoint::None,
+            ),
+        )
+        .await
+        .unwrap();
+
+        let mut connection = connect(&path, true).await.unwrap();
+        verify_exact_pattern_v5(&mut connection).await.unwrap();
+        let after: (String, String, i64) = sqlx::query_as(
+            "SELECT c.payload, p.canonical_payload, \
+               (SELECT COUNT(*) FROM artifact_dependencies d \
+                WHERE d.dependent_revision_id=r.id AND d.relationship_type='uses_evidence') \
+             FROM artifact_revisions r \
+             JOIN artifact_revision_content c ON c.revision_id=r.id \
+             JOIN artifact_revision_provenance rp \
+               ON rp.artifact_revision_id=r.id AND rp.role='content' \
+             JOIN provenance_records p ON p.id=rp.provenance_id \
+             WHERE r.id=?",
+        )
+        .bind(&revision)
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+        assert_eq!(after, before);
+    }
+
+    #[tokio::test]
+    async fn migrated_legacy_pattern_with_incomplete_provenance_rejects_dependency_drift() {
+        let id = "legacy-pattern-incomplete-dependency-drift";
+        let (_directory, path, _) =
+            exact_v5_legacy_pattern_fixture_with_sources(id, true, false, &[]).await;
+        let (revision, _) = legacy_pattern_refs(&path, id).await;
+        let mut connection = connect(&path, false).await.unwrap();
+        raw_sql("BEGIN IMMEDIATE")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO v5_compatibility_write_guard VALUES \
+             ('guard-legacy-incomplete-dependency-001','2026-08-09T01:59:30.000Z')",
+        )
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM artifact_dependencies \
+             WHERE dependent_revision_id=? AND relationship_type='uses_evidence'",
+        )
+        .bind(&revision)
+        .execute(&mut connection)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM v5_compatibility_write_guard")
+            .execute(&mut connection)
+            .await
+            .unwrap();
+        raw_sql("COMMIT").execute(&mut connection).await.unwrap();
+        drop(connection);
+
+        let mut read_only = connect(&path, true).await.unwrap();
+        assert!(verify_exact_pattern_v5(&mut read_only)
+            .await
+            .unwrap_err()
+            .code
+            .contains("pattern_evidence_dependencies_mismatch"));
     }
 
     #[tokio::test]
