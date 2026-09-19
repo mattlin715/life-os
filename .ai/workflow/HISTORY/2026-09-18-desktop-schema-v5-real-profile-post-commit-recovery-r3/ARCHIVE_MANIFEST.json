@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3",
+  "terminal_status": "completed",
+  "archived_at": "2026-09-19T22:23:54.056Z",
+  "repository_head": "4746aed9e7cc7a6a01ddc3a39eb0db2bd0fde3df",
+  "working_branch": "develop",
+  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
+  "last_event_id": "2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3:0157",
+  "last_event_hash": "30513036bd2bf1d00e89bec848f0b8a4db8e90d62923c56cb4e565b234802f7c",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
