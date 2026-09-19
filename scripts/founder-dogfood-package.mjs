@@ -44,6 +44,7 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-console-correction/",
   ".ai/workflow/HISTORY/2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction/",
   ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/",
+  ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3/",
 ];
 const ACTIVE_SUCCESSOR_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
