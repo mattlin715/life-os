@@ -28,6 +28,7 @@ try {
   Invoke-VerificationStep 'Windows Founder dogfooding package contract tests' { node --test scripts/founder-dogfood-package.node-test.mjs }
   Invoke-VerificationStep 'Founder schema-v5 candidate package contract tests' { node --test scripts/founder-schema-v5-candidate-package.node-test.mjs }
   Invoke-VerificationStep 'Ordinary schema-v5 review package contract tests' { node --test scripts/ordinary-schema-v5-review-package.node-test.mjs }
+  Invoke-VerificationStep 'Android M0 source and generated-project contract tests' { node --test scripts/android-m0-contract.node-test.mjs }
   Invoke-VerificationStep 'Vitest' { pnpm run test:run }
   Invoke-VerificationStep 'TypeScript typecheck' { pnpm run typecheck }
   Invoke-VerificationStep 'Frontend build' { pnpm run build }

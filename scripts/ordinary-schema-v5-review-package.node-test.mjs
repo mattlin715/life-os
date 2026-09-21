@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { validateOrdinaryReviewSource } from "./ordinary-schema-v5-review-package.mjs";
 
@@ -15,8 +15,14 @@ test("ordinary schema-v5 review uses the real ordinary identity with a disposabl
   });
 });
 
-test("ordinary activation adds no Android generated surface", async () => {
-  await assert.rejects(access(path.join(root, "src-tauri", "gen", "android")));
+test("ordinary desktop identity remains separate from the exact Android M0 identity", async () => {
+  const desktop = JSON.parse(await readFile(path.join(root, "src-tauri", "tauri.conf.json"), "utf8"));
+  const android = JSON.parse(await readFile(path.join(root, "src-tauri", "tauri.android.conf.json"), "utf8"));
+
+  assert.equal(desktop.identifier, "com.lifeos.app");
+  assert.equal(desktop.productName, "Life OS");
+  assert.equal(android.identifier, "com.lifeos.feasibility.m0");
+  assert.equal(android.productName, "Life OS Android Feasibility M0");
 });
 
 test("the main desktop capability grants and records the explicit window close command", async () => {

@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.8
+version: 0.9
 owner: LIN MENGLUNG
-last_updated: 2026/07/28
+last_updated: 2026/09/21
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -254,6 +254,36 @@ Make Life OS durable without sacrificing user ownership or the mirror relationsh
 ### Book Zero Risks
 - Commercial incentives turning the mirror into an oracle.
 - Convenience eroding local-first ownership and psychological safety.
+
+## Early Platform Exploration — Android Build Feasibility M0
+
+M0 is a bounded exploration of the later mobile capability named in Phase 7;
+it does not activate Phase 7, Android R0, or a production mobile architecture.
+The current review candidate proves that an isolated Tauri/React shell can be
+compiled and packaged as a debug APK with temporary identifier
+`com.lifeos.feasibility.m0`. Automated source, bundle, manifest, ABI, backup,
+and signing inspection has passed. On 2026-09-21, the Founder accepted the
+disposable-emulator native checklist 11/11 after the mobile entry-point and
+safe-area corrections. This completes only M0 feasibility review and grants no
+authority to publish the diff or begin M1.
+
+M0 deliberately creates no product database or durable artifact and exposes no
+desktop profile, migration/recovery, provider, credential, historical-context,
+or cloud capability. It makes no production identity, signing, installation,
+upgrade, data-continuity, distribution, deployment, or release commitment.
+See `docs/architecture/20_Android_Build_Feasibility_M0.md` and
+`docs/dev/11_Android_M0_Runbook.md`.
+
+Later work remains separately governed and unauthorized:
+
+- **M1:** choose the production mobile architecture, storage authority, and
+  stable application identity.
+- **M2:** design governed Android local evidence, persistence, migrations,
+  recovery, retention, import/export, and deletion.
+- **M3:** design explicit consent for providers, credentials, and any historical
+  context transmission.
+- **M4:** production signing, distribution, upgrades, optional synchronization,
+  deployment, and release operations.
 
 ## Roadmap Governance
 

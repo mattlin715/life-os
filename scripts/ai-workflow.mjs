@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +39,21 @@ function sha256(value) {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function repositoryFile(root, path, argumentName) {
+  if (typeof path !== "string" || !path.trim()) throw new Error(`${argumentName} is required`);
+  if (/^(?:[A-Za-z]:[\\/]|[\\/]{1,2})/.test(path)) throw new Error(`${argumentName} must be repository-relative`);
+  const absolute = resolve(root, path);
+  if (!existsSync(absolute) || !statSync(absolute).isFile()) throw new Error(`${argumentName} must name an existing file`);
+  const repository = realpathSync(root);
+  const canonical = realpathSync(absolute);
+  const repositoryRelative = relative(repository, canonical).replaceAll("\\", "/");
+  if (!repositoryRelative || repositoryRelative === ".." || repositoryRelative.startsWith("../")) {
+    throw new Error(`${argumentName} must stay inside the repository`);
+  }
+  if (isMutableWorkflowPath(repositoryRelative)) throw new Error(`${argumentName} cannot use mutable workflow state as authorization evidence`);
+  return { absolute: canonical, relative: repositoryRelative };
 }
 
 let atomicRenameAttempt = 0;
@@ -176,6 +191,20 @@ function validateEventChain(events, contract, errors) {
       if (event.role !== "orchestrator" || event.from_status !== event.to_status || !["passed", "failed", "skipped"].includes(event.verification_status)) errors.push(`event ${event.event_id ?? "unknown"}: invalid verification record event`);
     } else if (event.event_type === "resume_verification_refreshed") {
       if (event.role !== "orchestrator" || event.from_status !== "human_decision_required" || event.to_status !== "human_decision_required" || event.verification_status !== "passed" || !event.decision_reference || !Array.isArray(event.decision_ids) || event.decision_ids.length === 0) errors.push(`event ${event.event_id ?? "unknown"}: invalid resolved-decision verification refresh event`);
+    } else if (event.event_type === "terminal_follow_up_started") {
+      if (
+        event.role !== "orchestrator"
+        || event.from_status !== "completed"
+        || event.to_status !== "validation"
+        || typeof event.follow_up_authorization_reference !== "string"
+        || !event.follow_up_authorization_reference.trim()
+        || typeof event.follow_up_authorization_evidence_path !== "string"
+        || !event.follow_up_authorization_evidence_path.trim()
+        || !/^[a-f0-9]{64}$/.test(event.follow_up_authorization_evidence_sha256 ?? "")
+        || typeof event.reason !== "string"
+        || !event.reason.trim()
+        || event.terminal_snapshot?.status !== "completed"
+      ) errors.push(`event ${event.event_id ?? "unknown"}: invalid terminal follow-up event`);
     } else if (event.event_type !== "transition") {
       errors.push(`event ${event.event_id ?? "unknown"}: unknown event_type ${event.event_type}`);
     } else {
@@ -230,6 +259,21 @@ export function validateWorkflow(root = defaultRoot, options = {}) {
     if (!Array.isArray(state.active_decision_ids) || state.active_decision_ids.length === 0) errors.push("human decision state requires active_decision_ids");
   } else if (state.human_approval_required && state.decision_resolution?.status !== "resolved") {
     errors.push("human_approval_required is true outside a resolvable human decision state");
+  }
+
+  if (state.terminal_follow_up !== undefined) {
+    const followUp = state.terminal_follow_up;
+    if (!followUp || typeof followUp !== "object") errors.push("terminal_follow_up must be an object");
+    else {
+      if (!['validation_pending', 'verification_failed', 'verified'].includes(followUp.status)) errors.push("terminal_follow_up has invalid status");
+      if (typeof followUp.authorization_reference !== "string" || !followUp.authorization_reference.trim()) errors.push("terminal_follow_up requires authorization_reference");
+      if (typeof followUp.authorization_evidence?.path !== "string" || !followUp.authorization_evidence.path.trim()) errors.push("terminal_follow_up requires authorization evidence path");
+      if (!/^[a-f0-9]{64}$/.test(followUp.authorization_evidence?.sha256 ?? "")) errors.push("terminal_follow_up requires authorization evidence SHA-256");
+      if (followUp.original_terminal_snapshot?.status !== "completed") errors.push("terminal_follow_up requires the original completed snapshot");
+      if (followUp.original_terminal_snapshot?.last_event_id === undefined || followUp.original_terminal_snapshot?.last_event_hash === undefined) errors.push("terminal_follow_up original snapshot is incomplete");
+      if (followUp.original_terminal_snapshot?.verification === undefined) errors.push("terminal_follow_up must preserve original verification evidence");
+      if (followUp.original_terminal_snapshot?.decision_resolution === undefined) errors.push("terminal_follow_up must preserve original decision evidence");
+    }
   }
 
   for (const [key, filename] of Object.entries(contract.artifact_files)) {
@@ -470,6 +514,10 @@ function commandRecordVerification(root, args) {
     repository_head: snapshot.head,
     working_tree_digest: snapshot.working_tree_digest,
   };
+  if (next.terminal_follow_up?.status === "validation_pending" || next.terminal_follow_up?.status === "verification_failed") {
+    next.terminal_follow_up.status = args.status === "passed" ? "verified" : "verification_failed";
+    next.terminal_follow_up.verification_recorded_at = new Date().toISOString();
+  }
   next.updated_at = new Date().toISOString();
   const event = buildEvent(state, next, snapshot, contract, {
     eventType: "verification_recorded",
@@ -487,6 +535,118 @@ function commandRecordVerification(root, args) {
     writeAtomic(paths.events, previousEvents);
     writeAtomic(paths.state, previousState);
     throw new Error(`Verification record rejected:\n${errors.join("\n")}`);
+  }
+}
+
+function commandStartTerminalFollowUp(root, args) {
+  for (const required of [
+    "sprint_id",
+    "expected_head",
+    "expected_branch",
+    "expected_sequence",
+    "authorization_reference",
+    "authorization_evidence",
+    "reason",
+  ]) {
+    if (args[required] === undefined || !String(args[required]).trim()) {
+      throw new Error(`--${required.replaceAll("_", "-")} is required`);
+    }
+  }
+
+  const paths = workflowPaths(root);
+  const contract = loadContract(root);
+  const state = readJson(paths.state);
+  const preflightErrors = validateWorkflow(root, { checkRepositoryFreshness: false });
+  if (preflightErrors.length) throw new Error(`Terminal follow-up preflight failed:\n${preflightErrors.join("\n")}`);
+  if (state.status !== "completed") throw new Error("Terminal follow-up requires completed status");
+  if (args.sprint_id !== state.sprint_id) throw new Error(`--sprint-id must exactly match ${state.sprint_id}`);
+  if (Number(args.expected_sequence) !== state.state_revision) throw new Error(`Expected sequence ${args.expected_sequence}, found ${state.state_revision}`);
+  if (args.expected_head !== state.repository_head) throw new Error("--expected-head must exactly match the completed state repository_head");
+  if (args.expected_branch !== state.working_branch) throw new Error("--expected-branch must exactly match the completed state working_branch");
+
+  const snapshot = repositorySnapshot(root);
+  if (snapshot.head !== args.expected_head) throw new Error(`Live HEAD ${snapshot.head} does not match --expected-head ${args.expected_head}`);
+  if (snapshot.branch !== args.expected_branch) throw new Error(`Live branch ${snapshot.branch} does not match --expected-branch ${args.expected_branch}`);
+
+  const evidence = repositoryFile(root, args.authorization_evidence, "--authorization-evidence");
+  const evidenceContent = readFileSync(evidence.absolute);
+  const evidenceText = evidenceContent.toString("utf8");
+  if (!evidenceText.includes(args.authorization_reference)) {
+    throw new Error("--authorization-reference must appear exactly in --authorization-evidence");
+  }
+
+  const now = new Date().toISOString();
+  const originalTerminalSnapshot = {
+    status: state.status,
+    current_phase: state.current_phase,
+    state_revision: state.state_revision,
+    last_event_id: state.last_event_id,
+    last_event_hash: state.last_event_hash,
+    repository_head: state.repository_head,
+    working_branch: state.working_branch,
+    working_tree_digest: state.working_tree_digest,
+    artifacts: structuredClone(state.artifacts),
+    verification: structuredClone(state.verification),
+    decision_resolution: structuredClone(state.decision_resolution),
+    completed_at: state.updated_at,
+  };
+  const next = structuredClone(state);
+  next.status = "validation";
+  next.current_phase = "validation";
+  next.current_role = contract.phase_roles.validation;
+  next.last_completed_phase = "completed";
+  next.next_action = "Reconcile authorized terminal follow-up evidence and record fresh canonical verification";
+  next.blocking_reason = null;
+  next.human_approval_required = false;
+  next.blocked_phase = null;
+  next.resume_phase = null;
+  next.active_decision_ids = [];
+  next.verification.repository_verify = {
+    status: "pending",
+    command: canonicalVerificationCommand,
+    exit_code: null,
+    completed_at: null,
+    repository_head: null,
+    working_branch: null,
+    working_tree_digest: null,
+  };
+  next.terminal_follow_up = {
+    status: "validation_pending",
+    authorization_reference: args.authorization_reference,
+    authorization_evidence: {
+      path: evidence.relative,
+      sha256: sha256(evidenceContent),
+    },
+    reason: args.reason,
+    started_at: now,
+    original_terminal_snapshot: originalTerminalSnapshot,
+  };
+  next.updated_at = now;
+
+  const event = buildEvent(state, next, snapshot, contract, {
+    eventType: "terminal_follow_up_started",
+    reason: args.reason,
+    decisionReference: args.authorization_reference,
+    idempotencyKey: args.idempotency_key,
+  });
+  event.role = "orchestrator";
+  event.follow_up_authorization_reference = args.authorization_reference;
+  event.follow_up_authorization_evidence_path = evidence.relative;
+  event.follow_up_authorization_evidence_sha256 = sha256(evidenceContent);
+  event.terminal_snapshot = originalTerminalSnapshot;
+  event.event_hash = sha256(stable(Object.fromEntries(Object.entries(event).filter(([key]) => key !== "event_hash"))));
+  next.verification.repository_verify.invalidated_by_event_id = event.event_id;
+
+  const previousState = readFileSync(paths.state, "utf8");
+  const previousEvents = existsSync(paths.events) ? readFileSync(paths.events, "utf8") : "";
+  try {
+    appendEventAndState(root, state, next, event);
+    const errors = validateWorkflow(root, { checkRepositoryFreshness: true });
+    if (errors.length) throw new Error(errors.join("\n"));
+  } catch (error) {
+    writeAtomic(paths.events, previousEvents);
+    writeAtomic(paths.state, previousState);
+    throw new Error(`Terminal follow-up rejected and rolled back: ${error.message}`);
   }
 }
 
@@ -702,7 +862,7 @@ function commandArchive(root) {
 }
 
 function usage() {
-  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
+  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs start-terminal-follow-up --sprint-id <id> --expected-head <sha> --expected-branch <name> --expected-sequence <n> --authorization-reference <ref> --authorization-evidence <path> --reason <text>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
 }
 
 async function main() {
@@ -712,6 +872,7 @@ async function main() {
   if (command === "validate") commandValidate(root);
   else if (command === "status") commandStatus(root);
   else if (command === "start") commandStart(root, args);
+  else if (command === "start-terminal-follow-up") commandStartTerminalFollowUp(root, args);
   else if (command === "transition") commandTransition(root, args);
   else if (command === "record-artifact") commandRecordArtifact(root, args);
   else if (command === "resolve-decision") commandResolveDecision(root, args);
