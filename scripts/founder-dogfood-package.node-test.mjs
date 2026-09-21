@@ -18,6 +18,7 @@ const SHA = "0123456789abcdef0123456789abcdef01234567";
 const TARGET = "x86_64-pc-windows-msvc";
 const R2B_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/";
 const R3_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3/";
+const ANDROID_M0_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/";
 
 async function fixtureRoot() {
   const root = await mkdtemp(path.join(tmpdir(), "life-os-founder-package-"));
@@ -236,6 +237,22 @@ test("allows only the exact R3 workflow archive prefix", () => {
   assert.equal(
     isFounderPackageChangedPathAllowed(
       ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r30/WORKFLOW_STATE.json",
+    ),
+    false,
+  );
+});
+
+test("allows only the exact Android M0 workflow archive prefix", () => {
+  assert.equal(isFounderPackageChangedPathAllowed(`${ANDROID_M0_ARCHIVE_PREFIX}WORKFLOW_STATE.json`), true);
+  assert.equal(
+    isFounderPackageChangedPathAllowed(
+      ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0-neighbor/WORKFLOW_STATE.json",
+    ),
+    false,
+  );
+  assert.equal(
+    isFounderPackageChangedPathAllowed(
+      ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m01/WORKFLOW_STATE.json",
     ),
     false,
   );
