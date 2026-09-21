@@ -150,6 +150,49 @@ function refreshVerificationArgs(state, decisionReference, overrides = {}) {
   ];
 }
 
+function prepareCompletedWorkflowWithFounderDecision(root, options = {}) {
+  const founderResponse = options.founderResponse ?? "Founder accepted the exact build-only candidate";
+  const fixture = prepareResolvedTheoryDecision(root, {
+    sprintId: options.sprintId ?? "2026-09-21-terminal-follow-up",
+    decisionReference: options.decisionReference ?? "founder-build-only-acceptance",
+    founderResponse,
+  });
+  let state = readState(root);
+  assert.equal(runWorkflow(root, ...refreshVerificationArgs(state, fixture.decisionReference)).status, 0);
+  state = readState(root);
+  assert.equal(runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", fixture.decisionReference, "--expected-sequence", String(state.state_revision)).status, 0);
+  completeArtifact(root, "THEORY_ALIGNMENT_REVIEW.md", "approved", fixture.id);
+  state = readState(root);
+  assert.equal(runWorkflow(root, "record-artifact", "--artifact", "theory_alignment_review", "--status", "approved", "--expected-sequence", String(state.state_revision)).status, 0);
+  completeArtifact(root, "SPRINT_REPORT.md", "completed", fixture.id);
+  state = readState(root);
+  assert.equal(runWorkflow(root, "record-artifact", "--artifact", "sprint_report", "--status", "completed", "--expected-sequence", String(state.state_revision)).status, 0);
+  state = readState(root);
+  assert.equal(runWorkflow(root, "transition", "--to", "completed", "--expected-sequence", String(state.state_revision)).status, 0);
+
+  const evidencePath = join(root, ".artifacts", "android-m0", "native-review", "accepted.md");
+  mkdirSync(join(root, ".artifacts", "android-m0", "native-review"), { recursive: true });
+  const authorizationReference = options.authorizationReference ?? "ANDROID-M0-NATIVE-ACCEPT-001 Option A";
+  writeFileSync(evidencePath, `# Accepted native review\n\n${authorizationReference}\n`);
+  return { ...fixture, founderResponse, authorizationReference, evidencePath: ".artifacts/android-m0/native-review/accepted.md" };
+}
+
+function terminalFollowUpArgs(root, fixture, overrides = {}) {
+  const state = readState(root);
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+  const branch = execFileSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" }).trim();
+  return [
+    "start-terminal-follow-up",
+    "--sprint-id", overrides.sprintId ?? state.sprint_id,
+    "--expected-head", overrides.expectedHead ?? head,
+    "--expected-branch", overrides.expectedBranch ?? branch,
+    "--expected-sequence", String(overrides.expectedSequence ?? state.state_revision),
+    "--authorization-reference", overrides.authorizationReference ?? fixture.authorizationReference,
+    "--authorization-evidence", overrides.authorizationEvidence ?? fixture.evidencePath,
+    "--reason", overrides.reason ?? "Reconcile accepted Android M0 native corrections before promotion review",
+  ];
+}
+
 function capturePlanningTransitionSnapshots(root, sprintId) {
   const script = join(root, "scripts", "ai-workflow.mjs");
   const run = (...args) => {
@@ -609,6 +652,120 @@ test("resumed theory review can open a new decision that still requires a new Fo
     assert.match(missingResponse.stderr, /--founder-response is required/);
     assert.equal(readState(root).decision_resolution, null);
   });
+});
+
+test("authorized completed follow-up preserves terminal evidence and requires fresh verification", () => {
+  withGitWorkflow((root) => {
+    const fixture = prepareCompletedWorkflowWithFounderDecision(root);
+    const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+    const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+    const before = readState(root);
+    const eventsBefore = readFileSync(eventsPath, "utf8");
+    assert.equal(before.status, "completed");
+    assert.match(validateWorkflow(root, { checkRepositoryFreshness: true }).join("\n"), /verification evidence is missing or stale/);
+
+    const result = runWorkflow(root, ...terminalFollowUpArgs(root, fixture));
+    assert.equal(result.status, 0, result.stderr);
+    const after = readState(root);
+    assert.equal(after.status, "validation");
+    assert.equal(after.current_phase, "validation");
+    assert.equal(after.terminal_follow_up.status, "validation_pending");
+    assert.equal(after.terminal_follow_up.authorization_reference, fixture.authorizationReference);
+    assert.equal(after.terminal_follow_up.original_terminal_snapshot.status, "completed");
+    assert.deepEqual(after.terminal_follow_up.original_terminal_snapshot.verification, before.verification);
+    assert.deepEqual(after.terminal_follow_up.original_terminal_snapshot.decision_resolution, before.decision_resolution);
+    assert.deepEqual(after.decision_resolution, before.decision_resolution);
+    assert.equal(after.decision_resolution.exact_founder_response, fixture.founderResponse);
+    assert.equal(after.verification.repository_verify.status, "pending");
+    assert.equal(after.verification.manual_ui.status, before.verification.manual_ui.status);
+    assert.equal(after.human_approval_required, false);
+    assert.deepEqual(after.active_decision_ids, []);
+    assert.equal(readFileSync(eventsPath, "utf8").startsWith(eventsBefore), true);
+    const followUpEvent = readFileSync(eventsPath, "utf8").trim().split(/\r?\n/).map(JSON.parse).at(-1);
+    assert.equal(followUpEvent.event_type, "terminal_follow_up_started");
+    assert.equal(followUpEvent.terminal_snapshot.last_event_id, before.last_event_id);
+    assert.deepEqual(validateWorkflow(root, { checkRepositoryFreshness: true }), []);
+
+    const prematureTheory = runWorkflow(root, "transition", "--to", "theory_alignment_review", "--expected-sequence", String(after.state_revision));
+    assert.notEqual(prematureTheory.status, 0);
+    assert.match(prematureTheory.stderr, /verification evidence is missing or stale/);
+    assert.equal(readState(root).status, "validation");
+
+    assert.equal(runWorkflow(root, "record-verification", "--status", "passed", "--exit-code", "0", "--expected-sequence", String(after.state_revision)).status, 0);
+    const verified = readState(root);
+    assert.equal(verified.terminal_follow_up.status, "verified");
+    assert.equal(runWorkflow(root, "transition", "--to", "theory_alignment_review", "--expected-sequence", String(verified.state_revision)).status, 0);
+    assert.equal(readState(root).status, "theory_alignment_review");
+    assert.equal(readFileSync(statePath, "utf8").includes("M1"), false);
+  });
+});
+
+test("terminal follow-up rejects mismatched coordinates and authorization evidence", () => {
+  withGitWorkflow((root) => {
+    const fixture = prepareCompletedWorkflowWithFounderDecision(root, { sprintId: "2026-09-21-terminal-rejections" });
+    const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+    const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+    const beforeState = readFileSync(statePath, "utf8");
+    const beforeEvents = readFileSync(eventsPath, "utf8");
+    const state = readState(root);
+    const cases = [
+      [{ sprintId: "wrong-sprint" }, /--sprint-id must exactly match/],
+      [{ expectedHead: "0".repeat(40) }, /--expected-head must exactly match/],
+      [{ expectedBranch: "wrong-branch" }, /--expected-branch must exactly match/],
+      [{ expectedSequence: state.state_revision - 1 }, /Expected sequence/],
+      [{ authorizationReference: "ANDROID-M0-NATIVE-ACCEPT-001 Option B" }, /must appear exactly/],
+    ];
+    for (const [overrides, expected] of cases) {
+      const result = runWorkflow(root, ...terminalFollowUpArgs(root, fixture, overrides));
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, expected);
+      assert.equal(readFileSync(statePath, "utf8"), beforeState);
+      assert.equal(readFileSync(eventsPath, "utf8"), beforeEvents);
+    }
+  });
+});
+
+test("terminal follow-up rejects a damaged event chain without writing", () => {
+  withGitWorkflow((root) => {
+    const fixture = prepareCompletedWorkflowWithFounderDecision(root, { sprintId: "2026-09-21-terminal-damaged-chain" });
+    const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+    const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+    const events = readFileSync(eventsPath, "utf8").trim().split(/\r?\n/).map(JSON.parse);
+    events[0].reason = "tampered without rehashing";
+    writeFileSync(eventsPath, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    const beforeState = readFileSync(statePath, "utf8");
+    const beforeEvents = readFileSync(eventsPath, "utf8");
+
+    const result = runWorkflow(root, ...terminalFollowUpArgs(root, fixture));
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Terminal follow-up preflight failed/);
+    assert.match(result.stderr, /event_hash mismatch/);
+    assert.equal(readFileSync(statePath, "utf8"), beforeState);
+    assert.equal(readFileSync(eventsPath, "utf8"), beforeEvents);
+  });
+});
+
+test("terminal follow-up rolls back state and events on either atomic rename failure", () => {
+  for (const failAt of [1, 2]) {
+    withGitWorkflow((root) => {
+      const fixture = prepareCompletedWorkflowWithFounderDecision(root, { sprintId: `2026-09-21-terminal-atomic-${failAt}` });
+      const statePath = join(root, ".ai", "workflow", "WORKFLOW_STATE.json");
+      const eventsPath = join(root, ".ai", "workflow", "EVENTS.jsonl");
+      const beforeState = readFileSync(statePath, "utf8");
+      const beforeEvents = readFileSync(eventsPath, "utf8");
+      const result = spawnSync(process.execPath, [join(root, "scripts", "ai-workflow.mjs"), ...terminalFollowUpArgs(root, fixture)], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, NODE_ENV: "test", LIFE_OS_AI_WORKFLOW_TEST_FAIL_ATOMIC_RENAME_AT: String(failAt) },
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, new RegExp(`Injected atomic rename failure at attempt ${failAt}`));
+      assert.equal(readFileSync(statePath, "utf8"), beforeState);
+      assert.equal(readFileSync(eventsPath, "utf8"), beforeEvents);
+      assert.deepEqual(readdirSync(join(root, ".ai", "workflow")).filter((name) => name.includes(".tmp-")), []);
+      assert.deepEqual(validateWorkflow(root), []);
+    });
+  }
 });
 
 test("CLI records role artifacts, verification, completion, and terminal archive", () => {

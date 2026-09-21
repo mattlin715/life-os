@@ -9,7 +9,7 @@ export const VERSION = "0.3.0";
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
 export async function validateOrdinaryReviewSource(root) {
-  const [base, review, capability, cargo, pkg, adapter, rust, lib, viteEnv] = await Promise.all([
+  const [base, review, capability, cargo, pkg, adapter, rust, lib, desktopRuntime, viteEnv] = await Promise.all([
     readFile(path.join(root, "src-tauri", "tauri.conf.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "tauri.ordinary-schema-v5-review.conf.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "src-tauri", "capabilities", "default.json"), "utf8").then(JSON.parse),
@@ -18,6 +18,7 @@ export async function validateOrdinaryReviewSource(root) {
     readFile(path.join(root, "src", "shared", "storage", "sqlite", "founderSchemaV5.ts"), "utf8"),
     readFile(path.join(root, "src-tauri", "src", "schema_v5_founder_activation.rs"), "utf8"),
     readFile(path.join(root, "src-tauri", "src", "lib.rs"), "utf8"),
+    readFile(path.join(root, "src-tauri", "src", "desktop_runtime.rs"), "utf8"),
     readFile(path.join(root, "src", "vite-env.d.ts"), "utf8"),
   ]);
   assert(base.identifier === IDENTIFIER && review.identifier === IDENTIFIER, "Ordinary identity drifted.");
@@ -32,7 +33,8 @@ export async function validateOrdinaryReviewSource(root) {
   assert(adapter.includes("isOrdinaryDesktopSchemaV5"), "Ordinary frontend build policy is missing.");
   assert(viteEnv.includes("VITE_LIFE_OS_DESKTOP_SCHEMA_V5"), "Ordinary frontend override declaration is missing.");
   assert(rust.includes(IDENTIFIER) && rust.includes("desktop-schema-v5"), "Ordinary Rust identity policy is missing.");
-  assert(lib.includes("schema_v5_founder_activation::inspect_founder_schema_v5_startup"), "Shared activation commands are not registered.");
+  assert(lib.includes("desktop_runtime::run()"), "The ordinary desktop runtime dispatch is missing.");
+  assert(desktopRuntime.includes("schema_v5_founder_activation::inspect_founder_schema_v5_startup"), "Shared activation commands are not registered in the desktop runtime.");
   return { identifier: IDENTIFIER, title: TITLE, version: VERSION };
 }
 

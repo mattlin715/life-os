@@ -1,10 +1,27 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { App } from "./app/App";
 import "./styles.css";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
+
+async function mountRoot() {
+  if (import.meta.env.VITE_LIFE_OS_ANDROID_FEASIBILITY_M0 === "1") {
+    const { AndroidFeasibilityApp } = await import("./android-m0/AndroidFeasibilityApp");
+    await import("./android-m0/android-feasibility-m0.css");
+    root.render(
+      <React.StrictMode>
+        <AndroidFeasibilityApp />
+      </React.StrictMode>,
+    );
+    return;
+  }
+
+  const { App } = await import("./app/App");
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
+
+void mountRoot();

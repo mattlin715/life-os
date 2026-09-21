@@ -1,12 +1,12 @@
 {
   "schema_version": "1.1",
-  "state_revision": 0,
-  "last_event_id": null,
-  "last_event_hash": null,
-  "sprint_id": null,
-  "mission_title": null,
-  "status": "idle",
-  "current_phase": "intake",
+  "state_revision": 47,
+  "last_event_id": "2026-09-20-android-build-feasibility-m0:0047",
+  "last_event_hash": "14d2de5bc6c964bf9c0bf80ce98cf7e4904985a63187b66e8855f8498426ceea",
+  "sprint_id": "2026-09-20-android-build-feasibility-m0",
+  "mission_title": "Android Build Feasibility M0 - Native Review Candidate",
+  "status": "completed",
+  "current_phase": "completed",
   "current_role": "orchestrator",
   "review_cycle": 0,
   "max_review_cycles": 3,
@@ -15,30 +15,37 @@
   "blocked_phase": null,
   "resume_phase": null,
   "active_decision_ids": [],
-  "decision_resolution": null,
-  "last_completed_phase": null,
-  "next_action": null,
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "ANDROID-M0-PROMOTION-001 Option A. 我授權後續任務在重新核對 exact candidate 與 final allowlist 後，僅 stage 該 allowlist、建立一個 Android M0 commit，並以 normal fast-forward push 目前 branch。不要 merge、建立 PR、archive/reset、distribution、deployment、release 或開始 M1。",
+    "selected_option": "Option A - authorize bounded Git promotion",
+    "authorized_scope": "After rechecking the exact candidate and final allowlist, stage only that allowlist, create one Android M0 commit, and normal fast-forward push the current branch. Do not merge, create a PR, archive/reset, distribute, deploy, release, or start M1.",
+    "decided_at": "2026-09-21T06:23:28.586Z",
+    "evidence_reference": "chat:2026-09-21-android-m0-promotion-option-a"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": "Refresh the exact final manifest and index, create one Android M0 commit, and normal fast-forward push the current branch; do not archive or start M1",
   "base_branch": "develop",
-  "working_branch": null,
-  "repository_head": null,
-  "working_tree_digest": null,
+  "working_branch": "codex/android-build-feasibility-m0",
+  "repository_head": "1575943094f24bd83c42088fbe4bb1a296083c50",
+  "working_tree_digest": "9239b43d146ac083917bdfff1346f485ac3bcc0300748bf5eda2a5d73e50651d",
   "artifacts": {
-    "current_mission": "idle",
-    "product_review": "pending",
-    "engineering_plan": "pending",
-    "engineering_report": "pending",
-    "theory_alignment_review": "pending",
-    "decision_required": "not_required",
-    "sprint_report": "pending"
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
   },
   "verification": {
     "repository_verify": {
-      "status": "not_run",
-      "command": null,
-      "exit_code": null,
-      "completed_at": null,
-      "repository_head": null,
-      "working_tree_digest": null
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-09-21T07:08:27.879Z",
+      "repository_head": "1575943094f24bd83c42088fbe4bb1a296083c50",
+      "working_tree_digest": "9239b43d146ac083917bdfff1346f485ac3bcc0300748bf5eda2a5d73e50651d"
     },
     "manual_ui": {
       "status": "not_run",
@@ -47,6 +54,62 @@
       "evidence_reference": null
     }
   },
-  "created_at": null,
-  "updated_at": null
+  "created_at": "2026-09-20T07:55:31.410Z",
+  "updated_at": "2026-09-21T07:10:02.839Z",
+  "terminal_follow_up": {
+    "status": "verified",
+    "authorization_reference": "ANDROID-M0-PROMOTION-WHITESPACE-001 Option A",
+    "authorization_evidence": {
+      "path": ".artifacts/android-m0/promotion-execution/2026-09-21-promotion-whitespace-authorization.md",
+      "sha256": "8096668a6ea7094c68cfe8ded979f449b43c9526045c7ea597ba28a274b4b213"
+    },
+    "reason": "Remove only the three Founder-authorized staged whitespace errors, rerun canonical validation, and complete the previously authorized single-commit normal fast-forward branch publication",
+    "started_at": "2026-09-21T06:55:29.055Z",
+    "original_terminal_snapshot": {
+      "status": "completed",
+      "current_phase": "completed",
+      "state_revision": 40,
+      "last_event_id": "2026-09-20-android-build-feasibility-m0:0040",
+      "last_event_hash": "629c5862741d2b92f42e1cd946a6c0d919131a98cc0205329c44314b708a45d0",
+      "repository_head": "1575943094f24bd83c42088fbe4bb1a296083c50",
+      "working_branch": "codex/android-build-feasibility-m0",
+      "working_tree_digest": "89dae6d3db296e49cdb850f2a1f952dc8b6d2b8d116acc3f15bd658ee3697f27",
+      "artifacts": {
+        "current_mission": "ready",
+        "product_review": "approved_with_conditions",
+        "engineering_plan": "approved",
+        "engineering_report": "completed",
+        "theory_alignment_review": "approved",
+        "decision_required": "resolved",
+        "sprint_report": "completed"
+      },
+      "verification": {
+        "repository_verify": {
+          "status": "passed",
+          "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+          "exit_code": 0,
+          "completed_at": "2026-09-21T06:35:07.583Z",
+          "repository_head": "1575943094f24bd83c42088fbe4bb1a296083c50",
+          "working_branch": "codex/android-build-feasibility-m0",
+          "working_tree_digest": "89dae6d3db296e49cdb850f2a1f952dc8b6d2b8d116acc3f15bd658ee3697f27"
+        },
+        "manual_ui": {
+          "status": "not_run",
+          "owner": "founder",
+          "completed_at": null,
+          "evidence_reference": null
+        }
+      },
+      "decision_resolution": {
+        "status": "resolved",
+        "exact_founder_response": "ANDROID-M0-PROMOTION-001 Option A. 我授權後續任務在重新核對 exact candidate 與 final allowlist 後，僅 stage 該 allowlist、建立一個 Android M0 commit，並以 normal fast-forward push 目前 branch。不要 merge、建立 PR、archive/reset、distribution、deployment、release 或開始 M1。",
+        "selected_option": "Option A - authorize bounded Git promotion",
+        "authorized_scope": "After rechecking the exact candidate and final allowlist, stage only that allowlist, create one Android M0 commit, and normal fast-forward push the current branch. Do not merge, create a PR, archive/reset, distribute, deploy, release, or start M1.",
+        "decided_at": "2026-09-21T06:23:28.586Z",
+        "evidence_reference": "chat:2026-09-21-android-m0-promotion-option-a"
+      },
+      "completed_at": "2026-09-21T06:37:07.261Z"
+    },
+    "verification_recorded_at": "2026-09-21T07:08:27.880Z"
+  }
 }

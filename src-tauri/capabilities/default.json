@@ -3,6 +3,7 @@
   "identifier": "default",
   "description": "Default permissions for the main Life OS desktop window.",
   "windows": ["main"],
+  "platforms": ["windows", "macOS", "linux"],
   "permissions": [
     "core:default",
     "core:window:allow-close",

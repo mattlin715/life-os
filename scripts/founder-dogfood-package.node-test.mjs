@@ -241,6 +241,13 @@ test("allows only the exact R3 workflow archive prefix", () => {
   );
 });
 
+test("delegates only the bounded Android M0 trees to their exact contract", () => {
+  assert.equal(isFounderPackageChangedPathAllowed("src-tauri/gen/android/app/build.gradle.kts"), true);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m0/AndroidFeasibilityApp.tsx"), true);
+  assert.equal(isFounderPackageChangedPathAllowed("src-tauri/gen/android-neighbor/build.gradle.kts"), false);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m01/Unexpected.tsx"), false);
+});
+
 test("the real repository satisfies the package source contract", async () => {
   const repositoryRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(.:)/, "$1")), "..");
   const result = await validateSourceContract(repositoryRoot);

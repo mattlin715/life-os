@@ -60,6 +60,26 @@ must not be substituted for workflow statuses.
 No transition may bypass the evidence needed by the destination phase. Intake
 cannot transition directly to implementation or completion.
 
+### Authorized completed-state follow-up
+
+An already completed sprint whose candidate changed after terminal verification
+cannot use an ordinary transition or the resolved-decision refresh. The bounded
+`start-terminal-follow-up` operation may return only a `completed` sprint to
+`validation` when all of the following are supplied and revalidated:
+
+- the exact sprint ID, repository HEAD, branch, and current event sequence;
+- an explicit authorization reference that appears verbatim in a named,
+  repository-contained evidence file; and
+- a concrete reason for the follow-up.
+
+The operation validates the existing event chain before writing, appends one
+`terminal_follow_up_started` event, preserves the full terminal coordinates and
+the prior verification/decision evidence, and marks repository verification
+pending. It does not mark manual UI review, theory review, completion, archive,
+promotion, or a later product phase as passed. State and event writes are
+atomic and roll back together. The normal validation, theory-review, and human
+decision gates apply afterward.
+
 ## Phase 0: Intake
 
 1. Inspect branch, HEAD, upstream, status, untracked files, recent history, and
