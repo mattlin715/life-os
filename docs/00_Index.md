@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.6
+version: 1.7
 owner: LIN MENGLUNG
-last_updated: 2026/09/20
+last_updated: 2026/09/28
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -61,6 +61,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Harness | `docs/appendix/Harness.md` | `docs/architecture/00_MVP_Architecture.md` | `docs/09_AI.md`, `docs/11_MVP.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/09_Governed_Historical_Context_Assembly_and_Consent.md`, `docs/adr/ADR-0005-ai-provider-abstraction.md` |
 | MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`, `docs/12_Roadmap.md` |
 | Android Build Feasibility M0 | `docs/architecture/20_Android_Build_Feasibility_M0.md` | `docs/dev/11_Android_M0_Runbook.md` | `docs/11_MVP.md`, `docs/12_Roadmap.md`, `docs/adr/ADR-0004-local-first-mvp.md`, `docs/adr/ADR-0006-mvp-tech-stack.md` |
+| Android M1 Architecture And Disposable Persistence | `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md` | `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md` | `docs/12_Roadmap.md`, `docs/architecture/01_Local_Evidence_Store.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
 | Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
@@ -88,6 +89,8 @@ Lower levels must not override higher levels. When theory and implementation dif
 8. `docs/architecture/19_Desktop_Schema_v5_Prepared_State_Recovery_and_Real_Profile_Migration_R2.md`
 9. `docs/architecture/20_Android_Build_Feasibility_M0.md`
 10. `docs/dev/11_Android_M0_Runbook.md`
+11. `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`
+12. `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md`
 
 ### Design AI Or Harness Behavior
 
@@ -138,6 +141,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | `ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md` | Accepted | Historical provider use requires per-generation consent, an exact bounded packet, actual-use provenance, and the Phase 3B/Phase 4 boundary. |
 | `ADR-0010-govern-cross-experience-reflection-as-user-owned-hypothesis.md` | Accepted | Phase 4 is bounded to founder-approved, consented, source-citing, user-owned Cross-Experience Hypotheses; acceptance does not authorize implementation before Phase 3 exits. |
 | `ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md` | Accepted | Phase 3C uses founder-approved append-only revisions, explicit lifecycle events, revision-bound dependencies, deletion-aware provenance, and complete export as a design policy; no migration or implementation is authorized. |
+| `ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` | Accepted | Android direction uses stable product identity `com.lifeos.app`, app-private exact-v5 local authority, Android-specific lifecycle duties, fail-closed state preservation, and excluded automatic backup/transfer; acceptance does not activate production storage or M2. |
 
 ## Canonical Definitions
 

@@ -1,4 +1,4 @@
-package com.lifeos.feasibility.m0
+package com.lifeos.review.m1
 
 import android.os.Bundle
 import android.view.View
