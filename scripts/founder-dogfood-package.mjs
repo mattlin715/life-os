@@ -46,6 +46,7 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/",
   ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3/",
   ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/",
+  ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/",
 ];
 const ACTIVE_SUCCESSOR_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
@@ -125,24 +126,35 @@ const ACTIVE_SUCCESSOR_ALLOWLIST = new Set([
   "src/vite-env.d.ts",
   "docs/12_Roadmap.md",
   "docs/architecture/20_Android_Build_Feasibility_M0.md",
+  "docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md",
+  "docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md",
   "docs/dev/11_Android_M0_Runbook.md",
+  "docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md",
   "scripts/android-m0-contract.node-test.mjs",
   "scripts/android-m0.ps1",
+  "scripts/android-m1-cdp-probe.mjs",
+  "scripts/android-m1-contract.node-test.mjs",
+  "scripts/android-m1-native-review.ps1",
+  "scripts/android-m1.ps1",
   "src-tauri/capabilities/android-m0.json",
+  "src-tauri/capabilities/android-m1.json",
   "src-tauri/gen/schemas/acl-manifests.json",
   "src-tauri/gen/schemas/android-schema.json",
   "src-tauri/gen/schemas/mobile-schema.json",
   "src-tauri/src/desktop_runtime.rs",
+  "src-tauri/src/android_m1.rs",
+  "src-tauri/src/schema_v5_fresh_base.rs",
   "src-tauri/tauri.android.conf.json",
   "src/main.tsx",
   "vite.config.ts",
 ]);
-// The Android generated tree has its own exact-file allowlist test. Keeping
-// that list canonical avoids duplicating 41 generated paths in this legacy
-// Windows-package guard while still limiting the delegated surface by prefix.
-const ANDROID_M0_PREFIXES = [
+// The Android generated and frontend trees have their own exact-file allowlist
+// tests. Keeping those lists canonical avoids duplicating generated paths in
+// this legacy Windows-package guard while still bounding delegated prefixes.
+const ANDROID_PREFIXES = [
   "src-tauri/gen/android/",
   "src/android-m0/",
+  "src/android-m1/",
 ];
 
 function assert(condition, message) {
@@ -180,7 +192,7 @@ export function isFounderPackageChangedPathAllowed(value) {
   return (
     SOURCE_ALLOWLIST.has(item) ||
     ACTIVE_SUCCESSOR_ALLOWLIST.has(item) ||
-    ANDROID_M0_PREFIXES.some((prefix) => item.startsWith(prefix)) ||
+    ANDROID_PREFIXES.some((prefix) => item.startsWith(prefix)) ||
     HISTORY_PREFIXES.some((prefix) => item.startsWith(prefix)) ||
     ACTIVE_SUCCESSOR_PREFIXES.some((prefix) => item.startsWith(prefix))
   );

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-09-22-android-m1-disposable-persistence-review",
+  "terminal_status": "completed",
+  "archived_at": "2026-09-28T15:05:57.119Z",
+  "repository_head": "d0e38640a53361c281d65b4befb6208b33f84346",
+  "working_branch": "codex/android-m1-disposable-persistence-review",
+  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
+  "last_event_id": "2026-09-22-android-m1-disposable-persistence-review:0069",
+  "last_event_hash": "7d1410846b5e91fe4068e25f55526da497d56734bd9706da3bf3871245e2bdae",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

@@ -19,6 +19,7 @@ const TARGET = "x86_64-pc-windows-msvc";
 const R2B_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-08-27-desktop-schema-v5-prepared-state-recovery-r2/";
 const R3_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3/";
 const ANDROID_M0_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/";
+const ANDROID_M1_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/";
 
 async function fixtureRoot() {
   const root = await mkdtemp(path.join(tmpdir(), "life-os-founder-package-"));
@@ -258,11 +259,33 @@ test("allows only the exact Android M0 workflow archive prefix", () => {
   );
 });
 
+test("allows only the exact Android M1 workflow archive prefix", () => {
+  assert.equal(isFounderPackageChangedPathAllowed(`${ANDROID_M1_ARCHIVE_PREFIX}WORKFLOW_STATE.json`), true);
+  assert.equal(
+    isFounderPackageChangedPathAllowed(
+      ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review-neighbor/WORKFLOW_STATE.json",
+    ),
+    false,
+  );
+  assert.equal(
+    isFounderPackageChangedPathAllowed(
+      ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review2/WORKFLOW_STATE.json",
+    ),
+    false,
+  );
+});
+
 test("delegates only the bounded Android M0 trees to their exact contract", () => {
   assert.equal(isFounderPackageChangedPathAllowed("src-tauri/gen/android/app/build.gradle.kts"), true);
   assert.equal(isFounderPackageChangedPathAllowed("src/android-m0/AndroidFeasibilityApp.tsx"), true);
   assert.equal(isFounderPackageChangedPathAllowed("src-tauri/gen/android-neighbor/build.gradle.kts"), false);
   assert.equal(isFounderPackageChangedPathAllowed("src/android-m01/Unexpected.tsx"), false);
+});
+
+test("delegates only the bounded Android M1 frontend tree to its exact contract", () => {
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m1/AndroidM1App.tsx"), true);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m1-neighbor/Unexpected.tsx"), false);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m11/Unexpected.tsx"), false);
 });
 
 test("the real repository satisfies the package source contract", async () => {

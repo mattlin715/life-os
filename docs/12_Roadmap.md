@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 0.9
+version: 1.0
 owner: LIN MENGLUNG
-last_updated: 2026/09/21
+last_updated: 2026/09/28
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -276,14 +276,42 @@ See `docs/architecture/20_Android_Build_Feasibility_M0.md` and
 
 Later work remains separately governed and unauthorized:
 
-- **M1:** choose the production mobile architecture, storage authority, and
-  stable application identity.
+- **M1:** prepare the production mobile architecture, storage authority, and
+  stable application identity decision.
 - **M2:** design governed Android local evidence, persistence, migrations,
   recovery, retention, import/export, and deletion.
 - **M3:** design explicit consent for providers, credentials, and any historical
   context transmission.
 - **M4:** production signing, distribution, upgrades, optional synchronization,
   deployment, and release operations.
+
+## Early Platform Exploration — Android M1 Founder-Accepted Evidence
+
+M1 now has a Founder-accepted unstaged disposable evidence package and
+architecture decision. It selects Tauri/React with a Rust-owned Android adapter,
+an app-private
+SQLite authority initialized directly to the exact schema-v5 contract for new
+installations, stable production identity `com.lifeos.app`, continued automatic
+backup/device-transfer exclusions, and separate Android lifecycle duties. The
+associated `ADR-0012` is **Accepted** under
+`ANDROID-M1-FOUNDER-REVIEW-004` Option A.
+
+The runnable prototype remains isolated under temporary debug identity
+`com.lifeos.review.m1`. It stores synthetic Experiences only and exposes just
+create/list/get. Automated and Android 36 x86_64 disposable-emulator evidence
+covers fresh exact-v5 creation, exact CJK reopen, duplicate suppression,
+background/force-stop behavior, before-versus-after-commit termination,
+interrupted transaction, concurrent initialization, and fail-closed malformed,
+newer, and open-failure states. This evidence does not prove actual power loss,
+physical devices, other APIs/ABIs, production backup/restore, or upgrades.
+
+Founder manual UI review passed for exact APK SHA-256
+`2e0e41c8b03bff13c3bc4191de7bb972833ea62b8131d119727f158e716f1975`.
+The decision selects future identity and architecture only: M1 does not
+authorize real data, production identity activation, or M2 implementation.
+See `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`,
+`docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md`,
+and `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md`.
 
 ## Roadmap Governance
 

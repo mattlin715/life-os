@@ -1,14 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Life OS Android Feasibility M0",
-  "identifier": "com.lifeos.feasibility.m0",
+  "productName": "Life OS Android M1 Disposable Review",
+  "identifier": "com.lifeos.review.m1",
   "build": {
-    "beforeDevCommand": "pnpm run dev:android:m0:web",
-    "beforeBuildCommand": "pnpm run build:android:m0:web"
+    "beforeDevCommand": "pnpm run dev:android:m1:web",
+    "beforeBuildCommand": "pnpm run build:android:m1:web"
   },
   "app": {
     "security": {
-      "capabilities": ["android-m0"]
+      "capabilities": ["android-m1"]
     }
   },
   "bundle": {
