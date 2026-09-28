@@ -1,53 +1,44 @@
 {
   "schema_version": "1.1",
-  "state_revision": 63,
-  "last_event_id": "2026-09-22-android-m1-disposable-persistence-review:0063",
-  "last_event_hash": "5545116c21bf1f2a3195c0f22afc9eeb2b0adefdfc23d018261e10102e83f7c8",
-  "sprint_id": "2026-09-22-android-m1-disposable-persistence-review",
-  "mission_title": "Android M1 Architecture Decision and Disposable Persistence Prototype",
-  "status": "validation",
-  "current_phase": "validation",
+  "state_revision": 0,
+  "last_event_id": null,
+  "last_event_hash": null,
+  "sprint_id": null,
+  "mission_title": null,
+  "status": "idle",
+  "current_phase": "intake",
   "current_role": "orchestrator",
-  "review_cycle": 3,
+  "review_cycle": 0,
   "max_review_cycles": 3,
   "human_approval_required": false,
   "blocking_reason": null,
   "blocked_phase": null,
   "resume_phase": null,
   "active_decision_ids": [],
-  "decision_resolution": {
-    "status": "resolved",
-    "exact_founder_response": "ANDROID-M1-FOUNDER-REVIEW-004 Option A. I visually confirm the complete pale ring is visible on all four sides inside the Android mask and the launcher icon matches the existing PC desktop Life OS icon. I accept the exact unstaged Android M1 review candidate, select com.lifeos.app as the stable production identity, and accept the Proposed ADR-0012 architecture direction. Authorize only recording this decision and completing the current workflow gate. Do not stage, commit, push, archive/reset, release, activate real data, or start M2.",
-    "selected_option": "A",
-    "authorized_scope": "Record Founder manual acceptance of the exact unstaged Android M1 candidate; select com.lifeos.app as the stable production identity; accept ADR-0012 architecture direction; synchronize decision documentation and complete the current workflow only. No staging, commit, push, archive/reset, release, real-data activation, production deployment, or M2.",
-    "decided_at": "2026-09-28T08:58:18.265Z",
-    "evidence_reference": "ANDROID-M1-FOUNDER-REVIEW-004"
-  },
-  "last_completed_phase": "completed",
-  "next_action": "Reconcile authorized terminal follow-up evidence and record fresh canonical verification",
+  "decision_resolution": null,
+  "last_completed_phase": null,
+  "next_action": null,
   "base_branch": "develop",
-  "working_branch": "codex/android-m1-disposable-persistence-review",
-  "repository_head": "04965a6d6f7a62d1c5ae4d2e2fcf91317f5fd5df",
-  "working_tree_digest": "ea1b589c41c119c02e3a55defc99f058e414d0ebfd963f1a79ca7214bb1c11ed",
+  "working_branch": null,
+  "repository_head": null,
+  "working_tree_digest": null,
   "artifacts": {
-    "current_mission": "ready",
-    "product_review": "approved_with_conditions",
-    "engineering_plan": "approved",
-    "engineering_report": "completed_with_follow_up",
-    "theory_alignment_review": "approved_with_follow_up",
-    "decision_required": "resolved",
-    "sprint_report": "completed_with_follow_up"
+    "current_mission": "idle",
+    "product_review": "pending",
+    "engineering_plan": "pending",
+    "engineering_report": "pending",
+    "theory_alignment_review": "pending",
+    "decision_required": "not_required",
+    "sprint_report": "pending"
   },
   "verification": {
     "repository_verify": {
-      "status": "pending",
-      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "status": "not_run",
+      "command": null,
       "exit_code": null,
       "completed_at": null,
       "repository_head": null,
-      "working_branch": null,
-      "working_tree_digest": null,
-      "invalidated_by_event_id": "2026-09-22-android-m1-disposable-persistence-review:0063"
+      "working_tree_digest": null
     },
     "manual_ui": {
       "status": "not_run",
@@ -56,61 +47,6 @@
       "evidence_reference": null
     }
   },
-  "created_at": "2026-09-22T01:16:49.299Z",
-  "updated_at": "2026-09-28T14:38:06.567Z",
-  "terminal_follow_up": {
-    "status": "validation_pending",
-    "authorization_reference": "ANDROID-M1-INTEGRATION-CLOSEOUT-001",
-    "authorization_evidence": {
-      "path": "docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md",
-      "sha256": "27a46b9602bc23969eaeed86986220289b8b431967c1c1453688d6e816dde3b2"
-    },
-    "reason": "Founder authorized exact M1 promotion, official archive/reset-to-idle, non-fast-forward develop integration, and normal non-force publication without production activation or M2.",
-    "started_at": "2026-09-28T14:38:06.567Z",
-    "original_terminal_snapshot": {
-      "status": "completed",
-      "current_phase": "completed",
-      "state_revision": 62,
-      "last_event_id": "2026-09-22-android-m1-disposable-persistence-review:0062",
-      "last_event_hash": "083f1853a1f9bd60e4a931d617c712194317423d6417053d41032e08d1dce69a",
-      "repository_head": "04965a6d6f7a62d1c5ae4d2e2fcf91317f5fd5df",
-      "working_branch": "codex/android-m1-disposable-persistence-review",
-      "working_tree_digest": "469747c01d7b3f74e1d6c75203785a06b538f79f2237f501d49d933500fd6269",
-      "artifacts": {
-        "current_mission": "ready",
-        "product_review": "approved_with_conditions",
-        "engineering_plan": "approved",
-        "engineering_report": "completed_with_follow_up",
-        "theory_alignment_review": "approved_with_follow_up",
-        "decision_required": "resolved",
-        "sprint_report": "completed_with_follow_up"
-      },
-      "verification": {
-        "repository_verify": {
-          "status": "passed",
-          "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
-          "exit_code": 0,
-          "completed_at": "2026-09-28T09:11:47.523Z",
-          "repository_head": "04965a6d6f7a62d1c5ae4d2e2fcf91317f5fd5df",
-          "working_branch": "codex/android-m1-disposable-persistence-review",
-          "working_tree_digest": "469747c01d7b3f74e1d6c75203785a06b538f79f2237f501d49d933500fd6269"
-        },
-        "manual_ui": {
-          "status": "not_run",
-          "owner": "founder",
-          "completed_at": null,
-          "evidence_reference": null
-        }
-      },
-      "decision_resolution": {
-        "status": "resolved",
-        "exact_founder_response": "ANDROID-M1-FOUNDER-REVIEW-004 Option A. I visually confirm the complete pale ring is visible on all four sides inside the Android mask and the launcher icon matches the existing PC desktop Life OS icon. I accept the exact unstaged Android M1 review candidate, select com.lifeos.app as the stable production identity, and accept the Proposed ADR-0012 architecture direction. Authorize only recording this decision and completing the current workflow gate. Do not stage, commit, push, archive/reset, release, activate real data, or start M2.",
-        "selected_option": "A",
-        "authorized_scope": "Record Founder manual acceptance of the exact unstaged Android M1 candidate; select com.lifeos.app as the stable production identity; accept ADR-0012 architecture direction; synchronize decision documentation and complete the current workflow only. No staging, commit, push, archive/reset, release, real-data activation, production deployment, or M2.",
-        "decided_at": "2026-09-28T08:58:18.265Z",
-        "evidence_reference": "ANDROID-M1-FOUNDER-REVIEW-004"
-      },
-      "completed_at": "2026-09-28T09:14:41.993Z"
-    }
-  }
+  "created_at": null,
+  "updated_at": null
 }
