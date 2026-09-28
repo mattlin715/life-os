@@ -150,6 +150,15 @@ not activate `com.lifeos.app`, production storage, real data, M2, distribution,
 deployment, or release. It also forbids APK rebuild or launch, emulator/device
 operation, and desktop or Android real-profile/database/sidecar access.
 
+### Post-merge line-ending correction
+
+The first canonical verification on merged Windows `develop` found that Git
+checkout normalization changed the two adaptive-icon XML resources from LF to
+CRLF. Their XML meaning, staged Git blobs, generated APK, and PNG bytes were
+unchanged, but the source contract hashed raw checkout bytes. The contract now
+normalizes CRLF to LF only when hashing those XML resources; binary icon hashes
+remain byte-exact. No asset, behavior, runtime identity, or accepted APK changed.
+
 ## Current candidate provenance
 
 The 2026-09-22 native candidate was built from branch

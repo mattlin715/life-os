@@ -238,7 +238,10 @@ test("Android launcher and adaptive icons are exact derivatives of the canonical
   };
   for (const [relativePath, digest] of Object.entries(expected)) {
     const bytes = await readBytes(`src-tauri/gen/android/app/src/main/res/${relativePath}`);
-    assert.equal(createHash("sha256").update(bytes).digest("hex"), digest, relativePath);
+    const hashInput = relativePath.endsWith(".xml")
+      ? Buffer.from(bytes.toString("utf8").replaceAll("\r\n", "\n"), "utf8")
+      : bytes;
+    assert.equal(createHash("sha256").update(hashInput).digest("hex"), digest, relativePath);
   }
 
   const safeForegrounds = [
