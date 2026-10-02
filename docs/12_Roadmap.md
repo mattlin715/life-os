@@ -313,6 +313,32 @@ See `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`,
 `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md`,
 and `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md`.
 
+## Early Platform Exploration — Android M2-A Direct Fresh-v5 Review Candidate
+
+M2-A is a separately authorized, synthetic-only slice of M2. It replaces the
+M1 prototype's empty-v4-then-migrate scaffold with a genuine direct initializer
+for the canonical final schema-v5 contract. A fresh installation has truthful
+`direct_fresh_v5` origin evidence and no fabricated historical migration
+receipt. Existing desktop migration, recovery, and production routing remain
+unchanged, and ADR-0012 remains Accepted without new authority.
+
+The runnable candidate uses temporary identity `com.lifeos.review.m2a`, an
+app-private disposable database, automatic backup/device-transfer exclusions,
+and no network permission. It preserves the M1 trilingual synthetic Experience
+flow and exposes only create/list/get. Creation, verification, no-overwrite
+publication, readiness, and the first write acknowledgement are distinct
+boundaries; pending, partial, malformed, newer, sidecar-bearing, or otherwise
+ambiguous states are preserved and refused rather than repaired or deleted.
+
+This candidate does not activate `com.lifeos.app`, real data, complete Android
+`LocalEvidenceStore`, upgrades, migration/recovery, retention/deletion,
+import/export, sync, providers, distribution, or release. Android 36 x86_64
+disposable-emulator evidence and the exact final package results are recorded
+by the M2-A runbook and workflow review package; Founder manual UI acceptance
+remains a separate gate. See
+`docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md` and
+`docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md`.
+
 ## Roadmap Governance
 
 Phases describe dependency order, not a promise of calendar timing.

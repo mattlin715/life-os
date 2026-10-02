@@ -1,4 +1,4 @@
-use super::evidence_write::verify_exact_evidence_v5;
+use super::evidence_write::{verify_exact_evidence_v5, verify_exact_evidence_v5_direct};
 use super::experience_write::operation_manifest;
 use super::pattern_write::verify_exact_pattern_v5;
 use super::*;
@@ -2984,6 +2984,13 @@ pub(super) async fn verify_exact_reflection_v5(
     connection: &mut SqliteConnection,
 ) -> Result<(), MigrationError> {
     verify_exact_evidence_v5(connection).await?;
+    verify_reflection_projection(connection).await
+}
+
+pub(super) async fn verify_exact_reflection_v5_direct(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    verify_exact_evidence_v5_direct(connection).await?;
     verify_reflection_projection(connection).await
 }
 

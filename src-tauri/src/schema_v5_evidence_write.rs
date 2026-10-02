@@ -1131,6 +1131,13 @@ pub(super) async fn verify_exact_evidence_v5(
     verify_evidence_projection(connection).await
 }
 
+pub(super) async fn verify_exact_evidence_v5_direct(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    super::direct_init::verify_direct_fresh_connection(connection).await?;
+    verify_evidence_projection(connection).await
+}
+
 async fn create_candidate(
     connection: &mut SqliteConnection,
     expected_source_revision_id: &str,

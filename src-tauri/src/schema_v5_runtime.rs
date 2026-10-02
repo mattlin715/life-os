@@ -14,8 +14,9 @@ use super::evidence_write::{
     EvidenceWriteCommand, EvidenceWriteContext, EvidenceWriteFailurePoint,
 };
 use super::experience_write::{
-    execute_disposable as execute_experience, ExperienceWriteCommand, ExperienceWriteContext,
-    ExperienceWriteFailurePoint, ExperienceWriteInput, ExperienceWriteStatus,
+    execute_direct_fresh as execute_experience_direct, execute_disposable as execute_experience,
+    ExperienceWriteCommand, ExperienceWriteContext, ExperienceWriteFailurePoint,
+    ExperienceWriteInput, ExperienceWriteStatus,
 };
 use super::historical_question_write::{
     write_disposable_historical_question, HistoricalQuestion, HistoricalQuestionWriteRequest,
@@ -184,8 +185,7 @@ async fn revision_refs<T>(
     Ok(result)
 }
 
-pub(crate) async fn list_experiences(path: &Path) -> Result<Vec<ExperienceRow>, MigrationError> {
-    verify_activated_v5_runtime(path).await?;
+async fn list_experiences_query(path: &Path) -> Result<Vec<ExperienceRow>, MigrationError> {
     let mut connection = connect(path, true).await?;
     let rows = sqlx::query(
         "SELECT e.id, e.content, e.created_at, e.updated_at FROM experience_entries e \
@@ -211,11 +211,33 @@ pub(crate) async fn list_experiences(path: &Path) -> Result<Vec<ExperienceRow>, 
     Ok(result)
 }
 
+pub(crate) async fn list_experiences(path: &Path) -> Result<Vec<ExperienceRow>, MigrationError> {
+    verify_activated_v5_runtime(path).await?;
+    list_experiences_query(path).await
+}
+
+pub(crate) async fn list_experiences_direct_fresh(
+    path: &Path,
+) -> Result<Vec<ExperienceRow>, MigrationError> {
+    super::direct_init::verify_direct_fresh_structure(path).await?;
+    list_experiences_query(path).await
+}
+
 pub(crate) async fn get_experience(
     path: &Path,
     id: &str,
 ) -> Result<Option<ExperienceRow>, MigrationError> {
     Ok(list_experiences(path)
+        .await?
+        .into_iter()
+        .find(|row| row.id == id))
+}
+
+pub(crate) async fn get_experience_direct_fresh(
+    path: &Path,
+    id: &str,
+) -> Result<Option<ExperienceRow>, MigrationError> {
+    Ok(list_experiences_direct_fresh(path)
         .await?
         .into_iter()
         .find(|row| row.id == id))
@@ -857,6 +879,36 @@ pub(crate) async fn create_experience(
     get_experience(path, id)
         .await?
         .ok_or_else(|| MigrationError::recovery_required("founder_runtime_create_missing"))
+}
+
+pub(crate) async fn create_experience_direct_fresh(
+    path: &Path,
+    id: &str,
+    body: &str,
+    occurred_at: &str,
+    guard_token: &str,
+) -> Result<ExperienceRow, MigrationError> {
+    let outcome = execute_experience_direct(
+        path,
+        ExperienceWriteCommand::Create(ExperienceWriteInput {
+            id: id.into(),
+            content: body.into(),
+            created_at: occurred_at.into(),
+            updated_at: occurred_at.into(),
+        }),
+        ExperienceWriteContext {
+            occurred_at,
+            guard_token,
+            failure_point: ExperienceWriteFailurePoint::None,
+        },
+    )
+    .await?;
+    if outcome.status != ExperienceWriteStatus::Committed {
+        return Err(fail("direct_runtime_create_not_committed"));
+    }
+    get_experience_direct_fresh(path, id)
+        .await?
+        .ok_or_else(|| MigrationError::recovery_required("direct_runtime_create_missing"))
 }
 
 pub(crate) async fn update_experience(

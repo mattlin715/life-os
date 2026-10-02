@@ -288,6 +288,12 @@ test("delegates only the bounded Android M1 frontend tree to its exact contract"
   assert.equal(isFounderPackageChangedPathAllowed("src/android-m11/Unexpected.tsx"), false);
 });
 
+test("delegates only the bounded Android M2-A frontend tree to its exact contract", () => {
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m2a/AndroidM2AApp.tsx"), true);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m2a-neighbor/Unexpected.tsx"), false);
+  assert.equal(isFounderPackageChangedPathAllowed("src/android-m2aa/Unexpected.tsx"), false);
+});
+
 test("the real repository satisfies the package source contract", async () => {
   const repositoryRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(.:)/, "$1")), "..");
   const result = await validateSourceContract(repositoryRoot);
