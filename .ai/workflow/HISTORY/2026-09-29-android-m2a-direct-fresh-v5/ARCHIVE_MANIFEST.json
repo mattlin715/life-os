@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-09-29-android-m2a-direct-fresh-v5",
+  "terminal_status": "completed",
+  "archived_at": "2026-10-02T18:35:12.594Z",
+  "repository_head": "11dc25cbe3027937e54754b1d3bf85ff66e15903",
+  "working_branch": "codex/android-m2a-direct-fresh-v5",
+  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
+  "last_event_id": "2026-09-29-android-m2a-direct-fresh-v5:0040",
+  "last_event_hash": "9902fd8a21aef48da49b3d95dc2d40c47540e83bb93fcf035698fde5fc7c3fc7",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
