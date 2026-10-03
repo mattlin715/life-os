@@ -13,6 +13,8 @@ use std::path::Path;
 
 #[path = "schema_v5_context_recovery_write.rs"]
 mod context_recovery_write;
+#[path = "schema_v5_direct_init.rs"]
+pub(crate) mod direct_init;
 #[path = "schema_v5_evidence_lifecycle.rs"]
 mod evidence_lifecycle;
 #[path = "schema_v5_evidence_write.rs"]

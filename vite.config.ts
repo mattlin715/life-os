@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => ({
     "import.meta.env.VITE_LIFE_OS_ANDROID_FEASIBILITY_M0": JSON.stringify(mode === "android-m0" ? "1" : "0"),
     "import.meta.env.VITE_LIFE_OS_ANDROID_M1": JSON.stringify(mode === "android-m1" ? "1" : "0"),
     "import.meta.env.VITE_LIFE_OS_ANDROID_M1_DEBUG_HOOKS": JSON.stringify(mode === "android-m1" ? "1" : "0"),
+    "import.meta.env.VITE_LIFE_OS_ANDROID_M2A": JSON.stringify(mode === "android-m2a" ? "1" : "0"),
+    "import.meta.env.VITE_LIFE_OS_ANDROID_M2A_DEBUG_HOOKS": JSON.stringify(mode === "android-m2a" ? "1" : "0"),
   },
   clearScreen: false,
   server: {

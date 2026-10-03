@@ -15,9 +15,9 @@ val tauriProperties = Properties().apply {
 
 android {
     compileSdk = 36
-    namespace = "com.lifeos.review.m1"
+    namespace = "com.lifeos.review.m2a"
     defaultConfig {
-        applicationId = "com.lifeos.review.m1"
+        applicationId = "com.lifeos.review.m2a"
         minSdk = 24
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()

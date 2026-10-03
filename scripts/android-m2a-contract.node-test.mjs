@@ -129,7 +129,7 @@ const androidSurface = [
   "src-tauri/gen/android/settings.gradle",
 ];
 
-test("tracked and reviewable Android generated surface is an exact M1 allowlist", () => {
+test("tracked and reviewable Android generated surface is an exact M2-A allowlist", () => {
   const actual = execFileSync(
     "git",
     ["ls-files", "--cached", "--others", "--exclude-standard", "--", "src-tauri/gen/android"],
@@ -139,17 +139,11 @@ test("tracked and reviewable Android generated surface is an exact M1 allowlist"
   assert.deepEqual(actual, [...androidSurface].sort());
 });
 
-test("accepted M1 identity is preserved while the current generated surface delegates to M2-A", async () => {
+test("Android M2-A has a temporary identity and no Android runtime permission", async () => {
   const config = JSON.parse(await read("src-tauri/tauri.android.conf.json"));
   const gradle = await read("src-tauri/gen/android/app/build.gradle.kts");
   const manifest = await read("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
-  const acceptedConfig = JSON.parse(execFileSync(
-    "git",
-    ["show", "d0e38640a53361c281d65b4befb6208b33f84346:src-tauri/tauri.android.conf.json"],
-    { cwd: root, encoding: "utf8", windowsHide: true },
-  ));
 
-  assert.equal(acceptedConfig.identifier, "com.lifeos.review.m1");
   assert.equal(config.identifier, "com.lifeos.review.m2a");
   assert.match(gradle, /applicationId = "com\.lifeos\.review\.m2a"/);
   assert.doesNotMatch(manifest, /<uses-permission\b/);
@@ -174,7 +168,7 @@ test("backup and device-transfer rules exclude every supported app data domain",
 
 test("Android activity applies system-bar and display-cutout insets outside the scrolling WebView", async () => {
   const activity = await read("src-tauri/gen/android/app/src/main/java/com/lifeos/feasibility/m0/MainActivity.kt");
-  const css = await read("src/android-m1/android-m1.css");
+  const css = await read("src/android-m2a/android-m2a.css");
 
   assert.match(activity, /enableEdgeToEdge\(\)/);
   assert.match(activity, /findViewById<View>\(android\.R\.id\.content\)/);
@@ -185,20 +179,13 @@ test("Android activity applies system-bar and display-cutout insets outside the 
   assert.doesNotMatch(css, /env\(safe-area-inset-/);
 });
 
-test("accepted M1 Rust entry is preserved and current Android delegates only to bounded M2-A", async () => {
+test("Android Rust entry exposes only the bounded M2-A façade and no desktop plugin or provider", async () => {
   const lib = await read("src-tauri/src/lib.rs");
   const cargo = await read("src-tauri/Cargo.toml");
   const androidRun = lib.match(/#\[cfg\(target_os = "android"\)\][\s\S]*$/)?.[0] ?? "";
-  const acceptedLib = execFileSync(
-    "git",
-    ["show", "d0e38640a53361c281d65b4befb6208b33f84346:src-tauri/src/lib.rs"],
-    { cwd: root, encoding: "utf8", windowsHide: true },
-  );
 
   assert.match(androidRun, /#\[cfg_attr\(mobile, tauri::mobile_entry_point\)\]\s*pub fn run\(\)/);
   assert.match(androidRun, /tauri::Builder::default\(\)/);
-  assert.match(acceptedLib, /android_m1::m1_storage_status/);
-  assert.match(acceptedLib, /android_m1::m1_create_experience/);
   assert.match(androidRun, /android_m2a::m2a_storage_status/);
   assert.match(androidRun, /android_m2a::m2a_create_experience/);
   assert.match(androidRun, /android_m2a::m2a_list_experiences/);
@@ -297,43 +284,87 @@ test("Android launcher and adaptive icons are exact derivatives of the canonical
   assert.match(background, /#14181F/);
 });
 
-test("Android frontend entry uses the M1-only mode and honest three-operation adapter", async () => {
+test("Android frontend entry uses the M2-A-only mode and honest three-operation adapter", async () => {
   const main = await read("src/main.tsx");
-  const android = await read("src/android-m1/AndroidM1App.tsx");
-  const adapter = await read("src/android-m1/androidM1Store.ts");
+  const android = await read("src/android-m2a/AndroidM2AApp.tsx");
+  const adapter = await read("src/android-m2a/androidM2AStore.ts");
 
-  assert.match(main, /VITE_LIFE_OS_ANDROID_M1/);
-  assert.match(main, /import\("\.\/android-m1\/AndroidM1App"\)/);
+  assert.match(main, /VITE_LIFE_OS_ANDROID_M2A/);
+  assert.match(main, /import\("\.\/android-m2a\/AndroidM2AApp"\)/);
   assert.match(adapter, /"createExperience",\s*"listExperiences",\s*"getExperience"/s);
   assert.doesNotMatch(adapter, /updateExperience|deleteExperience|saveArtifacts|historical/i);
   assert.doesNotMatch(android, /fetch\s*\(|provider|openai|gemini/i);
-  assert.match(android, /ANDROID_M1_LOCALE_PREFERENCE_FILE = "android-m1-locale\.pref"/);
+  assert.match(android, /ANDROID_M2A_LOCALE_PREFERENCE_FILE = "android-m2a-locale\.pref"/);
   assert.match(android, /locale === "zh-TW" \? "zh-Hant" : locale/);
   assert.doesNotMatch(android, /localStorage/i);
-  assert.match(adapter, /m1_get_locale_preference/);
-  assert.match(adapter, /m1_set_locale_preference/);
+  assert.match(adapter, /m2a_get_locale_preference/);
+  assert.match(adapter, /m2a_set_locale_preference/);
 });
 
-test("fresh-v5 Android path reuses the canonical base and fails closed without delete or desktop paths", async () => {
-  const backend = await read("src-tauri/src/android_m1.rs");
-  const sharedBase = await read("src-tauri/src/schema_v5_fresh_base.rs");
-  const founder = await read("src-tauri/src/schema_v5_founder_activation.rs");
+test("direct fresh-v5 path uses canonical final DDL without migration history", async () => {
+  const backend = await read("src-tauri/src/android_m2a.rs");
+  const direct = await read("src-tauri/src/schema_v5_direct_init.rs");
+  const compatibility = await read("src-tauri/schema/schema_v5_compatibility.sql");
+  const canonical = await read("src-tauri/schema/schema_v5.sql");
 
-  assert.match(backend, /EMPTY_V4_BASE_SCHEMA/);
-  assert.match(backend, /migrate_disposable_v4/);
-  assert.match(backend, /verify_any_committed_v5/);
-  assert.match(backend, /m1_pending_initialization_preserved/);
-  assert.match(backend, /LOCALE_PREFERENCE_FILENAME: &str = "android-m1-locale\.pref"/);
+  assert.doesNotMatch(backend, /EMPTY_V4_BASE_SCHEMA|migrate_disposable_v4|verify_any_committed_v5/);
+  assert.match(backend, /initialize_direct_fresh_v5/);
+  assert.match(backend, /verify_direct_fresh_v5/);
+  assert.match(backend, /\.create_new\(true\)/);
+  assert.match(backend, /io::copy/);
+  assert.match(backend, /destination_file\s*\.sync_all\(\)/);
+  assert.match(backend, /#\[cfg\(unix\)\]\s*fn sync_directory[\s\S]*directory\s*\.sync_all\(\)/);
+  assert.match(
+    backend,
+    /m2a_live_publication_directory_sync_failed[\s\S]*mark_retirement_durability_unknown\(&paths\.root\)\?[\s\S]*remove_file\(&paths\.pending_receipt\)[\s\S]*remove_file\(&paths\.pending\)[\s\S]*m2a_pending_retirement_directory_sync_failed[\s\S]*clear_retirement_durability_unknown\(&paths\.root\)\?/,
+  );
+  assert.match(backend, /m2a_pending_retirement_durability_unknown_preserved/);
+  assert.doesNotMatch(backend, /fs::hard_link/);
+  assert.match(backend, /\["-wal", "-shm", "-journal"\]/);
+  assert.match(backend, /m2a_publication_state_incomplete_preserved/);
+  assert.match(backend, /LOCALE_PREFERENCE_FILENAME: &str = "android-m2a-locale\.pref"/);
   assert.match(backend, /matches!\(locale, "en" \| "zh-TW" \| "ja"\)/);
-  assert.doesNotMatch(backend, /fs::remove_(file|dir)/);
+  assert.doesNotMatch(backend, /remove_dir|remove_dir_all/);
   assert.doesNotMatch(backend, /life-os\.db|founderdogfood|com\.lifeos\.app/);
-  assert.match(sharedBase, /pub\(crate\) const EMPTY_V4_BASE_SCHEMA/);
-  assert.match(founder, /schema_v5_fresh_base::EMPTY_V4_BASE_SCHEMA/);
+  assert.match(direct, /include_str!\("\.\.\/schema\/schema_v5_compatibility\.sql"\)/);
+  assert.match(direct, /split_fixed_ddl\(\)/);
+  assert.match(direct, /direct_v5_migration_receipt_forbidden/);
+  assert.match(direct, /COUNT\(\*\) FROM schema_migration_receipts/);
+  assert.match(direct, /PRAGMA user_version = 5/);
+  assert.doesNotMatch(direct, /migrate_disposable_v4|from_version\s*=\s*4/);
+  assert.match(compatibility, /CREATE TABLE experience_entries/);
+  assert.doesNotMatch(compatibility, /PRAGMA user_version\s*=\s*4/);
+  assert.match(canonical, /CREATE TABLE schema_migration_receipts/);
 });
 
-test("M0 package and accepted evidence remain separate and untouched", async () => {
+test("native review restarts the exact final prepared AVD and proves pending names stay absent", async () => {
+  const native = await read("scripts/android-m2a-native-review.ps1");
+
+  assert.match(native, /function Assert-PendingNamesAbsent/);
+  assert.match(native, /\.android-m2a-fresh-v5\.pending\.db/);
+  assert.match(native, /\.android-m2a-direct-fresh-v5\.pending\.receipt\.json/);
+  assert.match(
+    native,
+    /PASS final Founder review profile is freshly disposable and ready[\s\S]*Assert-PendingNamesAbsent[\s\S]*Stop-DisposableEmulator[\s\S]*Start-DisposableEmulator[\s\S]*Invoke-Cdp 'verify-absent'[\s\S]*Assert-PendingNamesAbsent[\s\S]*PASS final Founder review profile survives exact AVD shutdown\/restart with ready storage and no pending names/,
+  );
+  assert.doesNotMatch(native, /shell', 'sync'/);
+});
+
+test("M0 and Founder-accepted M1 evidence remain preserved", async () => {
   const m0Doc = await read("docs/architecture/20_Android_Build_Feasibility_M0.md");
   const m0Script = await read("scripts/android-m0.ps1");
+  const m1Runbook = await read("docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md");
+  const archive = await read(".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/ARCHIVE_MANIFEST.json");
   assert.match(m0Doc, /com\.lifeos\.feasibility\.m0/);
   assert.match(m0Script, /com\.lifeos\.feasibility\.m0/);
+  assert.match(m1Runbook, /2e0e41c8b03bff13c3bc4191de7bb972833ea62b8131d119727f158e716f1975/);
+  assert.match(archive, /2026-09-22-android-m1-disposable-persistence-review/);
+  assert.equal(
+    execFileSync("git", ["rev-parse", "d0e38640a53361c281d65b4befb6208b33f84346^{commit}"], {
+      cwd: root,
+      encoding: "utf8",
+      windowsHide: true,
+    }).trim(),
+    "d0e38640a53361c281d65b4befb6208b33f84346",
+  );
 });

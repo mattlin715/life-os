@@ -62,6 +62,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | MVP Scope | `docs/11_MVP.md` | `docs/product/00_MVP_User_Flow.md` | `docs/architecture/00_MVP_Architecture.md`, `docs/architecture/08_Local_Historical_Context_Selection_Foundation.md`, `docs/architecture/16_Phase_3_Product_Exit_and_Private_Alpha_Readiness_Audit.md`, `docs/12_Roadmap.md` |
 | Android Build Feasibility M0 | `docs/architecture/20_Android_Build_Feasibility_M0.md` | `docs/dev/11_Android_M0_Runbook.md` | `docs/11_MVP.md`, `docs/12_Roadmap.md`, `docs/adr/ADR-0004-local-first-mvp.md`, `docs/adr/ADR-0006-mvp-tech-stack.md` |
 | Android M1 Architecture And Disposable Persistence | `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md` | `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md` | `docs/12_Roadmap.md`, `docs/architecture/01_Local_Evidence_Store.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
+| Android M2-A Direct Fresh-v5 Initialization | `docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md` | `docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md` | `docs/12_Roadmap.md`, `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
 | Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
@@ -91,6 +92,8 @@ Lower levels must not override higher levels. When theory and implementation dif
 10. `docs/dev/11_Android_M0_Runbook.md`
 11. `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`
 12. `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md`
+13. `docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md`
+14. `docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md`
 
 ### Design AI Or Harness Behavior
 

@@ -1,5 +1,7 @@
-use super::context_recovery_write::verify_exact_context_recovery_v5;
-use super::pattern_write::verify_exact_pattern_v5;
+use super::context_recovery_write::{
+    verify_exact_context_recovery_v5, verify_exact_context_recovery_v5_direct,
+};
+use super::pattern_write::{verify_exact_pattern_v5, verify_exact_pattern_v5_direct};
 use super::*;
 use sqlx::{raw_sql, Row};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -204,8 +206,15 @@ fn valid_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ExperienceOriginContract {
+    Migration,
+    DirectFresh,
+}
+
 async fn verify_receipt_and_contract(
     connection: &mut SqliteConnection,
+    origin: ExperienceOriginContract,
 ) -> Result<(), MigrationError> {
     let receipts: Vec<(i64, i64, String, String, String, String)> = sqlx::query_as(
         "SELECT from_version, to_version, state, application_version, \
@@ -215,18 +224,29 @@ async fn verify_receipt_and_contract(
     .fetch_all(&mut *connection)
     .await
     .map_err(|error| migration_error("experience_write_receipt_unreadable", error))?;
-    if receipts.len() != 1 {
-        return Err(recovery_error("experience_write_receipt_count_mismatch"));
-    }
-    let receipt = &receipts[0];
-    if receipt.0 != SOURCE_SCHEMA_VERSION
-        || receipt.1 != TARGET_SCHEMA_VERSION
-        || receipt.2 != "committed"
-        || !receipt_application_version_supported(&receipt.3)
-        || !valid_sha256(&receipt.4)
-        || !valid_sha256(&receipt.5)
-    {
-        return Err(recovery_error("experience_write_receipt_mismatch"));
+    match origin {
+        ExperienceOriginContract::Migration => {
+            if receipts.len() != 1 {
+                return Err(recovery_error("experience_write_receipt_count_mismatch"));
+            }
+            let receipt = &receipts[0];
+            if receipt.0 != SOURCE_SCHEMA_VERSION
+                || receipt.1 != TARGET_SCHEMA_VERSION
+                || receipt.2 != "committed"
+                || !receipt_application_version_supported(&receipt.3)
+                || !valid_sha256(&receipt.4)
+                || !valid_sha256(&receipt.5)
+            {
+                return Err(recovery_error("experience_write_receipt_mismatch"));
+            }
+        }
+        ExperienceOriginContract::DirectFresh => {
+            if !receipts.is_empty() {
+                return Err(recovery_error(
+                    "experience_write_direct_origin_migration_receipt_forbidden",
+                ));
+            }
+        }
     }
 
     let contracts: Vec<(i64, String, String, String, String)> = sqlx::query_as(
@@ -323,8 +343,9 @@ async fn verify_source_projection(connection: &mut SqliteConnection) -> Result<(
     Ok(())
 }
 
-pub(super) async fn verify_exact_v5(
+async fn verify_exact_v5_with_origin(
     connection: &mut SqliteConnection,
+    origin: ExperienceOriginContract,
 ) -> Result<(), MigrationError> {
     if user_version(connection).await? != TARGET_SCHEMA_VERSION {
         return Err(write_error("experience_write_requires_exact_v5"));
@@ -332,7 +353,7 @@ pub(super) async fn verify_exact_v5(
     if !is_expected_schema_object_manifest(&schema_object_manifest(connection).await?) {
         return Err(recovery_error("experience_write_schema_manifest_mismatch"));
     }
-    verify_receipt_and_contract(connection).await?;
+    verify_receipt_and_contract(connection, origin).await?;
     let guard_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM v5_compatibility_write_guard")
         .fetch_one(&mut *connection)
         .await
@@ -343,6 +364,12 @@ pub(super) async fn verify_exact_v5(
     current_content_checks(connection).await?;
     verify_source_projection(connection).await?;
     integrity_checks(connection).await
+}
+
+pub(super) async fn verify_exact_v5(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    verify_exact_v5_with_origin(connection, ExperienceOriginContract::Migration).await
 }
 
 async fn current_source(
@@ -1414,11 +1441,20 @@ async fn apply_command(
 
 async fn verify_experience_database(
     connection: &mut SqliteConnection,
+    origin: ExperienceOriginContract,
 ) -> Result<(), MigrationError> {
-    verify_exact_v5(connection).await?;
+    verify_exact_v5_with_origin(connection, origin).await?;
     verify_source_projection(connection).await?;
-    verify_exact_pattern_v5(connection).await?;
-    verify_exact_context_recovery_v5(connection).await?;
+    match origin {
+        ExperienceOriginContract::Migration => {
+            verify_exact_pattern_v5(connection).await?;
+            verify_exact_context_recovery_v5(connection).await?;
+        }
+        ExperienceOriginContract::DirectFresh => {
+            verify_exact_pattern_v5_direct(connection).await?;
+            verify_exact_context_recovery_v5_direct(connection).await?;
+        }
+    }
     current_content_checks(connection).await?;
     integrity_checks(connection).await
 }
@@ -1427,8 +1463,9 @@ async fn prepare_write(
     connection: &mut SqliteConnection,
     command: &ExperienceWriteCommand,
     context: &ExperienceWriteContext<'_>,
+    origin: ExperienceOriginContract,
 ) -> Result<PreparedWriteResult, MigrationError> {
-    verify_experience_database(connection).await?;
+    verify_experience_database(connection, origin).await?;
     raw_sql("PRAGMA defer_foreign_keys = ON")
         .execute(&mut *connection)
         .await
@@ -1446,7 +1483,7 @@ async fn prepare_write(
         ExperienceWriteFailurePoint::AfterReconciliation,
     )?;
     remove_guard(connection, context).await?;
-    verify_experience_database(connection).await?;
+    verify_experience_database(connection, origin).await?;
     let post_manifest = operation_manifest(connection).await?;
     outcome.operation_manifest = post_manifest.clone();
     Ok(PreparedWriteResult::Write(PreparedWrite {
@@ -1455,11 +1492,15 @@ async fn prepare_write(
     }))
 }
 
-async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), MigrationError> {
+async fn verify_read_only_with_origin(
+    path: &Path,
+    expected_manifest: &str,
+    origin: ExperienceOriginContract,
+) -> Result<(), MigrationError> {
     let mut connection = connect(path, true).await.map_err(|error| {
         recovery_error(format!("experience_write_reopen_failed:{}", error.code))
     })?;
-    verify_experience_database(&mut connection)
+    verify_experience_database(&mut connection, origin)
         .await
         .map_err(|error| {
             recovery_error(format!(
@@ -1476,31 +1517,35 @@ async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), Mi
     Ok(())
 }
 
+async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), MigrationError> {
+    verify_read_only_with_origin(path, expected_manifest, ExperienceOriginContract::Migration).await
+}
 async fn execute_with_adapter<A: CommitOutcomeAdapter>(
     path: &Path,
     command: ExperienceWriteCommand,
     context: ExperienceWriteContext<'_>,
     adapter: &A,
+    origin: ExperienceOriginContract,
 ) -> Result<ExperienceWriteOutcome, MigrationError> {
     if !path.exists() {
         return Err(write_error("experience_write_database_missing"));
     }
     let mut connection = connect(path, false).await?;
-    verify_experience_database(&mut connection).await?;
+    verify_experience_database(&mut connection, origin).await?;
     let pre_manifest = operation_manifest(&mut connection).await?;
     raw_sql("BEGIN IMMEDIATE")
         .execute(&mut connection)
         .await
         .map_err(|error| migration_error("experience_write_begin_failed", error))?;
 
-    let prepared = match prepare_write(&mut connection, &command, &context).await {
+    let prepared = match prepare_write(&mut connection, &command, &context, origin).await {
         Ok(PreparedWriteResult::Write(prepared)) => prepared,
         Ok(PreparedWriteResult::NoChange(mut outcome)) => {
             let rollback = adapter.rollback(&mut connection).await;
             connection.close().await.map_err(|error| {
                 recovery_error(format!("experience_write_close_failed:{error}"))
             })?;
-            verify_read_only(path, &pre_manifest)
+            verify_read_only_with_origin(path, &pre_manifest, origin)
                 .await
                 .map_err(|verification| {
                     recovery_error(format!(
@@ -1516,7 +1561,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             connection.close().await.map_err(|close_error| {
                 recovery_error(format!("experience_write_close_failed:{close_error}"))
             })?;
-            verify_read_only(path, &pre_manifest)
+            verify_read_only_with_origin(path, &pre_manifest, origin)
                 .await
                 .map_err(|verification| {
                     recovery_error(format!(
@@ -1533,7 +1578,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             connection.close().await.map_err(|error| {
                 recovery_error(format!("experience_write_close_failed:{error}"))
             })?;
-            verify_read_only(path, &prepared.post_manifest).await?;
+            verify_read_only_with_origin(path, &prepared.post_manifest, origin).await?;
             Ok(prepared.outcome)
         }
         CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
@@ -1541,7 +1586,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             connection.close().await.map_err(|error| {
                 recovery_error(format!("experience_write_close_failed:{error}"))
             })?;
-            verify_read_only(path, &pre_manifest)
+            verify_read_only_with_origin(path, &pre_manifest, origin)
                 .await
                 .map_err(|verification| {
                     recovery_error(format!(
@@ -1557,13 +1602,16 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
             connection.close().await.map_err(|error| {
                 recovery_error(format!("experience_write_close_failed:{error}"))
             })?;
-            if verify_read_only(path, &prepared.post_manifest)
+            if verify_read_only_with_origin(path, &prepared.post_manifest, origin)
                 .await
                 .is_ok()
             {
                 return Ok(prepared.outcome);
             }
-            if verify_read_only(path, &pre_manifest).await.is_ok() {
+            if verify_read_only_with_origin(path, &pre_manifest, origin)
+                .await
+                .is_ok()
+            {
                 return Err(write_error(format!(
                     "experience_write_commit_outcome_unknown_unchanged:{error_class}"
                 )));
@@ -1580,7 +1628,29 @@ pub(super) async fn execute_disposable(
     command: ExperienceWriteCommand,
     context: ExperienceWriteContext<'_>,
 ) -> Result<ExperienceWriteOutcome, MigrationError> {
-    execute_with_adapter(path, command, context, &SqlCommitOutcomeAdapter).await
+    execute_with_adapter(
+        path,
+        command,
+        context,
+        &SqlCommitOutcomeAdapter,
+        ExperienceOriginContract::Migration,
+    )
+    .await
+}
+
+pub(super) async fn execute_direct_fresh(
+    path: &Path,
+    command: ExperienceWriteCommand,
+    context: ExperienceWriteContext<'_>,
+) -> Result<ExperienceWriteOutcome, MigrationError> {
+    execute_with_adapter(
+        path,
+        command,
+        context,
+        &SqlCommitOutcomeAdapter,
+        ExperienceOriginContract::DirectFresh,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -2716,6 +2786,7 @@ INSERT INTO persisted_artifacts VALUES (
                 commit_first: true,
                 rollback_calls: Cell::new(0),
             },
+            ExperienceOriginContract::Migration,
         )
         .await
         .unwrap();
@@ -2744,6 +2815,7 @@ INSERT INTO persisted_artifacts VALUES (
                 commit_first: false,
                 rollback_calls: Cell::new(0),
             },
+            ExperienceOriginContract::Migration,
         )
         .await
         .unwrap_err();
@@ -2782,6 +2854,7 @@ INSERT INTO persisted_artifacts VALUES (
                 commit_first: true,
                 rollback_calls: Cell::new(0),
             },
+            ExperienceOriginContract::Migration,
         )
         .await
         .unwrap();
@@ -2824,6 +2897,7 @@ INSERT INTO persisted_artifacts VALUES (
                 commit_first: false,
                 rollback_calls: Cell::new(0),
             },
+            ExperienceOriginContract::Migration,
         )
         .await
         .unwrap_err();

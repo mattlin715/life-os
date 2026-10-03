@@ -2133,6 +2133,13 @@ pub(super) async fn verify_exact_context_recovery_v5(
     verify_context_recovery_projection(connection).await
 }
 
+pub(super) async fn verify_exact_context_recovery_v5_direct(
+    connection: &mut SqliteConnection,
+) -> Result<(), MigrationError> {
+    super::direct_init::verify_direct_fresh_connection(connection).await?;
+    verify_context_recovery_projection(connection).await
+}
+
 async fn prepare_write(
     connection: &mut SqliteConnection,
     command: ContextRecoveryWriteCommand,

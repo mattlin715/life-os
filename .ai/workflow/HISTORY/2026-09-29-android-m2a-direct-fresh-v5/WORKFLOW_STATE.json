@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 40,
+  "last_event_id": "2026-09-29-android-m2a-direct-fresh-v5:0040",
+  "last_event_hash": "9902fd8a21aef48da49b3d95dc2d40c47540e83bb93fcf035698fde5fc7c3fc7",
+  "sprint_id": "2026-09-29-android-m2a-direct-fresh-v5",
+  "mission_title": "Android M2-A Direct Fresh-v5 Initialization",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "ANDROID-M2A-FOUNDER-REVIEW-002 Option A. I completed the corrected exact Founder manual checklist 10/10 PASS for APK SHA-256 85d6911b34afc31b7e847fc34cd1c8ed05b63fe8084193f7aaf6e0a69e127ebb and working-tree digest 146c28adc2591a71eefb2b82fba97eefbd82559ce71d0c1a350ab3c9a676b919. I accept this exact unstaged Android M2-A review candidate. Do not stage, commit, push, merge, create a PR, archive/reset, release, activate real data or com.lifeos.app, or start another M2 slice.",
+    "selected_option": "A",
+    "authorized_scope": "Record Founder manual checklist 10/10 acceptance for the exact unstaged corrected Android M2-A candidate and complete only the current workflow gate. No staging, commit, push, merge, PR, archive/reset, release, real data, com.lifeos.app activation, or another M2 slice.",
+    "decided_at": "2026-10-02T18:05:45.933Z",
+    "evidence_reference": "ANDROID-M2A-FOUNDER-REVIEW-002 Option A (Founder message, 2026-10-03 JST)"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/android-m2a-direct-fresh-v5",
+  "repository_head": "11dc25cbe3027937e54754b1d3bf85ff66e15903",
+  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed",
+    "theory_alignment_review": "approved",
+    "decision_required": "resolved",
+    "sprint_report": "completed"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-10-02T18:34:26.822Z",
+      "repository_head": "11dc25cbe3027937e54754b1d3bf85ff66e15903",
+      "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    }
+  },
+  "created_at": "2026-09-29T09:08:54.307Z",
+  "updated_at": "2026-10-02T18:34:35.300Z",
+  "terminal_follow_up": {
+    "status": "verified",
+    "authorization_reference": "ANDROID-M2A-PROMOTION-CLOSEOUT-001",
+    "authorization_evidence": {
+      "path": "docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md",
+      "sha256": "ef9906b1c89aef6595dcc1f4288b24f29dacca08512657844650a49022fad2de"
+    },
+    "reason": "Founder authorized bounded M2-A promotion closeout: correct stale deferred wording, record authorization, revalidate exact candidate, promote only the final allowlist, and archive/reset without merge or later-slice work.",
+    "started_at": "2026-10-02T18:22:51.458Z",
+    "original_terminal_snapshot": {
+      "status": "completed",
+      "current_phase": "completed",
+      "state_revision": 35,
+      "last_event_id": "2026-09-29-android-m2a-direct-fresh-v5:0035",
+      "last_event_hash": "a68b0634a636712cd24467894e2c862142402d6a98722a5ee98d25c83ee8110f",
+      "repository_head": "51dff4998ca8696aeaf1527f058d785303fc0cd4",
+      "working_branch": "codex/android-m2a-direct-fresh-v5",
+      "working_tree_digest": "146c28adc2591a71eefb2b82fba97eefbd82559ce71d0c1a350ab3c9a676b919",
+      "artifacts": {
+        "current_mission": "ready",
+        "product_review": "approved_with_conditions",
+        "engineering_plan": "approved",
+        "engineering_report": "completed",
+        "theory_alignment_review": "approved",
+        "decision_required": "resolved",
+        "sprint_report": "completed"
+      },
+      "verification": {
+        "repository_verify": {
+          "status": "passed",
+          "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+          "exit_code": 0,
+          "completed_at": "2026-10-02T16:35:16.564Z",
+          "repository_head": "51dff4998ca8696aeaf1527f058d785303fc0cd4",
+          "working_tree_digest": "146c28adc2591a71eefb2b82fba97eefbd82559ce71d0c1a350ab3c9a676b919"
+        },
+        "manual_ui": {
+          "status": "not_run",
+          "owner": "founder",
+          "completed_at": null,
+          "evidence_reference": null
+        }
+      },
+      "decision_resolution": {
+        "status": "resolved",
+        "exact_founder_response": "ANDROID-M2A-FOUNDER-REVIEW-002 Option A. I completed the corrected exact Founder manual checklist 10/10 PASS for APK SHA-256 85d6911b34afc31b7e847fc34cd1c8ed05b63fe8084193f7aaf6e0a69e127ebb and working-tree digest 146c28adc2591a71eefb2b82fba97eefbd82559ce71d0c1a350ab3c9a676b919. I accept this exact unstaged Android M2-A review candidate. Do not stage, commit, push, merge, create a PR, archive/reset, release, activate real data or com.lifeos.app, or start another M2 slice.",
+        "selected_option": "A",
+        "authorized_scope": "Record Founder manual checklist 10/10 acceptance for the exact unstaged corrected Android M2-A candidate and complete only the current workflow gate. No staging, commit, push, merge, PR, archive/reset, release, real data, com.lifeos.app activation, or another M2 slice.",
+        "decided_at": "2026-10-02T18:05:45.933Z",
+        "evidence_reference": "ANDROID-M2A-FOUNDER-REVIEW-002 Option A (Founder message, 2026-10-03 JST)"
+      },
+      "completed_at": "2026-10-02T18:06:29.409Z"
+    },
+    "verification_recorded_at": "2026-10-02T18:28:15.981Z"
+  }
+}
