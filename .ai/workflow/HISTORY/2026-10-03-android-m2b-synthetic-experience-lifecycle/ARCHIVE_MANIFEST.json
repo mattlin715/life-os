@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-10-03-android-m2b-synthetic-experience-lifecycle",
+  "terminal_status": "completed",
+  "archived_at": "2026-10-03T20:35:46.343Z",
+  "repository_head": "aebef185346effda779a6a10850882a2dc19e701",
+  "working_branch": "codex/android-m2b-synthetic-experience-lifecycle",
+  "working_tree_digest": "672b57c5b720b9a7e0ca85ba99a2ad520c62bc25258373e658cdfd62f5f5039f",
+  "last_event_id": "2026-10-03-android-m2b-synthetic-experience-lifecycle:0064",
+  "last_event_hash": "64590f6f17f125627ddb1bc68743260878d24b83a79e8e49fc470b038616090d",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}
