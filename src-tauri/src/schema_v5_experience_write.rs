@@ -1659,6 +1659,29 @@ mod tests {
     use std::cell::Cell;
     use tempfile::TempDir;
 
+    #[tokio::test]
+    async fn direct_update_delete_uncertain_commit_classifies_exact_pre_and_post_without_retry() {
+        use super::super::direct_init::{initialize_direct_fresh_v5, DirectInitRequest, DirectInitFailurePoint};
+        for deleting in [false, true] {
+            for commit_first in [false, true] {
+                let root = tempfile::tempdir().unwrap(); let path = root.path().join("m2b-direct.db");
+                initialize_direct_fresh_v5(DirectInitRequest { path: &path, application_id: "com.lifeos.review.m2b",
+                    initialized_at: "2026-10-03T00:00:00.000Z", failure_point: DirectInitFailurePoint::None }).await.unwrap();
+                let prior = execute_direct_fresh(&path, ExperienceWriteCommand::Create(input("m2b-direct-unknown", "original",
+                    "2026-10-03T00:00:01.000Z")), context("2026-10-03T00:00:01.000Z", "m2b-direct-create-guard-000000000000000", ExperienceWriteFailurePoint::None)).await.unwrap().revision_id.unwrap();
+                let command = if deleting { ExperienceWriteCommand::Delete { id: "m2b-direct-unknown".into(), expected_revision_id: prior.clone() } }
+                    else { ExperienceWriteCommand::Update { id: "m2b-direct-unknown".into(), expected_revision_id: prior.clone(), content: "updated".into(), updated_at: "2026-10-03T00:00:02.000Z".into() } };
+                let adapter = InjectedCommitAdapter { outcome: CommitAttemptOutcome::OutcomeUnknown { error_class: "synthetic_uncertain_commit".into() }, commit_first, rollback_calls: Cell::new(0) };
+                let result = execute_with_adapter(&path, command, context("2026-10-03T00:00:02.000Z", "m2b-direct-mutate-guard-00000000000000", ExperienceWriteFailurePoint::None), &adapter, ExperienceOriginContract::DirectFresh).await;
+                if commit_first { assert_eq!(result.unwrap().status, ExperienceWriteStatus::Committed) }
+                else { assert!(result.unwrap_err().code.contains("outcome_unknown_unchanged")) }
+                assert_eq!(adapter.rollback_calls.get(), 0);
+                assert_eq!(scalar_i64(&path, "SELECT COUNT(*) FROM source_revisions").await, if commit_first && !deleting { 2 } else { 1 });
+                assert_eq!(scalar_i64(&path, "SELECT COUNT(*) FROM source_revision_content").await, if commit_first && deleting { 0 } else if commit_first { 2 } else { 1 });
+            }
+        }
+    }
+
     const V4_FIXTURE: &str = include_str!("../tests/fixtures/schema_v5/v4.sql");
     const STARTED_AT: &str = "2026-07-30T00:00:00.000Z";
     const COMMITTED_AT: &str = "2026-07-30T00:00:01.000Z";

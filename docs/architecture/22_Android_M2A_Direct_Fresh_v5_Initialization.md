@@ -1,6 +1,6 @@
 ---
-status: Founder review candidate
-version: 1.0
+status: Founder accepted disposable candidate
+version: 1.1
 owner: product-and-engineering
 last_updated: 2026/10/03
 depends:
@@ -27,8 +27,11 @@ referenced_by:
 synthetic review candidate. It implements and tests direct fresh-v5
 initialization under temporary identity `com.lifeos.review.m2a`. It does not
 activate the Founder-selected production identity `com.lifeos.app`, real data,
-the rest of M2, providers, distribution, or release. Founder review of the
-exact diff and manual UI remains required.
+the rest of M2, providers, distribution, or release. The corrected exact
+candidate was accepted under `ANDROID-M2A-FOUNDER-REVIEW-002` after the Founder
+manual checklist 10/10 PASS. The exact acceptance/promotion evidence is preserved
+in `.ai/workflow/HISTORY/2026-09-29-android-m2a-direct-fresh-v5/`. This is not
+production acceptance and does not accept a later candidate.
 
 ADR-0012 remains Accepted and unchanged. This implementation supplies evidence
 for its already-selected direct initialization direction; it creates no new

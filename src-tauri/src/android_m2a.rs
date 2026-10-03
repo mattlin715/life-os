@@ -116,6 +116,7 @@ fn require_identity(app: &AppHandle) -> Result<(), String> {
 
 #[derive(Clone, Debug)]
 struct StoragePaths {
+    application_id: &'static str,
     root: PathBuf,
     live: PathBuf,
     pending: PathBuf,
@@ -125,6 +126,7 @@ struct StoragePaths {
 
 fn paths_at(root: PathBuf) -> StoragePaths {
     StoragePaths {
+        application_id: APPLICATION_ID,
         live: root.join(DATABASE_FILENAME),
         pending: root.join(PENDING_FILENAME),
         receipt: root.join(RECEIPT_FILENAME),
@@ -316,7 +318,7 @@ async fn verify_ready(paths: &StoragePaths) -> Result<(), String> {
         return Err("m2a_publication_state_incomplete_preserved".into());
     }
     let receipt = read_receipt(&paths.receipt)?;
-    verify_direct_fresh_v5(&paths.live, &receipt, APPLICATION_ID)
+    verify_direct_fresh_v5(&paths.live, &receipt, paths.application_id)
         .await
         .map_err(|error| format!("m2a_existing_database_refused:{}", error.code))?;
     crate::schema_v5_migration::runtime::list_experiences_direct_fresh(&paths.live)
@@ -351,7 +353,7 @@ async fn create_fresh_exact_v5(
     let now = canonical_now()?;
     let receipt = initialize_direct_fresh_v5(DirectInitRequest {
         path: &paths.pending,
-        application_id: APPLICATION_ID,
+        application_id: paths.application_id,
         initialized_at: &now,
         failure_point: direct_failure,
     })
@@ -362,7 +364,7 @@ async fn create_fresh_exact_v5(
     verify_direct_fresh_v5(
         &paths.pending,
         &read_receipt(&paths.pending_receipt)?,
-        APPLICATION_ID,
+        paths.application_id,
     )
     .await
     .map_err(|error| format!("m2a_pending_verification_failed:{}", error.code))?;
@@ -438,6 +440,44 @@ fn with_storage<T>(
 #[tauri::command]
 pub(crate) fn m2a_storage_status(app: AppHandle) -> Result<M2AStorageStatus, String> {
     with_storage(&app, |_| Ok(M2AStorageStatus::ready()))
+}
+
+// Two fixed review profiles share the exact publication/readiness algorithm.
+// No renderer-supplied path or identity can reach this constructor.
+fn m2b_paths_at(root: PathBuf) -> StoragePaths {
+    StoragePaths {
+        application_id: "com.lifeos.review.m2b",
+        live: root.join("android-m2b-disposable-v5.db"),
+        pending: root.join(".android-m2b-fresh-v5.pending.db"),
+        receipt: root.join("android-m2b-direct-fresh-v5.receipt.json"),
+        pending_receipt: root.join(".android-m2b-direct-fresh-v5.pending.receipt.json"),
+        root,
+    }
+}
+
+pub(crate) fn with_m2b_storage<T>(
+    app: &AppHandle,
+    operation: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    if app.config().identifier != "com.lifeos.review.m2b" {
+        return Err("m2b_application_identity_refused".into());
+    }
+    let _lock = OPERATION_LOCK.lock().map_err(|_| "m2b_operation_lock_poisoned")?;
+    let root = app.path().app_data_dir().map_err(|_| "m2b_app_private_path_failed")?;
+    let paths = m2b_paths_at(root);
+    tauri::async_runtime::block_on(ensure_ready_at(&paths))
+        .map_err(|_| "m2b_storage_blocked_preserved")?;
+    tauri::async_runtime::block_on(
+        crate::schema_v5_migration::runtime::refuse_non_synthetic_dependencies(&paths.live)
+    ).map_err(|_| "m2b_unexpected_dependency_preserved")?;
+    operation(&paths.live)
+}
+
+#[cfg(test)]
+pub(crate) async fn prepare_m2b_fixture(root: PathBuf) -> Result<PathBuf, String> {
+    let paths = m2b_paths_at(root);
+    ensure_ready_at(&paths).await?;
+    Ok(paths.live)
 }
 
 fn debug_hold(

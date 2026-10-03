@@ -1,14 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Life OS Android M2-A Direct Fresh-v5 Review",
-  "identifier": "com.lifeos.review.m2a",
+  "productName": "Life OS Android M2-B Synthetic Lifecycle Review",
+  "identifier": "com.lifeos.review.m2b",
   "build": {
-    "beforeDevCommand": "pnpm run dev:android:m2a:web",
-    "beforeBuildCommand": "pnpm run build:android:m2a:web"
+    "beforeDevCommand": "pnpm run dev:android:m2b:web",
+    "beforeBuildCommand": "pnpm run build:android:m2b:web"
   },
   "app": {
     "security": {
-      "capabilities": ["android-m2a"]
+      "capabilities": ["android-m2b"]
     }
   },
   "bundle": {

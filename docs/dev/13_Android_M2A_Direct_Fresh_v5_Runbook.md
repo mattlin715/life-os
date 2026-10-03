@@ -1,6 +1,6 @@
 ---
-status: Founder review candidate
-version: 1.0
+status: Founder accepted disposable candidate
+version: 1.1
 owner: product-and-engineering
 last_updated: 2026/10/03
 depends:
@@ -124,9 +124,12 @@ source HEAD, and working-tree digest from the generated evidence package.
 10. Confirm there is no AI output, provider/network/credential behavior,
     desktop import, backup/restore, update/delete, production, or release claim.
 
-Founder manual acceptance remains `not_run` until the Founder explicitly
-records the result for the exact candidate. Automated native evidence is not a
-substitute.
+The corrected exact M2-A candidate received Founder manual acceptance under
+`ANDROID-M2A-FOUNDER-REVIEW-002` (10/10 PASS), preserved in
+`.ai/workflow/HISTORY/2026-09-29-android-m2a-direct-fresh-v5/`. Legacy workflow
+`manual_ui: not_run` telemetry is not rewritten: the actual human decision is
+recorded separately in the archive decision/event chain. Acceptance does not
+transfer to a later APK. Automated evidence is not its own Founder review.
 
 ## Separate failure-state review fixtures
 

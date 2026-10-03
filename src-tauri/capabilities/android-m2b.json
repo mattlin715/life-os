@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-m2b",
+  "description": "Isolated synthetic Android M2-B lifecycle review; no plugins/providers/filesystem access from the renderer.",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["core:default"]
+}
