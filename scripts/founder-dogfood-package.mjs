@@ -47,6 +47,7 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3/",
   ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/",
   ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/",
+  ".ai/workflow/HISTORY/2026-10-03-android-m2b-synthetic-experience-lifecycle/",
 ];
 const ACTIVE_SUCCESSOR_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
@@ -58,6 +59,14 @@ const ACTIVE_SUCCESSOR_PREFIXES = [
     ".ai/workflow/HISTORY/2026-08-23-ordinary-v5-real-profile-phase-b-blocked-r1/",
   ];
 const ACTIVE_SUCCESSOR_ALLOWLIST = new Set([
+  "docs/architecture/23_Android_M2B_Synthetic_Experience_Lifecycle.md",
+  "docs/dev/14_Android_M2B_Synthetic_Experience_Lifecycle_Runbook.md",
+  "scripts/android-m2b-contract.node-test.mjs",
+  "scripts/android-m2b.ps1",
+  "scripts/android-m2b-native-review.ps1",
+  "scripts/android-m2b-cdp-probe.mjs",
+  "src-tauri/capabilities/android-m2b.json",
+  "src-tauri/src/android_m2b.rs",
   ".github/workflows/check.yml",
   ".ai/workflow/WORKFLOW.md",
   "docs/00_Index.md",
@@ -162,6 +171,7 @@ const ACTIVE_SUCCESSOR_ALLOWLIST = new Set([
 // tests. Keeping those lists canonical avoids duplicating generated paths in
 // this legacy Windows-package guard while still bounding delegated prefixes.
 const ANDROID_PREFIXES = [
+  "src/android-m2b/",
   "src-tauri/gen/android/",
   "src/android-m0/",
   "src/android-m1/",

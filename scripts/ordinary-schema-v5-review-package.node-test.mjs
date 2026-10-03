@@ -15,14 +15,14 @@ test("ordinary schema-v5 review uses the real ordinary identity with a disposabl
   });
 });
 
-test("ordinary desktop identity remains separate from the current disposable Android M2-A identity", async () => {
+test("ordinary desktop identity remains separate from the current disposable Android M2-B identity", async () => {
   const desktop = JSON.parse(await readFile(path.join(root, "src-tauri", "tauri.conf.json"), "utf8"));
   const android = JSON.parse(await readFile(path.join(root, "src-tauri", "tauri.android.conf.json"), "utf8"));
 
   assert.equal(desktop.identifier, "com.lifeos.app");
   assert.equal(desktop.productName, "Life OS");
-  assert.equal(android.identifier, "com.lifeos.review.m2a");
-  assert.equal(android.productName, "Life OS Android M2-A Direct Fresh-v5 Review");
+  assert.equal(android.identifier, "com.lifeos.review.m2b");
+  assert.equal(android.productName, "Life OS Android M2-B Synthetic Lifecycle Review");
 });
 
 test("the main desktop capability grants and records the explicit window close command", async () => {

@@ -1,4 +1,4 @@
-package com.lifeos.review.m2a
+package com.lifeos.review.m2b
 
 import android.os.Bundle
 import android.view.View

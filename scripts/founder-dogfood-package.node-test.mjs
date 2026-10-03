@@ -294,6 +294,13 @@ test("delegates only the bounded Android M2-A frontend tree to its exact contrac
   assert.equal(isFounderPackageChangedPathAllowed("src/android-m2aa/Unexpected.tsx"), false);
 });
 
+test("allows only the exact Android M2-B workflow archive prefix", () => {
+  const prefix = ".ai/workflow/HISTORY/2026-10-03-android-m2b-synthetic-experience-lifecycle";
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}/WORKFLOW_STATE.json`), true);
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}-neighbor/WORKFLOW_STATE.json`), false);
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}2/WORKFLOW_STATE.json`), false);
+});
+
 test("the real repository satisfies the package source contract", async () => {
   const repositoryRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(.:)/, "$1")), "..");
   const result = await validateSourceContract(repositoryRoot);

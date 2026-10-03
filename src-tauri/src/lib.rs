@@ -4,6 +4,9 @@ mod android_m1;
 #[cfg(any(target_os = "android", test))]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 mod android_m2a;
+#[cfg(any(target_os = "android", test))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+mod android_m2b;
 #[allow(dead_code)]
 mod filesystem_safety;
 #[cfg(all(
@@ -38,6 +41,13 @@ pub fn run() {
             android_m2a::m2a_get_experience,
             android_m2a::m2a_get_locale_preference,
             android_m2a::m2a_set_locale_preference,
+            android_m2b::m2b_storage_status,
+            android_m2b::m2b_create_experience,
+            android_m2b::m2b_list_experiences,
+            android_m2b::m2b_get_experience,
+            android_m2b::m2b_mutate_experience,
+            android_m2b::m2b_get_locale_preference,
+            android_m2b::m2b_set_locale_preference,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the isolated Life OS Android M2-A direct-v5 review app");

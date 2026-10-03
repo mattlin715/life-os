@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.0
+version: 1.1
 owner: LIN MENGLUNG
-last_updated: 2026/09/28
+last_updated: 2026/10/03
 depends:
   - docs/01_Vision.md
   - docs/02_Philosophy.md
@@ -334,10 +334,24 @@ This candidate does not activate `com.lifeos.app`, real data, complete Android
 `LocalEvidenceStore`, upgrades, migration/recovery, retention/deletion,
 import/export, sync, providers, distribution, or release. Android 36 x86_64
 disposable-emulator evidence and the exact final package results are recorded
-by the M2-A runbook and workflow review package; Founder manual UI acceptance
-remains a separate gate. See
+by the M2-A runbook and archived workflow package; the corrected exact candidate
+received separate Founder manual acceptance under `ANDROID-M2A-FOUNDER-REVIEW-002`
+(10/10). This acceptance does not transfer to a later candidate. See
 `docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md` and
 `docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md`.
+
+## Android M2-B — Synthetic Experience Lifecycle Candidate
+
+`ANDROID-M2B-SYNTHETIC-LIFECYCLE-001` separately authorizes synthetic Android
+edit/delete using existing Accepted ADR-0011/0012 and canonical v5 writer
+policies. Temporary identity `com.lifeos.review.m2b` adds stable-identity,
+immutable user-authored correction, exact-revision conflict handling and explicit
+confirmed logical deletion. It introduces no retention/deletion policy, real
+data, production identity, artifacts/providers/network, continuity, release or
+later M2 authority. Implementation/testing/debug packaging stop at exact Founder
+consolidated diff + manual UI review; automated evidence is not acceptance.
+See `docs/architecture/23_Android_M2B_Synthetic_Experience_Lifecycle.md` and
+`docs/dev/14_Android_M2B_Synthetic_Experience_Lifecycle_Runbook.md`.
 
 ## Roadmap Governance
 

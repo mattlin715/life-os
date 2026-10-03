@@ -5,6 +5,12 @@ import "./styles.css";
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 
 async function mountRoot() {
+  if (import.meta.env.VITE_LIFE_OS_ANDROID_M2B === "1") {
+    const { AndroidM2BApp } = await import("./android-m2b/AndroidM2BApp");
+    await import("./android-m2b/android-m2b.css");
+    root.render(<React.StrictMode><AndroidM2BApp /></React.StrictMode>);
+    return;
+  }
   if (import.meta.env.VITE_LIFE_OS_ANDROID_M2A === "1") {
     const { AndroidM2AApp } = await import("./android-m2a/AndroidM2AApp");
     await import("./android-m2a/android-m2a.css");

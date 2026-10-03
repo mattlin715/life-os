@@ -911,6 +911,108 @@ pub(crate) async fn create_experience_direct_fresh(
         .ok_or_else(|| MigrationError::recovery_required("direct_runtime_create_missing"))
 }
 
+/// Direct-origin lifecycle bridge. No SQL, policy, schema or desktop routing
+/// is changed: the existing canonical writer owns the transaction.
+pub(crate) async fn mutate_experience_direct_fresh(
+    path: &Path,
+    id: &str,
+    expected_revision_id: &str,
+    body: Option<&str>,
+    occurred_at: &str,
+    guard_token: &str,
+    inject_after_projection: bool,
+) -> Result<bool, MigrationError> {
+    let command = match body {
+        Some(body) => ExperienceWriteCommand::Update {
+            id: id.into(), expected_revision_id: expected_revision_id.into(),
+            content: body.into(), updated_at: occurred_at.into(),
+        },
+        None => ExperienceWriteCommand::Delete {
+            id: id.into(), expected_revision_id: expected_revision_id.into(),
+        },
+    };
+    let outcome = execute_experience_direct(path, command, ExperienceWriteContext {
+        occurred_at, guard_token,
+        failure_point: if inject_after_projection {
+            ExperienceWriteFailurePoint::AfterProjection
+        } else { ExperienceWriteFailurePoint::None },
+    }).await?;
+    Ok(outcome.status == ExperienceWriteStatus::Committed)
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DirectSourceSnapshot {
+    pub(crate) entry: ExperienceRow,
+    pub(crate) revision_id: String,
+    pub(crate) revision_number: i64,
+    pub(crate) predecessor_revision_id: Option<String>,
+    pub(crate) authorship: String,
+}
+
+pub(crate) async fn direct_source_snapshot(
+    path: &Path, id: &str,
+) -> Result<Option<DirectSourceSnapshot>, MigrationError> {
+    let Some(entry) = get_experience_direct_fresh(path, id).await? else { return Ok(None) };
+    let mut connection = connect(path, true).await?;
+    let row: (String, i64, Option<String>, String) = sqlx::query_as(
+        "SELECT r.id, r.revision_number, r.predecessor_revision_id, r.authorship \
+         FROM source_heads h JOIN source_revisions r ON r.id=h.current_revision_id \
+         WHERE h.id=? AND h.lifecycle_state='active'",
+    ).bind(id).fetch_one(&mut connection).await
+        .map_err(|_| fail("direct_source_snapshot_unreadable"))?;
+    Ok(Some(DirectSourceSnapshot { entry, revision_id: row.0, revision_number: row.1,
+        predecessor_revision_id: row.2, authorship: row.3 }))
+}
+
+/// Reconcile a frozen exact request against immutable canonical facts. An
+/// older committed edit never returns retained text after another mutation.
+pub(crate) async fn reconcile_direct_mutation(
+    path: &Path, id: &str, expected_revision_id: &str, body: Option<&str>, occurred_at: &str,
+) -> Result<Option<&'static str>, MigrationError> {
+    super::direct_init::verify_direct_fresh_structure(path).await?;
+    let mut connection = connect(path, true).await?;
+    let head: Option<(Option<String>, String, String)> = sqlx::query_as(
+        "SELECT current_revision_id, lifecycle_state, updated_at FROM source_heads WHERE id=?",
+    ).bind(id).fetch_optional(&mut connection).await
+        .map_err(|_| fail("direct_mutation_head_unreadable"))?;
+    let Some((current, state, updated)) = head else { return Ok(None) };
+    if let Some(body) = body {
+        let revision: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM source_revisions WHERE source_id=? AND predecessor_revision_id=? \
+             AND created_at=? AND content_digest=? AND authorship='user' AND revision_reason='corrected'",
+        ).bind(id).bind(expected_revision_id).bind(occurred_at)
+            .bind(super::sha256_hex(body.as_bytes())).fetch_optional(&mut connection).await
+            .map_err(|_| fail("direct_mutation_revision_unreadable"))?;
+        if let Some(revision) = revision {
+            return Ok(Some(if state == "active" && current.as_deref() == Some(&revision) {
+                "alreadyCommitted"
+            } else { "committedNotCurrent" }));
+        }
+    } else if state == "deleted" && current.is_none() && updated == occurred_at {
+        let exact_prior: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM source_revisions r WHERE r.id=? AND r.source_id=? \
+             AND r.revision_number=(SELECT MAX(revision_number) FROM source_revisions WHERE source_id=r.source_id))",
+        ).bind(expected_revision_id).bind(id).fetch_one(&mut connection).await
+            .map_err(|_| fail("direct_mutation_prior_unreadable"))?;
+        if exact_prior { return Ok(Some("alreadyCommitted")) }
+    }
+    Ok(None)
+}
+
+pub(crate) async fn refuse_non_synthetic_dependencies(path: &Path) -> Result<(), MigrationError> {
+    let mut connection = connect(path, true).await?;
+    let count: i64 = sqlx::query_scalar(
+        "SELECT (SELECT COUNT(*) FROM artifact_heads) + \
+         (SELECT COUNT(*) FROM persisted_artifacts) + \
+         (SELECT COUNT(*) FROM historical_question_artifacts) + \
+         (SELECT COUNT(*) FROM artifact_dependencies) + \
+         (SELECT COUNT(*) FROM historical_artifact_dependencies)",
+    ).fetch_one(&mut connection).await.map_err(|_| fail("direct_dependency_inventory_failed"))?;
+    if count != 0 { return Err(fail("m2b_unexpected_dependency_preserved")) }
+    Ok(())
+}
+
 pub(crate) async fn update_experience(
     path: &Path,
     id: &str,

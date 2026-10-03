@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.7
+version: 1.8
 owner: LIN MENGLUNG
-last_updated: 2026/09/28
+last_updated: 2026/10/03
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -63,6 +63,7 @@ Lower levels must not override higher levels. When theory and implementation dif
 | Android Build Feasibility M0 | `docs/architecture/20_Android_Build_Feasibility_M0.md` | `docs/dev/11_Android_M0_Runbook.md` | `docs/11_MVP.md`, `docs/12_Roadmap.md`, `docs/adr/ADR-0004-local-first-mvp.md`, `docs/adr/ADR-0006-mvp-tech-stack.md` |
 | Android M1 Architecture And Disposable Persistence | `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md` | `docs/dev/12_Android_M1_Disposable_Persistence_Runbook.md` | `docs/12_Roadmap.md`, `docs/architecture/01_Local_Evidence_Store.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
 | Android M2-A Direct Fresh-v5 Initialization | `docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md` | `docs/dev/13_Android_M2A_Direct_Fresh_v5_Runbook.md` | `docs/12_Roadmap.md`, `docs/architecture/01_Local_Evidence_Store.md`, `docs/architecture/21_Android_M1_Disposable_Persistence_Architecture.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
+| Android M2-B Synthetic Experience Lifecycle | `docs/architecture/23_Android_M2B_Synthetic_Experience_Lifecycle.md` | `docs/dev/14_Android_M2B_Synthetic_Experience_Lifecycle_Runbook.md` | `docs/architecture/12_Phase_3C_Revision_Lifecycle_Provenance_and_Export_Foundation.md`, `docs/architecture/22_Android_M2A_Direct_Fresh_v5_Initialization.md`, `docs/adr/ADR-0011-establish-append-only-artifact-lifecycle-and-portable-provenance.md`, `docs/adr/ADR-0012-android-app-private-schema-v5-storage-and-stable-identity.md` |
 | Roadmap | `docs/12_Roadmap.md` | `docs/11_MVP.md` | `docs/01_Vision.md`, `docs/appendix/Harness.md` |
 | Documentation Hierarchy | `docs/00_Constitution.md` | `docs/adr/ADR-0001-documentation-hierarchy.md` | `README.md`, `AI_CONTRIBUTOR_GUIDE.md` |
 | Source of Truth | `docs/00_Constitution.md` | `docs/00_Index.md` | `docs/adr/ADR-0002-single-source-of-truth.md` |
