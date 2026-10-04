@@ -139,15 +139,15 @@ test("tracked and reviewable Android generated surface is an exact M2-A allowlis
   assert.deepEqual(actual, [...androidSurface].sort());
 });
 
-test("accepted M2-A identity is preserved while the active M2-B successor has no Android runtime permission", async () => {
+test("accepted M2-A identity is preserved while the active M2-C successor has no Android runtime permission", async () => {
   const config = JSON.parse(await read("src-tauri/tauri.android.conf.json"));
   const gradle = await read("src-tauri/gen/android/app/build.gradle.kts");
   const manifest = await read("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
 
   const accepted = JSON.parse(execFileSync("git", ["show", "11dc25cbe3027937e54754b1d3bf85ff66e15903:src-tauri/tauri.android.conf.json"], { cwd: root, encoding: "utf8", windowsHide: true }));
   assert.equal(accepted.identifier, "com.lifeos.review.m2a");
-  assert.equal(config.identifier, "com.lifeos.review.m2b");
-  assert.match(gradle, /applicationId = "com\.lifeos\.review\.m2b"/);
+  assert.equal(config.identifier, "com.lifeos.review.m2c");
+  assert.match(gradle, /applicationId = "com\.lifeos\.review\.m2c"/);
   assert.doesNotMatch(manifest, /<uses-permission\b/);
   assert.doesNotMatch(manifest, /FileProvider|LEANBACK|usesCleartextTraffic="true"/);
   assert.match(manifest, /android:allowBackup="false"/);

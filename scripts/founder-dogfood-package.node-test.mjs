@@ -21,6 +21,11 @@ const R3_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-rea
 const ANDROID_M0_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/";
 const ANDROID_M1_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/";
 
+test("M2-C delegates only the exact guarded frontend prefix and named adapters", () => {
+  for (const path of ["src/android-m2c/ReflectionJourney.tsx", "src-tauri/src/android_m2c.rs", "src-tauri/src/schema_v5_android_reflection.rs", "scripts/android-m2c-contract.node-test.mjs", "src/ai/providers/placeholderProvider.ts"]) assert.equal(isFounderPackageChangedPathAllowed(path), true);
+  for (const path of ["src/android-m2c-neighbor/ReflectionJourney.tsx", "src/android-m2c2/ReflectionJourney.tsx", "src-tauri/src/android_m2c_other.rs", "src-tauri/src/schema_v5_android_reflection_other.rs", "scripts/android-m2c-other.mjs"]) assert.equal(isFounderPackageChangedPathAllowed(path), false);
+});
+
 async function fixtureRoot() {
   const root = await mkdtemp(path.join(tmpdir(), "life-os-founder-package-"));
   await Promise.all([
@@ -306,4 +311,30 @@ test("the real repository satisfies the package source contract", async () => {
   const result = await validateSourceContract(repositoryRoot);
   assert.equal(result.developmentIdentifier, "com.lifeos.app");
   assert.equal(result.founderIdentifier, FOUNDER_IDENTIFIER);
+});
+
+
+test("allows only the exact M2-C rejection native safeguard path", () => {
+  assert.equal(isFounderPackageChangedPathAllowed("scripts/android-m2c-rejection-cdp-probe.mjs"), true);
+  for (const neighbor of [
+    "scripts/android-m2c-rejection-cdp-probe2.mjs",
+    "scripts/android-m2c-rejection-cdp-probe.mjs-neighbor",
+    "scripts/android-m2c-rejection-cdp-probe.mjs/neighbor",
+    "scripts/android-m2c-rejection-cdp-probe.mjs.extra",
+    "scripts/neighbor/android-m2c-rejection-cdp-probe.mjs",
+  ]) assert.equal(isFounderPackageChangedPathAllowed(neighbor), false, neighbor);
+});
+
+test("allows only the exact Android M2-C workflow archive prefix", () => {
+  const prefix = ".ai/workflow/HISTORY/2026-10-04-android-m2c-synthetic-daily-reflection";
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}/WORKFLOW_STATE.json`), true);
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}/ARCHIVE_MANIFEST.json`), true);
+  for (const neighbor of [
+    `${prefix}-neighbor/WORKFLOW_STATE.json`,
+    `${prefix}2/WORKFLOW_STATE.json`,
+    ".ai/workflow/HISTORY/2026-10-04-android-m2c-synthetic-daily-reflections/WORKFLOW_STATE.json",
+    ".ai/workflow/HISTORY/2026-10-05-android-m2c-synthetic-daily-reflection/WORKFLOW_STATE.json",
+    ".ai/workflow/HISTORY-neighbor/2026-10-04-android-m2c-synthetic-daily-reflection/WORKFLOW_STATE.json",
+    `${prefix}.json`,
+  ]) assert.equal(isFounderPackageChangedPathAllowed(neighbor), false);
 });

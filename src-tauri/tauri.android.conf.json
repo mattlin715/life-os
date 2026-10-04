@@ -1,14 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Life OS Android M2-B Synthetic Lifecycle Review",
-  "identifier": "com.lifeos.review.m2b",
+  "productName": "Life OS Android M2-C Synthetic Reflection Review",
+  "identifier": "com.lifeos.review.m2c",
   "build": {
-    "beforeDevCommand": "pnpm run dev:android:m2b:web",
-    "beforeBuildCommand": "pnpm run build:android:m2b:web"
+    "beforeDevCommand": "pnpm run dev:android:m2c:web",
+    "beforeBuildCommand": "pnpm run build:android:m2c:web"
   },
   "app": {
     "security": {
-      "capabilities": ["android-m2b"]
+      "capabilities": ["android-m2c"]
     }
   },
   "bundle": {

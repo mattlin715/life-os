@@ -1736,6 +1736,7 @@ async fn prepare_write(
     connection: &mut SqliteConnection,
     command: EvidenceWriteCommand,
     context: &EvidenceWriteContext<'_>,
+    direct: bool,
 ) -> Result<EvidenceWriteOutcome, MigrationError> {
     insert_guard(connection, context).await?;
     let (artifact_id, revision_id) = apply_command(connection, command, context).await?;
@@ -1744,7 +1745,7 @@ async fn prepare_write(
     integrity_checks(connection).await?;
     inject(context, EvidenceWriteFailurePoint::AfterReconciliation)?;
     remove_guard(connection, context).await?;
-    verify_exact_evidence_v5(connection).await?;
+    verify_origin(connection, direct).await?;
     let post_manifest = operation_manifest(connection).await?;
     Ok(EvidenceWriteOutcome {
         status: EvidenceWriteStatus::Committed,
@@ -1754,9 +1755,13 @@ async fn prepare_write(
     })
 }
 
-async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), MigrationError> {
+async fn verify_read_only_origin(
+    path: &Path,
+    expected_manifest: &str,
+    direct: bool,
+) -> Result<(), MigrationError> {
     let mut connection = connect(path, true).await?;
-    verify_exact_evidence_v5(&mut connection).await?;
+    verify_origin(&mut connection, direct).await?;
     let actual = operation_manifest(&mut connection).await?;
     if actual != expected_manifest {
         return Err(recovery_error("evidence_operation_manifest_mismatch"));
@@ -1764,27 +1769,28 @@ async fn verify_read_only(path: &Path, expected_manifest: &str) -> Result<(), Mi
     Ok(())
 }
 
-async fn execute_with_adapter<A: CommitOutcomeAdapter>(
+async fn execute_with_adapter_origin<A: CommitOutcomeAdapter>(
     path: &Path,
     command: EvidenceWriteCommand,
     context: EvidenceWriteContext<'_>,
     adapter: &A,
+    direct: bool,
 ) -> Result<EvidenceWriteOutcome, MigrationError> {
     let mut connection = connect(path, false).await?;
-    verify_exact_evidence_v5(&mut connection).await?;
+    verify_origin(&mut connection, direct).await?;
     let pre_manifest = operation_manifest(&mut connection).await?;
     raw_sql("BEGIN IMMEDIATE")
         .execute(&mut connection)
         .await
         .map_err(|error| migration_error("evidence_begin_failed", error))?;
-    let prepared = match prepare_write(&mut connection, command, &context).await {
+    let prepared = match prepare_write(&mut connection, command, &context, direct).await {
         Ok(prepared) => prepared,
         Err(error) => {
             let rollback = adapter.rollback(&mut connection).await;
             connection.close().await.map_err(|close_error| {
                 recovery_error(format!("evidence_close_failed:{close_error}"))
             })?;
-            verify_read_only(path, &pre_manifest)
+            verify_read_only_origin(path, &pre_manifest, direct)
                 .await
                 .map_err(|verify| {
                     recovery_error(format!(
@@ -1801,7 +1807,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
                 .close()
                 .await
                 .map_err(|error| recovery_error(format!("evidence_close_failed:{error}")))?;
-            verify_read_only(path, &prepared.operation_manifest).await?;
+            verify_read_only_origin(path, &prepared.operation_manifest, direct).await?;
             Ok(prepared)
         }
         CommitAttemptOutcome::DefinitelyNotCommitted { error_class } => {
@@ -1810,7 +1816,7 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
                 .close()
                 .await
                 .map_err(|error| recovery_error(format!("evidence_close_failed:{error}")))?;
-            verify_read_only(path, &pre_manifest)
+            verify_read_only_origin(path, &pre_manifest, direct)
                 .await
                 .map_err(|verify| {
                     recovery_error(format!(
@@ -1827,13 +1833,16 @@ async fn execute_with_adapter<A: CommitOutcomeAdapter>(
                 .close()
                 .await
                 .map_err(|error| recovery_error(format!("evidence_close_failed:{error}")))?;
-            if verify_read_only(path, &prepared.operation_manifest)
+            if verify_read_only_origin(path, &prepared.operation_manifest, direct)
                 .await
                 .is_ok()
             {
                 return Ok(prepared);
             }
-            if verify_read_only(path, &pre_manifest).await.is_ok() {
+            if verify_read_only_origin(path, &pre_manifest, direct)
+                .await
+                .is_ok()
+            {
                 return Err(write_error(format!(
                     "evidence_commit_outcome_unknown_unchanged:{error_class}"
                 )));
@@ -1851,6 +1860,34 @@ pub(super) async fn execute_disposable(
     context: EvidenceWriteContext<'_>,
 ) -> Result<EvidenceWriteOutcome, MigrationError> {
     execute_with_adapter(path, command, context, &SqlCommitOutcomeAdapter).await
+}
+
+async fn verify_origin(
+    connection: &mut SqliteConnection,
+    direct: bool,
+) -> Result<(), MigrationError> {
+    if direct {
+        verify_exact_evidence_v5_direct(connection).await
+    } else {
+        verify_exact_evidence_v5(connection).await
+    }
+}
+
+async fn execute_with_adapter<A: CommitOutcomeAdapter>(
+    path: &Path,
+    command: EvidenceWriteCommand,
+    context: EvidenceWriteContext<'_>,
+    adapter: &A,
+) -> Result<EvidenceWriteOutcome, MigrationError> {
+    execute_with_adapter_origin(path, command, context, adapter, false).await
+}
+
+pub(super) async fn execute_direct_fresh(
+    path: &Path,
+    command: EvidenceWriteCommand,
+    context: EvidenceWriteContext<'_>,
+) -> Result<EvidenceWriteOutcome, MigrationError> {
+    execute_with_adapter_origin(path, command, context, &SqlCommitOutcomeAdapter, true).await
 }
 
 #[cfg(test)]

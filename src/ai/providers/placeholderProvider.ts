@@ -14,11 +14,12 @@ export function extractEvidenceCandidates(packet: ContextPacket): EvidenceCandid
   const text = isJapanese(body) ? `記録から直接確認できること：${body}` : isChinese(body) ? `從紀錄中可直接確認：${body}` : `Directly observable from the entry: ${body}`;
   return [candidate(packet, clarification ? `${text} (${clarification})` : text)];
 }
+export function generateLocalReflectionPrompts(packet: ContextPacket): ReflectionPrompt[] {
+    return packet.confirmedEvidence.slice(0, 3).map((evidence): ReflectionPrompt => { const createdAt = stamp(); const question = isJapanese(packet.currentExperience.body) ? "この記録を読み返すと、何が最も気になりますか？" : isChinese(packet.currentExperience.body) ? "再次閱讀這段紀錄時，什麼最讓你留意？" : "What stands out when you read this evidence again?"; return { id: id(), sourceEntryId: packet.currentExperience.id, sourceEvidenceIds: [evidence.id], question, status: "suggested", promptProvenance: provenance(packet, [evidence.id], createdAt), createdAt, updatedAt: createdAt }; });
+}
 export const placeholderProvider: AIProvider = {
   async extractEvidence(packet) { return extractEvidenceCandidates(packet); },
-  async generateReflectionPrompts(packet) {
-    return packet.confirmedEvidence.slice(0, 3).map((evidence): ReflectionPrompt => { const createdAt = stamp(); const question = isJapanese(packet.currentExperience.body) ? "この記録を読み返すと、何が最も気になりますか？" : isChinese(packet.currentExperience.body) ? "再次閱讀這段紀錄時，什麼最讓你留意？" : "What stands out when you read this evidence again?"; return { id: id(), sourceEntryId: packet.currentExperience.id, sourceEvidenceIds: [evidence.id], question, status: "suggested", promptProvenance: provenance(packet, [evidence.id], createdAt), createdAt, updatedAt: createdAt }; });
-  },
+  async generateReflectionPrompts(packet) { return generateLocalReflectionPrompts(packet); },
   async suggestPatternNotes(packet) {
     const evidence = packet.confirmedEvidence[0]; if (!evidence) return [];
     const createdAt = stamp(); const text = isJapanese(packet.currentExperience.body) ? `検討できる仮説のひとつは、「${evidence.text}」に表れたテーマが別の場面にもあるかもしれない、ということです。` : isChinese(packet.currentExperience.body) ? `一個可以檢視的假設是：「${evidence.text}」呈現的主題，也許也出現在其他時刻。` : `One tentative hypothesis to review is whether the theme in "${evidence.text}" may also appear in other moments.`;

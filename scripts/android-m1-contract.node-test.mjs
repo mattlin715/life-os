@@ -139,7 +139,7 @@ test("tracked and reviewable Android generated surface is an exact M1 allowlist"
   assert.deepEqual(actual, [...androidSurface].sort());
 });
 
-test("accepted M1 identity is preserved while the current generated surface delegates to M2-B", async () => {
+test("accepted M1 identity is preserved while the current generated surface delegates to M2-C", async () => {
   const config = JSON.parse(await read("src-tauri/tauri.android.conf.json"));
   const gradle = await read("src-tauri/gen/android/app/build.gradle.kts");
   const manifest = await read("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
@@ -150,8 +150,8 @@ test("accepted M1 identity is preserved while the current generated surface dele
   ));
 
   assert.equal(acceptedConfig.identifier, "com.lifeos.review.m1");
-  assert.equal(config.identifier, "com.lifeos.review.m2b");
-  assert.match(gradle, /applicationId = "com\.lifeos\.review\.m2b"/);
+  assert.equal(config.identifier, "com.lifeos.review.m2c");
+  assert.match(gradle, /applicationId = "com\.lifeos\.review\.m2c"/);
   assert.doesNotMatch(manifest, /<uses-permission\b/);
   assert.doesNotMatch(manifest, /FileProvider|LEANBACK|usesCleartextTraffic="true"/);
   assert.match(manifest, /android:allowBackup="false"/);
