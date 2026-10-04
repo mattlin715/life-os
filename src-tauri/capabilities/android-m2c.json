@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "android-m2c",
+  "description": "Isolated synthetic Android M2-C offline Reflection review; no plugins/providers/filesystem access from the renderer.",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": ["core:default"]
+}

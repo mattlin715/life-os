@@ -45,7 +45,12 @@
     "workflow:transition": "node scripts/ai-workflow.mjs transition",
     "workflow:resolve-decision": "node scripts/ai-workflow.mjs resolve-decision",
     "workflow:record-verification": "node scripts/ai-workflow.mjs record-verification",
-    "workflow:archive": "node scripts/ai-workflow.mjs archive"
+    "workflow:archive": "node scripts/ai-workflow.mjs archive",
+    "build:android:m2c:web": "tsc && vite build --mode android-m2c",
+    "dev:android:m2c:web": "vite --mode android-m2c",
+    "android:m2c:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-m2c.ps1 -Action Build",
+    "android:m2c:inspect": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-m2c.ps1 -Action Inspect",
+    "android:m2c:native": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/android-m2c-native-review.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

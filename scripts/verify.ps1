@@ -31,6 +31,7 @@ try {
   Invoke-VerificationStep 'Android M1 disposable persistence contract tests' { node --test scripts/android-m1-contract.node-test.mjs }
   Invoke-VerificationStep 'Android M2-A direct fresh-v5 contract tests' { node --test scripts/android-m2a-contract.node-test.mjs }
   Invoke-VerificationStep 'Android M2-B synthetic lifecycle contract tests' { node --test scripts/android-m2b-contract.node-test.mjs }
+  Invoke-VerificationStep 'Android M2-C synthetic Reflection contract tests' { node --test scripts/android-m2c-contract.node-test.mjs }
   Invoke-VerificationStep 'Vitest' { pnpm run test:run }
   Invoke-VerificationStep 'TypeScript typecheck' { pnpm run typecheck }
   Invoke-VerificationStep 'Frontend build' { pnpm run build }

@@ -29,6 +29,8 @@ mod pattern_write;
 mod reflection_write;
 #[path = "schema_v5_runtime.rs"]
 pub(crate) mod runtime;
+#[path = "schema_v5_android_reflection.rs"]
+pub(crate) mod android_reflection;
 
 const MINIMUM_APPLICATION_VERSION: &str = "0.2.0";
 const CURRENT_APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");

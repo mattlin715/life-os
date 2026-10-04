@@ -14,11 +14,11 @@ test("M2-B frontend has an exact narrow reviewable surface", () => {
 });
 test("fixed temporary identity, backup exclusions and no runtime permission", async () => {
   const config = JSON.parse(await read("src-tauri/tauri.android.conf.json"));
-  assert.equal(config.identifier, "com.lifeos.review.m2b"); assert.deepEqual(config.app.security.capabilities, ["android-m2b"]);
+  assert.equal(config.identifier, "com.lifeos.review.m2c"); assert.deepEqual(config.app.security.capabilities, ["android-m2c"]);
   const caps = JSON.parse(await read("src-tauri/capabilities/android-m2b.json")); assert.deepEqual(caps.permissions, ["core:default"]);
   const manifest = await read("src-tauri/gen/android/app/src/main/AndroidManifest.xml");
   assert.doesNotMatch(manifest, /uses-permission|FileProvider/); assert.match(manifest, /allowBackup="false"/); assert.match(manifest, /usesCleartextTraffic="false"/);
-  assert.match(await read("src-tauri/gen/android/app/build.gradle.kts"), /applicationId = "com\.lifeos\.review\.m2b"/);
+  assert.match(await read("src-tauri/gen/android/app/build.gradle.kts"), /applicationId = "com\.lifeos\.review\.m2c"/);
 });
 test("mode selects M2-B before desktop while preserving old mobile entries", async () => {
   const main = await read("src/main.tsx"); assert.ok(main.indexOf("VITE_LIFE_OS_ANDROID_M2B") < main.indexOf('import("./app/App")'));

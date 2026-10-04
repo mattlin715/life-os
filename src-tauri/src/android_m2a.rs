@@ -442,7 +442,7 @@ pub(crate) fn m2a_storage_status(app: AppHandle) -> Result<M2AStorageStatus, Str
     with_storage(&app, |_| Ok(M2AStorageStatus::ready()))
 }
 
-// Two fixed review profiles share the exact publication/readiness algorithm.
+// Fixed review profiles share the exact publication/readiness algorithm.
 // No renderer-supplied path or identity can reach this constructor.
 fn m2b_paths_at(root: PathBuf) -> StoragePaths {
     StoragePaths {
@@ -478,6 +478,33 @@ pub(crate) async fn prepare_m2b_fixture(root: PathBuf) -> Result<PathBuf, String
     let paths = m2b_paths_at(root);
     ensure_ready_at(&paths).await?;
     Ok(paths.live)
+}
+
+fn m2c_paths_at(root: PathBuf) -> StoragePaths {
+    StoragePaths {
+        application_id: "com.lifeos.review.m2c",
+        live: root.join("android-m2c-disposable-v5.db"),
+        pending: root.join(".android-m2c-fresh-v5.pending.db"),
+        receipt: root.join("android-m2c-direct-fresh-v5.receipt.json"),
+        pending_receipt: root.join(".android-m2c-direct-fresh-v5.pending.receipt.json"),
+        root,
+    }
+}
+
+pub(crate) fn with_m2c_storage<T>(app: &AppHandle, operation: impl FnOnce(&Path) -> Result<T,String>) -> Result<T,String> {
+    if app.config().identifier != "com.lifeos.review.m2c" {return Err("m2c_application_identity_refused".into())}
+    let _lock=OPERATION_LOCK.lock().map_err(|_| "m2c_operation_lock_poisoned")?;
+    let root=app.path().app_data_dir().map_err(|_| "m2c_app_private_path_failed")?;
+    let paths=m2c_paths_at(root);
+    tauri::async_runtime::block_on(ensure_ready_at(&paths)).map_err(|_| "m2c_storage_blocked_preserved")?;
+    tauri::async_runtime::block_on(crate::schema_v5_migration::android_reflection::verify_scope(&paths.live))
+        .map_err(|_| "m2c_unsupported_dependency_preserved")?;
+    operation(&paths.live)
+}
+
+#[cfg(test)]
+pub(crate) async fn prepare_m2c_fixture(root: PathBuf) -> Result<PathBuf,String> {
+    let paths=m2c_paths_at(root);ensure_ready_at(&paths).await?;Ok(paths.live)
 }
 
 fn debug_hold(
