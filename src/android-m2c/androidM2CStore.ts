@@ -71,7 +71,7 @@ export type ArtifactSnapshot = {
 };
 export type EvidenceRef = Readonly<{ artifactId: string; revisionId: string }>;
 export type ArtifactRequest = Readonly<{
-  requestId: string; operation: "candidate" | "correct" | "confirm" | "reject" | "question" | "answer" | "skip";
+  requestId: string; operation: "candidate" | "correct" | "confirm" | "reject" | "question" | "answer" | "correctResponse" | "skip";
   sourceId: string; expectedSourceRevisionId: string; artifactId: string; expectedArtifactRevisionId: string | null;
   evidence: readonly EvidenceRef[]; text: string | null; locale: Locale; occurredAt: string;
 }>;

@@ -113,7 +113,7 @@ fn validate(r: &ArtifactRequest) -> Result<(), MigrationError> {
         "correct" if r.text.is_some() && r.evidence.is_empty() => (),
         "confirm" | "reject" if r.text.is_none() && r.evidence.is_empty() => (),
         "question" if r.text.is_some() && r.evidence.len() == 1 => (),
-        "answer" if r.text.is_some() && r.evidence.len() == 1 => (),
+        "answer" | "correctResponse" if r.text.is_some() && r.evidence.len() == 1 => (),
         "skip" if r.text.is_none() && r.evidence.len() == 1 => (),
         _ => return Err(fail("m2c_operation_shape_refused")),
     }
@@ -285,7 +285,24 @@ async fn reconcile(
             }
             "correct" => payload["text"].as_str() == r.text.as_deref(),
             "question" => payload["question"].as_str() == r.text.as_deref(),
-            "answer" => payload["response"].as_str() == r.text.as_deref().map(str::trim),
+            "answer" | "correctResponse" => {
+                // Do not reconcile an initial save as a correction (or vice versa).
+                let metadata: (String, String) = sqlx::query_as(
+                    "SELECT revision_reason,authorship FROM artifact_revisions WHERE id=?",
+                )
+                .bind(&revision)
+                .fetch_one(&mut c)
+                .await
+                .map_err(|_| fail("m2c_reconciliation_failed"))?;
+                metadata.0
+                    == if r.operation == "answer" {
+                        "answered"
+                    } else {
+                        "corrected"
+                    }
+                    && metadata.1 == "mixed"
+                    && payload["response"].as_str() == r.text.as_deref().map(str::trim)
+            }
             _ => false,
         };
         if matches {
@@ -495,6 +512,28 @@ pub(crate) async fn mutate(
             )
             .await?;
         }
+        "correctResponse" => {
+            reflection_write::execute_direct_fresh(
+                path,
+                R::CorrectResponse {
+                    source_id: r.source_id.clone(),
+                    artifact_id: r.artifact_id.clone(),
+                    expected_source_revision_id: r.expected_source_revision_id.clone(),
+                    expected_artifact_revision_id: expected,
+                    expected_evidence: r
+                        .evidence
+                        .iter()
+                        .map(|v| EvidenceRevisionRef {
+                            artifact_id: v.artifact_id.clone(),
+                            revision_id: v.revision_id.clone(),
+                        })
+                        .collect(),
+                    response: r.text.as_deref().unwrap().trim().into(),
+                },
+                rc,
+            )
+            .await?;
+        }
         _ => return Err(fail("m2c_operation_refused")),
     }
     verify_scope(path).await?;
@@ -539,7 +578,7 @@ mod tests {
             .unwrap();
         let bundle = snapshot(path, SOURCE).await.unwrap();
         let target = bundle.as_array().unwrap().iter().find(|v| v["id"] == id);
-        let refs = if matches!(op, "question" | "answer" | "skip") {
+        let refs = if matches!(op, "question" | "answer" | "correctResponse" | "skip") {
             bundle
                 .as_array()
                 .unwrap()
@@ -585,6 +624,355 @@ mod tests {
         mutate(path, &r, false).await.unwrap();
         let r = request(path, "confirm", "m2c-evidence-001", 2, None).await;
         mutate(path, &r, false).await.unwrap();
+    }
+    async fn answered_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
+        let (root, path) = fixture().await;
+        review(&path).await;
+        let q = request(
+            &path,
+            "question",
+            "m2c-reflection-001",
+            3,
+            Some(question("en")),
+        )
+        .await;
+        mutate(&path, &q, false).await.unwrap();
+        let a = request(
+            &path,
+            "answer",
+            "m2c-reflection-001",
+            4,
+            Some("Initial saved answer."),
+        )
+        .await;
+        mutate(&path, &a, false).await.unwrap();
+        (root, path)
+    }
+    async fn manifest(path: &Path) -> String {
+        let mut c = connect(path, true).await.unwrap();
+        let value = super::super::experience_write::operation_manifest(&mut c)
+            .await
+            .unwrap();
+        c.close().await.unwrap();
+        value
+    }
+    #[test]
+    fn response_correction_identity_matches_typescript_contract() {
+        let r = ArtifactRequest {
+            request_id: String::new(),
+            operation: "correctResponse".into(),
+            source_id: "m2c-source-synthetic".into(),
+            expected_source_revision_id: "v5sr_exact-source".into(),
+            artifact_id: "m2c-response-synthetic".into(),
+            expected_artifact_revision_id: Some("v5ar_answer".into()),
+            evidence: vec![EvidenceRef {
+                artifact_id: "m2c-evidence-synthetic".into(),
+                revision_id: "v5ar_exact-evidence".into(),
+            }],
+            text: Some("changed".into()),
+            locale: "en".into(),
+            occurred_at: "2026-10-04T00:00:02.000Z".into(),
+        };
+        assert_eq!(
+            request_identity(&r),
+            "m2c_81dc40dbb5a20883d6413b865c2eb805e486b16c6c042b9af3757502c6bd5fcd"
+        );
+    }
+    #[tokio::test]
+    async fn response_correction_repeated_reopen_lineage_and_authorship() {
+        let (root, path) = answered_fixture().await;
+        let original = snapshot(&path, SOURCE).await.unwrap();
+        let mut prior = original[1]["revisionId"].as_str().unwrap().to_string();
+        let mut c = connect(&path, true).await.unwrap();
+        let prompt_revision: String = sqlx::query_scalar("SELECT source_artifact_revision_id FROM artifact_dependencies WHERE dependent_revision_id=? AND relationship_type='answers_prompt'")
+            .bind(&prior).fetch_one(&mut c).await.unwrap();
+        c.close().await.unwrap();
+        for (second, text) in [
+            (5, "  第一次修正。First correction.  "),
+            (6, "Second correction. 再び見直した。"),
+        ] {
+            let before = manifest(&path).await;
+            snapshot(&path, SOURCE).await.unwrap(); // Opening/cancelling calls no writer.
+            assert_eq!(manifest(&path).await, before);
+            let r = request(
+                &path,
+                "correctResponse",
+                "m2c-reflection-001",
+                second,
+                Some(text),
+            )
+            .await;
+            assert_eq!(
+                r.expected_artifact_revision_id.as_deref(),
+                Some(prior.as_str())
+            );
+            assert_eq!(
+                mutate(&path, &r, false).await.unwrap()["acknowledgement"],
+                "committed"
+            );
+            let committed = manifest(&path).await;
+            // Lost acknowledgement: the exact immutable request reconciles without a new revision.
+            assert_eq!(
+                mutate(&path, &r, false).await.unwrap()["acknowledgement"],
+                "alreadyCommitted"
+            );
+            assert_eq!(manifest(&path).await, committed);
+            assert_eq!(
+                crate::android_m2a::prepare_m2c_fixture(root.path().to_path_buf())
+                    .await
+                    .unwrap(),
+                path
+            );
+            let bundle = snapshot(&path, SOURCE).await.unwrap();
+            assert_eq!(bundle[0], original[0]);
+            for field in ["id", "reviewState", "eligibilityState"] {
+                assert_eq!(bundle[1][field], original[1][field]);
+            }
+            for field in [
+                "question",
+                "promptProvenance",
+                "sourceEvidenceIds",
+                "createdAt",
+            ] {
+                assert_eq!(bundle[1]["payload"][field], original[1]["payload"][field]);
+            }
+            assert_eq!(bundle[1]["payload"]["response"], text.trim());
+            assert_eq!(bundle[1]["payload"]["status"], "answered");
+            assert_eq!(bundle[1]["payload"]["responseProvenance"]["origin"], "user");
+            let source = super::super::runtime::direct_source_snapshot(&path, SOURCE)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(source.revision_id, r.expected_source_revision_id);
+            assert_eq!(source.entry.body, BODY);
+            let current = bundle[1]["revisionId"].as_str().unwrap().to_string();
+            let mut c = connect(&path, true).await.unwrap();
+            let revision: (i64, String, String) = sqlx::query_as("SELECT revision_number,predecessor_revision_id,authorship FROM artifact_revisions WHERE id=?")
+                .bind(&current).fetch_one(&mut c).await.unwrap();
+            assert_eq!(
+                revision,
+                (i64::from(second) - 2, prior.clone(), "mixed".into())
+            );
+            let edge: String = sqlx::query_scalar("SELECT source_artifact_revision_id FROM artifact_dependencies WHERE dependent_revision_id=? AND relationship_type='answers_prompt'")
+                .bind(&current).fetch_one(&mut c).await.unwrap();
+            assert_eq!(edge, prompt_revision);
+            assert!(exact_dependencies(&mut c, &r, &current).await.unwrap());
+            c.close().await.unwrap();
+            prior = current;
+        }
+        assert_eq!(
+            scalar(
+                &path,
+                "SELECT COUNT(*) FROM artifact_revisions WHERE artifact_id='m2c-reflection-001'"
+            )
+            .await,
+            4
+        );
+        assert_eq!(
+            scalar(&path, "SELECT COUNT(*) FROM artifact_revision_content").await,
+            5
+        );
+        assert_eq!(
+            scalar(&path, "SELECT COUNT(*) FROM schema_migration_receipts").await,
+            0
+        );
+        let stale = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            9,
+            Some("Draft before source changed."),
+        )
+        .await;
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path,
+            SOURCE,
+            &stale.expected_source_revision_id,
+            Some("Changed original after two answer corrections."),
+            "2026-10-04T00:00:07.000Z",
+            "m2c-source-after-corrections-guard-00001",
+            false
+        )
+        .await
+        .unwrap());
+        let invalidated = snapshot(&path, SOURCE).await.unwrap();
+        assert!(
+            invalidated
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|v| v["lifecycleState"] == "invalidated"
+                    && v["eligibilityState"] == "ineligible")
+        );
+        let before = manifest(&path).await;
+        assert!(mutate(&path, &stale, false).await.is_err());
+        assert_eq!(manifest(&path).await, before);
+        let source = super::super::runtime::direct_source_snapshot(&path, SOURCE)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path,
+            SOURCE,
+            &source.revision_id,
+            None,
+            "2026-10-04T00:00:08.000Z",
+            "m2c-delete-after-corrections-guard-00001",
+            false
+        )
+        .await
+        .unwrap());
+        assert_eq!(
+            scalar(&path, "SELECT COUNT(*) FROM artifact_revision_content").await,
+            0
+        );
+        assert_eq!(
+            scalar(&path, "SELECT COUNT(*) FROM source_revision_content").await,
+            0
+        );
+        assert_eq!(
+            scalar(&path, "SELECT COUNT(*) FROM persisted_artifacts").await,
+            0
+        );
+    }
+    #[tokio::test]
+    async fn response_correction_rollback_unchanged_blank_stale_and_identity_guards() {
+        let (_root, path) = answered_fixture().await;
+        let before = manifest(&path).await;
+        let r = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            5,
+            Some("Changed answer."),
+        )
+        .await;
+        assert!(mutate(&path, &r, true)
+            .await
+            .unwrap_err()
+            .code
+            .contains("injected"));
+        assert_eq!(manifest(&path).await, before);
+        for text in [
+            "Initial saved answer.",
+            "  Initial saved answer.  ",
+            "  \n  ",
+        ] {
+            let bad = request(
+                &path,
+                "correctResponse",
+                "m2c-reflection-001",
+                5,
+                Some(text),
+            )
+            .await;
+            assert!(mutate(&path, &bad, false).await.is_err());
+            assert_eq!(manifest(&path).await, before);
+        }
+        for coordinate in ["source", "evidence", "artifact"] {
+            let mut bad = r.clone();
+            match coordinate {
+                "source" => bad.expected_source_revision_id = "wrong-source-revision".into(),
+                "artifact" => {
+                    bad.expected_artifact_revision_id = Some("wrong-artifact-revision".into())
+                }
+                _ => bad.evidence[0].revision_id = "wrong-evidence-revision".into(),
+            }
+            bad.request_id = request_identity(&bad);
+            assert!(mutate(&path, &bad, false).await.is_err());
+            assert_eq!(manifest(&path).await, before);
+        }
+        let mut bad = r.clone();
+        bad.operation = "answer".into();
+        assert_eq!(
+            mutate(&path, &bad, false).await.unwrap_err().code,
+            "m2c_request_identity_conflict"
+        );
+        let stale = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            6,
+            Some("Stale later draft."),
+        )
+        .await;
+        mutate(&path, &r, false).await.unwrap();
+        let committed = manifest(&path).await;
+        assert!(mutate(&path, &stale, false).await.is_err());
+        assert_eq!(manifest(&path).await, committed);
+        let mut bad = r.clone();
+        bad.operation = "answer".into();
+        bad.request_id = request_identity(&bad);
+        assert!(mutate(&path, &bad, false).await.is_err());
+        assert_eq!(manifest(&path).await, committed);
+        let next = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            7,
+            Some("New explicit correction."),
+        )
+        .await;
+        mutate(&path, &next, false).await.unwrap();
+        let after = manifest(&path).await;
+        assert_eq!(
+            mutate(&path, &r, false).await.unwrap()["acknowledgement"],
+            "committedNotCurrent"
+        );
+        assert_eq!(manifest(&path).await, after);
+    }
+    #[tokio::test]
+    async fn response_correction_refused_after_evidence_loss_or_source_change() {
+        let (_root, path) = answered_fixture().await;
+        let r = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            8,
+            Some("Do not rebind draft."),
+        )
+        .await;
+        // Owned adversarial fixture: no supported adopted-Evidence correction
+        // is exposed by M2-C. Eligibility loss must fail closed, not rebind.
+        let mut c = connect(&path, false).await.unwrap();
+        sqlx::query("INSERT INTO v5_compatibility_write_guard(token,created_at) VALUES ('m2c-evidence-loss-fixture-000000001','2026-10-04T00:00:05.000Z')").execute(&mut c).await.unwrap();
+        sqlx::query(
+            "UPDATE artifact_heads SET eligibility_state='ineligible' WHERE id='m2c-evidence-001'",
+        )
+        .execute(&mut c)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM v5_compatibility_write_guard")
+            .execute(&mut c)
+            .await
+            .unwrap();
+        c.close().await.unwrap();
+        let before = manifest(&path).await;
+        assert!(mutate(&path, &r, false).await.is_err());
+        assert_eq!(manifest(&path).await, before);
+        let (_root, path) = answered_fixture().await;
+        let r = request(
+            &path,
+            "correctResponse",
+            "m2c-reflection-001",
+            8,
+            Some("Do not rebind draft."),
+        )
+        .await;
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path,
+            SOURCE,
+            &r.expected_source_revision_id,
+            Some("Changed original source."),
+            "2026-10-04T00:00:06.000Z",
+            "m2c-source-change-guard-000000000000001",
+            false
+        )
+        .await
+        .unwrap());
+        let before = manifest(&path).await;
+        assert!(mutate(&path, &r, false).await.is_err());
+        assert_eq!(manifest(&path).await, before);
     }
     #[tokio::test]
     async fn complete_direct_journey_restart_provenance_and_double_submissions() {

@@ -1,8 +1,8 @@
 ---
-status: Founder004-accepted synthetic candidate; bounded integration closeout authorized
-version: 0.7
+status: Independent R1 bounded browser and diff accepted; local closeout authorized; Android not reviewed
+version: 0.9
 owner: LIN MENGLUNG
-last_updated: 2026/10/05
+last_updated: 2026/10/25
 depends:
   - docs/Reflection.md
   - docs/appendix/Harness.md
@@ -16,6 +16,83 @@ referenced_by:
 
 # Android M2-C — Offline synthetic daily Reflection
 
+
+
+## Independent saved-response correction R1 — host-only candidate
+
+The Founder request **Daily Reflection Saved-Response Correction R1** separately
+extends the previously limited M2-C interface. It is not M2-D resume and does
+not resolve ANDROID-M2D-036-DIAGNOSTIC-STOP. The exact starting commit is
+5646a718ac0fe6251d85e7e2da70f3b2e11faae5, in the independent branch
+codex/daily-reflection-response-correction-r1. Historical acceptance below
+applies only to its named baseline. Independent R1 A/B acceptance is recorded
+separately on 2026-10-25; it transfers no native baseline proof to R1.
+
+An active eligible answered Reflection now has **Edit my response / 修改回答 /
+自分の回答を編集**. The saved answer remains separately visible; the editor is
+prefilled with that answer and explicitly unsaved. Cancel calls no writer.
+Blank and trim-equivalent unchanged text cannot be submitted. Explicit Save
+uses the distinct frozen correctResponse operation through the existing
+m2c_mutate_artifact IPC and canonical CorrectResponse. Evidence correct remains
+CorrectPending; answer remains first-save SaveResponse. No new IPC, schema,
+retention rule, provider use, question generation or AI review is introduced.
+
+CorrectResponse preserves stable artifact identity and prompt lineage, appends
+a legal mixed-authorship revision with separate user response provenance, and
+retains exact source/Evidence dependencies and existing invalidation rules.
+Authorship follows architecture/12 **Artifact Taxonomy And Authorship** and
+**Correction rules**: saving one's own answer is not confirming AI as truth.
+The canonical writer is unchanged. Successful UI feedback requires the existing
+verified commit acknowledgement, source reread and current artifact reread,
+including matching answer, eligibility, original question and prompt provenance.
+
+While editing, parent navigation/source mutations and other artifact writes are
+locked. Busy hashing/IPC is fenced against duplicate activation. Failure, stale
+or uncertain outcomes keep the draft and immutable request; reconciliation uses
+that same object, never an automatic fresh identity. A read-only inspection can
+show current saved state separately while retaining the draft. Discarding a
+failed draft and reopening is explicitly labelled; it does not undo a possibly
+committed transaction. Drafts are session-only and never provider context.
+
+Only four existing normalized safeguards are intentionally re-pinned: the store
+file (one operation literal); the Android Reflection adapter (new shape/routing,
+operation-specific reconciliation and additive tests); the Journey behavior
+block (eligibility/editor/reread/inspection/locks); and its rendered handlers
+(new edit/save/cancel/inspect plus explicit failed-draft discard). The exact
+old/new hashes are in this slice's engineering evidence. All other protected
+hashes, canonical writer hashes, prohibited-operation checks and original native
+assertions remain intact. DeleteAnswered remains prohibited in this adapter.
+
+Host component-handler tests are not browser layout/focus proof. Synthetic
+SQLite commit/reopen tests are not Android lifecycle, power-loss, WAL/OEM,
+ARM64 or physical-device proof. No SDK/ADB/CDP/emulator/device query, APK build,
+ordinary desktop profile, real data, provider, release or publication is part
+of R1. Original host results and exact accepted diff remain preserved.
+Founder A accepted bounded synthetic browser UI and B accepted the exact R1
+diff/existing host evidence on 2026-10-25. See acceptance closeout below.
+
+
+## Independent R1 acceptance closeout — 2026-10-25
+
+A: 「接受本次範圍的 browser UI 可用性」. B: 「接受精確 R1 diff 與既有 host 驗證證據」.
+Accepted HEAD 5646a718ac0fe6251d85e7e2da70f3b2e11faae5, digest
+aef20ce69e815c2e9946baaaf81d24227663f78eb877c60101404d9aef307613.
+Host verification, agent browser smoke and Founder browser acceptance remain
+separate; Android/native/physical review is not_run. A/B did not grant Git
+authority; the separate closeout/local-commit request does.
+
+Tracked decision, evidence hash index and terminal report are retained in
+.ai/workflow/HISTORY/2026-10-18-daily-reflection-response-correction-r1/ after
+official archive. Detailed ignored originals remain in .artifacts/response-correction-r1/.
+Closing documents and exact archive-path guard synchronization change the
+closeout digest, not accepted product source. No new ADR/policy/schema change.
+
+Follow-ups: focus returns to body after cancel/success; preview server exited1
+on Vite watcher EBUSY (not a clean stop). Historical last no-listener observation
+is not current liveness proof. No server continuity/reload/persistence proof;
+A/B did not accept the later-disclosed preview defect. No preview restart/port
+query/repair here. Original036 STOP remains open. Local commit is not develop
+integration, release, real-data readiness or production activation.
 
 ## Current Founder004 acceptance and authorized integration closeout
 

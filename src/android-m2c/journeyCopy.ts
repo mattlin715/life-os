@@ -1,5 +1,6 @@
 export const journeyCopy = {
   en: {
+    editResponse: "Edit my response", editResponseLabel: "My response — not saved", saveResponseCorrection: "Save my revised response", inspectResponse: "Keep draft and inspect saved state", discardResponseDraft: "Discard this draft and reopen current state", currentSavedState: "Current saved state — draft kept separately", sourceUnavailable: "Source or response is no longer available",
     recreate: "Create a new local-demo candidate", rejectedSummary: "Earlier candidates were not adopted; their rejected text was removed.", rejectedHistory: "Not-adopted candidates (optional)",
     currentSource: "Currently open moment", sameSource: "The candidate quotes your original text above.", viewContent: "View full candidate text", technical: "Technical details (optional)",
     localOrigin: "Local demonstration, not a remote model.", userOrigin: "Written by you", unknownOrigin: "Origin not supplied", editedOrigin: "You corrected the demonstration; its original origin is retained.", responseOrigin: "Response author",
@@ -14,6 +15,7 @@ export const journeyCopy = {
     skipped: "Skipped · no response saved", response: "Your saved response", saved: "This action was saved and reopened", working: "Working · success not yet verified", failed: "Outcome not confirmed. Keep the same request; do not submit a replacement.", conflict: "The source or reviewed version changed. Reopen before taking another action.", retry: "Reconcile the same request", reopen: "Reopen current state", details: "Source information", retention: "Pending corrections keep prior versions locally, outside context. Rejection removes the rejected revision; superseded text remains until this moment is deleted. Editing the source invalidates dependent content. Deleting the moment purges its text and dependent content atomically. No secure physical erasure guarantee.",
   },
   "zh-TW": {
+    editResponse: "修改回答", editResponseLabel: "我的回答（尚未儲存）", saveResponseCorrection: "儲存修改後的回答", inspectResponse: "保留草稿，查看目前已儲存內容", discardResponseDraft: "捨棄此草稿，重新開啟目前狀態", currentSavedState: "目前已儲存內容（草稿另行保留）", sourceUnavailable: "來源或回答已無法讀取",
     recreate: "建立新的本機示範候選", rejectedSummary: "先前的候選未採用；被拒絕版本的文字已清除。", rejectedHistory: "不採用紀錄（選看）",
     currentSource: "目前開啟的片刻", sameSource: "候選內容引用上方原文。", viewContent: "查看完整候選內容", technical: "技術資訊（選看）",
     localOrigin: "本機示範內容，不是遠端模型分析。", userOrigin: "由你撰寫", unknownOrigin: "來源未提供", editedOrigin: "你修正了示範文字；原始來源仍保留。", responseOrigin: "回應作者",
@@ -28,6 +30,7 @@ export const journeyCopy = {
     skipped: "已跳過 · 沒有儲存回應", response: "你已儲存的回應", saved: "這次操作已儲存並重新讀取確認", working: "處理中 · 尚未確認成功", failed: "結果尚未確認。請保留同一請求，不要另送新請求。", conflict: "來源或已檢視的版本已變更。請重新開啟，再進行操作。", retry: "核對同一請求", reopen: "重新開啟目前狀態", details: "來源資訊", retention: "修正候選內容後，舊版本會留在本機，但不會用作脈絡。拒絕會清除被拒絕版本的文字；已被取代的舊版仍保留到刪除片刻。編輯來源會使相依內容失效；刪除片刻會在同一交易清除原文與相依內容。不保證實體儲存空間已安全抹除。",
   },
   ja: {
+    editResponse: "自分の回答を編集", editResponseLabel: "自分の回答（未保存）", saveResponseCorrection: "編集した回答を保存", inspectResponse: "下書きを残して保存済みの内容を確認", discardResponseDraft: "この下書きを破棄して現在の状態を開き直す", currentSavedState: "現在の保存済み内容（下書きは別に保持）", sourceUnavailable: "元の文章または回答を読み取れません",
     recreate: "端末内デモの候補を新しく作る", rejectedSummary: "以前の候補は採用していません。その版の文章は消去済みです。", rejectedHistory: "採用しなかった候補（任意）",
     currentSource: "いま開いている瞬間", sameSource: "候補は上の原文を引用しています。", viewContent: "候補の全文を見る", technical: "技術情報（任意）",
     localOrigin: "端末内のデモです。遠隔モデルの分析ではありません。", userOrigin: "あなたが書いた内容", unknownOrigin: "作成元の情報なし", editedOrigin: "デモの文章をあなたが修正しました。元の作成情報は保持しています。", responseOrigin: "回答の作成者",

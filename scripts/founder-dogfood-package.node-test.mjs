@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 import {
   FOUNDER_IDENTIFIER,
   createManifest,
@@ -338,3 +339,56 @@ test("allows only the exact Android M2-C workflow archive prefix", () => {
     `${prefix}.json`,
   ]) assert.equal(isFounderPackageChangedPathAllowed(neighbor), false);
 });
+
+
+test("allows only the exact Founder-accepted response-correction R1 archive prefix", () => {
+  const prefix = ".ai/workflow/HISTORY/2026-10-18-daily-reflection-response-correction-r1";
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}/WORKFLOW_STATE.json`), true);
+  assert.equal(isFounderPackageChangedPathAllowed(`${prefix}/ARCHIVE_MANIFEST.json`), true);
+  for (const neighbor of [
+    `${prefix}-neighbor/WORKFLOW_STATE.json`,
+    `${prefix}0/WORKFLOW_STATE.json`,
+    ".ai/workflow/HISTORY/2026-10-18-daily-reflection-response-correction-r2/WORKFLOW_STATE.json",
+    ".ai/workflow/HISTORY/2026-10-19-daily-reflection-response-correction-r1/WORKFLOW_STATE.json",
+    ".ai/workflow/HISTORY-neighbor/2026-10-18-daily-reflection-response-correction-r1/WORKFLOW_STATE.json",
+    `${prefix}.json`,
+  ]) assert.equal(isFounderPackageChangedPathAllowed(neighbor), false, neighbor);
+});
+
+
+// Exercise the actual canonical PowerShell checker block, not a JS reimplementation.
+for (const scenario of [
+  { name: "existing absolute Markdown target", absolute: true, exists: true },
+  { name: "missing absolute Markdown target", absolute: true, exists: false },
+  { name: "existing relative Markdown target", absolute: false, exists: true },
+  { name: "missing relative Markdown target", absolute: false, exists: false },
+]) {
+  test("canonical Markdown links: " + scenario.name, async (t) => {
+    const root = await mkdtemp(path.join(tmpdir(), "life-os-link-check-"));
+    const parent = path.resolve(tmpdir());
+    assert.equal(path.dirname(path.resolve(root)), parent);
+    assert.ok(path.basename(root).startsWith("life-os-link-check-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const target = path.join(root, scenario.exists ? "target.md" : "missing.md");
+    if (scenario.exists) await writeFile(target, "# Synthetic target\n");
+    const link = scenario.absolute ? target.replaceAll("\\", "/") : "./" + path.basename(target);
+    await writeFile(path.join(root, "source.md"), "[Synthetic link](" + link + "#heading)\n");
+    const source = (await readFile(new URL("./verify.ps1", import.meta.url), "utf8")).replaceAll("\r\n", "\n");
+    const start = source.indexOf('  Write-Host "' + String.fromCharCode(96) + 'n==> Local Markdown-link sanity"');
+    const end = source.indexOf('  Write-Host "' + String.fromCharCode(96) + 'n==> Constitution diff report"', start);
+    assert.ok(start >= 0 && end > start, "must execute the real complete checker block");
+    const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
+    const script = "$ErrorActionPreference = 'Stop'\n$repositoryRoot = " + quote(root) + "\n" + source.slice(start, end);
+    const result = spawnSync("powershell", ["-NoProfile", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
+      encoding: "utf8", windowsHide: true, timeout: 30000,
+    });
+    assert.equal(result.error, undefined, result.error?.message);
+    if (scenario.exists) {
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /Local Markdown-link sanity passed/);
+    } else {
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Broken local Markdown links/);
+    }
+  });
+}

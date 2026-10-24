@@ -1,8 +1,8 @@
 ---
-status: Founder004-accepted synthetic candidate; bounded integration closeout authorized
-version: 0.7
+status: Independent R1 bounded browser and diff accepted; local closeout authorized; Android not reviewed
+version: 0.9
 owner: LIN MENGLUNG
-last_updated: 2026/10/05
+last_updated: 2026/10/25
 depends:
   - docs/architecture/24_Android_M2C_Offline_Synthetic_Daily_Reflection.md
 referenced_by:
@@ -11,6 +11,71 @@ referenced_by:
 
 # Android M2-C review runbook
 
+
+
+## Independent R1 Founder review — no new Android run
+
+Daily Reflection Saved-Response Correction R1 is a separate host-only candidate
+from commit 5646a718ac0fe6251d85e7e2da70f3b2e11faae5 on branch
+codex/daily-reflection-response-correction-r1. It leaves the original M2-D 036
+STOP, workflow, budgets and evidence untouched. Historical APK/manual/native
+results below are not evidence or authority for R1. Do not execute those native
+instructions for this slice.
+
+Consolidated diff review path (synthetic data only):
+
+1. Inspect the reopened original Experience, unchanged question and separately
+   labelled saved answer. Inspect optional prompt/response provenance.
+2. Choose **Edit my response / 修改回答 / 自分の回答を編集**. The editor must
+   contain the saved answer, labelled unsaved; the saved answer stays visible.
+3. Change it and Cancel. No request/revision should be created; saved text stays.
+4. Edit again. Blank and unchanged text cannot be saved. Save a changed answer
+   once; busy controls must not create a duplicate or claim early success.
+5. Reread the saved state, then make and save a second correction. The artifact
+   identity, original source, Evidence, question and prompt origin must remain;
+   response revisions and user authorship must be preserved.
+6. Review failure/stale/uncertain test cases: draft remains visible/copyable,
+   same-request reconciliation only, read-only current-state inspection, explicit
+   discard wording rather than quiet draft loss.
+7. Check English, Traditional Chinese and Japanese labels for the same meaning.
+
+At the original host handoff this checklist was not_run. Later, Founder A
+accepted bounded interactions using actual components and a synthetic in-memory
+browser preview, not a persistence preview or Android PASS. B independently
+accepted the exact diff/existing host evidence. Do not open an ordinary desktop
+profile as a substitute.
+Component hook/handler coverage does not prove DOM focus/layout. SQLite reopen
+proof does not establish Android lifecycle, process death, physical power loss,
+OEM/ARM behavior, multiprocess durability or secure physical erasure.
+
+The independent current workflow Engineering Report records exact commands,
+actual exits, preserved failures, hash deltas and final verification evidence.
+The 2026-10-25 separate closeout request authorizes official R1 workflow
+closure/archive and precise local commit only. Merge/PR/push/production
+activation, Android/native and any next slice remain unauthorized.
+
+
+## Independent R1 acceptance closeout — 2026-10-25
+
+A: 「接受本次範圍的 browser UI 可用性」. B: 「接受精確 R1 diff 與既有 host 驗證證據」.
+Accepted HEAD 5646a718ac0fe6251d85e7e2da70f3b2e11faae5, digest
+aef20ce69e815c2e9946baaaf81d24227663f78eb877c60101404d9aef307613.
+Host verification, agent browser smoke and Founder browser acceptance remain
+separate; Android/native/physical review is not_run. A/B did not grant Git
+authority; the separate closeout/local-commit request does.
+
+Tracked decision, evidence hash index and terminal report are retained in
+.ai/workflow/HISTORY/2026-10-18-daily-reflection-response-correction-r1/ after
+official archive. Detailed ignored originals remain in .artifacts/response-correction-r1/.
+Closing documents and exact archive-path guard synchronization change the
+closeout digest, not accepted product source. No new ADR/policy/schema change.
+
+Follow-ups: focus returns to body after cancel/success; preview server exited1
+on Vite watcher EBUSY (not a clean stop). Historical last no-listener observation
+is not current liveness proof. No server continuity/reload/persistence proof;
+A/B did not accept the later-disclosed preview defect. No preview restart/port
+query/repair here. Original036 STOP remains open. Local commit is not develop
+integration, release, real-data readiness or production activation.
 
 ## Current Founder004 acceptance and authorized integration closeout
 

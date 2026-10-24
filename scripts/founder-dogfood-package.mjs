@@ -49,6 +49,7 @@ const HISTORY_PREFIXES = [
   ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/",
   ".ai/workflow/HISTORY/2026-10-03-android-m2b-synthetic-experience-lifecycle/",
   ".ai/workflow/HISTORY/2026-10-04-android-m2c-synthetic-daily-reflection/",
+  ".ai/workflow/HISTORY/2026-10-18-daily-reflection-response-correction-r1/",
 ];
 const ACTIVE_SUCCESSOR_PREFIXES = [
   ".ai/workflow/HISTORY/2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1/",
