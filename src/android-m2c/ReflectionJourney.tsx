@@ -87,6 +87,16 @@ export function currentEvidence(rows: ArtifactSnapshot[]): ArtifactSnapshot[] {
   return rows.filter((v) => v.kind === "evidence" && v.lifecycleState === "active" && v.reviewState === "confirmed" && v.eligibilityState === "eligible" && v.revisionId && v.payload);
 }
 
+export function canCorrectResponse(row: ArtifactSnapshot, source: Snapshot, rows: ArtifactSnapshot[]): boolean {
+  const prompt = row.payload as ReflectionPrompt | null;
+  const evidence = currentEvidence(rows);
+  return row.kind === "reflection" && row.lifecycleState === "active" && row.eligibilityState === "eligible"
+    && row.reviewState === "not_applicable" && !!row.revisionId && prompt?.status === "answered"
+    && prompt.id === row.id && prompt.sourceEntryId === source.entry.id
+    && prompt.responseProvenance?.origin === "user" && !!prompt.response?.trim()
+    && prompt.sourceEvidenceIds.length === 1 && evidence.some((v) => v.id === prompt.sourceEvidenceIds[0]);
+}
+
 export function reflectionPacket(source: Snapshot, rows: ArtifactSnapshot[], locale: Locale) {
   return createContextPacket({ currentExperience: source.entry,
     evidence: currentEvidence(rows).map((v) => v.payload as EvidenceCandidate),
@@ -111,6 +121,8 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
   const [frozen, setFrozen] = useState<ArtifactRequest | null>(null);
   const [correction, setCorrection] = useState<{ id: string; text: string } | null>(null);
   const [responses, setResponses] = useState<Record<string, string>>({});
+  const [responseCorrection, setResponseCorrection] = useState<{ target: ArtifactSnapshot; text: string } | null>(null);
+  const [inspected, setInspected] = useState<{ source: Snapshot | null; rows: ArtifactSnapshot[] } | null>(null);
   const [debugPhase, setDebugPhase] = useState<DebugPhase | undefined>();
   const busy = useRef(false);
   const mounted = useRef(true);
@@ -122,6 +134,7 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
     return () => { active = false; mounted.current = false; onLock(false); };
   }, [source, store, onLock]);
   const locked = state === "loading" || state === "working" || state === "failed" || state === "conflict" || frozen !== null;
+  const otherLocked = locked || responseCorrection !== null;
   const gate = decideContextGate(source.entry.body, []);
   const evidence = currentEvidence(rows);
   const execute = async (request: ArtifactRequest) => {
@@ -134,8 +147,18 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
       const current = await store.get(source.entry.id);
       const actual = await store.artifacts(source.entry.id);
       if (!current || current.revisionId !== request.expectedSourceRevisionId) throw new Error("m2c_stale_revision_preserved");
+      if (request.operation === "correctResponse") {
+        const saved = actual.find((v) => v.id === request.artifactId);
+        const prompt = saved?.payload as ReflectionPrompt | undefined;
+        const original = responseCorrection?.target.payload as ReflectionPrompt | undefined;
+        if (!saved || !prompt || !canCorrectResponse(saved, current, actual) || saved.revisionId === request.expectedArtifactRevisionId
+          || prompt.response !== request.text?.trim() || prompt.question !== original?.question
+          || JSON.stringify(prompt.promptProvenance) !== JSON.stringify(original?.promptProvenance)) {
+          throw new Error("m2c_stale_revision_preserved");
+        }
+      }
       if (mounted.current) {
-        setRows(actual); setFrozen(null); setCorrection(null); setResponses({}); setDebugPhase(undefined); setState("saved"); onLock(false);
+        setRows(actual); setFrozen(null); setCorrection(null); setResponses({}); setResponseCorrection(null); setInspected(null); setDebugPhase(undefined); setState("saved"); onLock(false);
       }
     } catch (error) {
       // Keep the immutable request and suppress arbitrary backend text.
@@ -143,7 +166,9 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
     } finally { busy.current = false; }
   };
   const submit = async (operation: ArtifactRequest["operation"], target: ArtifactSnapshot | null, text: string | null = null) => {
-    if (busy.current || locked) return;
+    if (busy.current || locked || (responseCorrection && operation !== "correctResponse")) return;
+    if (operation === "correctResponse" && (!target || !canCorrectResponse(target, source, rows)
+      || !text?.trim() || text.trim() === (target.payload as ReflectionPrompt).response?.trim())) return;
     // Bind only exact IDs cited by this prompt; another eligible artifact must
     // never be silently substituted while saving a response.
     const prompt = target?.kind === "reflection" ? target.payload as ReflectionPrompt : null;
@@ -155,22 +180,41 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
     let request: ArtifactRequest;
     try {
       const occurredAt = nextTimestamp(latest);
-      const response = operation === "answer" && prompt ? answerReflectionPrompt(prompt, text ?? "", occurredAt).response! : text;
+      const response = (operation === "answer" || operation === "correctResponse") && prompt ? answerReflectionPrompt(prompt, text ?? "", occurredAt).response! : text;
       request = await artifactRequest(source, operation, locale, target, response,
         selected.map((v) => ({ artifactId: v.id, revisionId: v.revisionId! })), occurredAt);
     } catch { busy.current = false; setState("failed"); return; }
     busy.current = false;
     await execute(request);
   };
+  const inspectCurrent = async () => {
+    if (busy.current) return;
+    busy.current = true; setState("working");
+    try {
+      const current = await store.get(source.entry.id);
+      const actual = await store.artifacts(source.entry.id);
+      if (mounted.current) { setInspected({ source: current, rows: actual }); setState("conflict"); }
+    } catch { if (mounted.current) setState("failed"); }
+    finally { busy.current = false; }
+    // Inspection is not reconciliation, success, a new request, or draft discard.
+  };
   return <section data-testid="m2c-journey" data-artifact-state={state} className="android-m2c__journey">
     <h2>{c.title}</h2>
     {state === "working" || state === "saved" || state === "failed" || state === "conflict" ? <p role="status" data-testid="m2c-artifact-feedback">{state === "working" ? c.working : state === "saved" ? c.saved : state === "conflict" ? c.conflict : c.failed}</p> : null}
     {(state === "failed" || state === "conflict") && frozen ? <button data-testid="m2c-artifact-reconcile" disabled={busy.current} onClick={() => void execute(frozen)}>{c.retry}</button> : null}
-    {state === "failed" || state === "conflict" ? <button data-testid="m2c-artifact-reopen" disabled={busy.current} onClick={() => { onLock(false); setFrozen(null); setResponses({}); setCorrection(null); onReopen(); }}>{c.reopen}</button> : null}
+    {(state === "failed" || state === "conflict") && responseCorrection ? <button data-testid="m2c-inspect-response" disabled={busy.current} onClick={() => void inspectCurrent()}>{c.inspectResponse}</button> : null}
+    {state === "failed" || state === "conflict" ? <button data-testid="m2c-artifact-reopen" disabled={busy.current} onClick={() => { onLock(false); setFrozen(null); setResponses({}); setCorrection(null); setResponseCorrection(null); setInspected(null); onReopen(); }}>{responseCorrection ? c.discardResponseDraft : c.reopen}</button> : null}
+    {inspected ? <aside data-testid="m2c-inspected-response"><h3>{c.currentSavedState}</h3>
+      {inspected.source ? <p>{inspected.source.entry.body}</p> : <p>{c.sourceUnavailable}</p>}
+      {inspected.rows.filter((v) => v.id === responseCorrection?.target.id).map((v) => {
+        const p = v.payload as ReflectionPrompt | null;
+        return <div key={v.id}><p>{p?.question}</p><p>{p?.response ?? c.sourceUnavailable}</p><details className="android-m2c__secondary-details"><summary>{c.technical}</summary><pre>{JSON.stringify({ revisionId: v.revisionId, lifecycleState: v.lifecycleState, eligibilityState: v.eligibilityState })}</pre></details></div>;
+      })}
+    </aside> : null}
     <RejectedCandidateHistory rows={rows} locale={locale} />
     {rows.every((v) => v.kind !== "evidence" || v.lifecycleState !== "active") ? <>
       {!gate.allowObservation ? <p>{c.sparse}</p> : null}
-      <button data-testid="m2c-generate-candidate" disabled={locked || !gate.allowObservation} onClick={() => void submit("candidate", null)}>{candidateGenerationLabel(rows, locale)}</button>
+      <button data-testid="m2c-generate-candidate" disabled={otherLocked || !gate.allowObservation} onClick={() => void submit("candidate", null)}>{candidateGenerationLabel(rows, locale)}</button>
     </> : null}
     {rows.map((row) => {
       const active = row.lifecycleState === "active";
@@ -184,13 +228,13 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
           <CandidateScopeNote locale={locale} />
           <CandidateContent record={record} source={source} reviewed={row.reviewState === "confirmed"} locale={locale} />
           {row.reviewState === "pending" ? correction?.id === row.id ? <>
-            <label htmlFor="m2c-correction">{c.correctionLabel}</label><p id="m2c-correction-help" data-testid="m2c-correction-help" className="android-m2c__secondary">{c.correctionHelp}</p><textarea autoFocus aria-describedby="m2c-correction-help" id="m2c-correction" data-testid="m2c-correction" disabled={locked} value={correction.text} onChange={(e) => setCorrection({ id: row.id, text: e.target.value })} />
-            <button data-testid="m2c-save-correction" disabled={locked || !correction.text.trim()} onClick={() => void submit("correct", row, correction.text)}>{c.saveCorrection}</button>
-            <button data-testid="m2c-cancel-correction" disabled={locked} onClick={() => setCorrection(null)}>{c.cancel}</button>
+            <label htmlFor="m2c-correction">{c.correctionLabel}</label><p id="m2c-correction-help" data-testid="m2c-correction-help" className="android-m2c__secondary">{c.correctionHelp}</p><textarea autoFocus aria-describedby="m2c-correction-help" id="m2c-correction" data-testid="m2c-correction" disabled={otherLocked} value={correction.text} onChange={(e) => setCorrection({ id: row.id, text: e.target.value })} />
+            <button data-testid="m2c-save-correction" disabled={otherLocked || !correction.text.trim()} onClick={() => void submit("correct", row, correction.text)}>{c.saveCorrection}</button>
+            <button data-testid="m2c-cancel-correction" disabled={otherLocked} onClick={() => setCorrection(null)}>{c.cancel}</button>
           </> : <>
-            <button data-testid="m2c-correct" disabled={locked} onClick={() => setCorrection({ id: row.id, text: record.text })}>{c.correct}</button>
-            <button data-testid="m2c-confirm" disabled={locked} onClick={() => void submit("confirm", row)}>{c.confirm}</button>
-            <button data-testid="m2c-reject" disabled={locked} onClick={() => void submit("reject", row)}>{c.reject}</button>
+            <button data-testid="m2c-correct" disabled={otherLocked} onClick={() => setCorrection({ id: row.id, text: record.text })}>{c.correct}</button>
+            <button data-testid="m2c-confirm" disabled={otherLocked} onClick={() => void submit("confirm", row)}>{c.confirm}</button>
+            <button data-testid="m2c-reject" disabled={otherLocked} onClick={() => void submit("reject", row)}>{c.reject}</button>
           </> : null}
           <ArtifactDetails provenance={record.provenance} edited={!!record.originalText && record.originalText !== record.text} locale={locale} testId="m2c-evidence-provenance" />
         </article>;
@@ -199,15 +243,23 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen }: {
       return <article key={row.id} data-artifact-id={row.id} data-response-state={prompt.status}>
         <h3>{c.reflection}</h3><p data-testid="m2c-question">{prompt.question}</p>
         {prompt.status === "suggested" ? <>
-          <label htmlFor={`response-${row.id}`}>{c.answerLabel}</label><textarea id={`response-${row.id}`} data-testid="m2c-response-draft" disabled={locked} value={responses[row.id] ?? ""} onChange={(e) => setResponses({ ...responses, [row.id]: e.target.value })} />
+          <label htmlFor={`response-${row.id}`}>{c.answerLabel}</label><textarea id={`response-${row.id}`} data-testid="m2c-response-draft" disabled={otherLocked} value={responses[row.id] ?? ""} onChange={(e) => setResponses({ ...responses, [row.id]: e.target.value })} />
           {responses[row.id]?.trim() ? <p data-testid="m2c-response-unsaved">{c.draft}</p> : null}
-          <button data-testid="m2c-save-response" disabled={locked || !responses[row.id]?.trim()} onClick={() => void submit("answer", row, responses[row.id])}>{c.saveAnswer}</button>
-          <button data-testid="m2c-skip" disabled={locked} onClick={() => void submit("skip", row)}>{c.skip}</button>
-        </> : prompt.status === "answered" ? <><h4>{c.response}</h4><p data-testid="m2c-saved-response">{prompt.response}</p></> : <p data-testid="m2c-skipped">{c.skipped}</p>}
+          <button data-testid="m2c-save-response" disabled={otherLocked || !responses[row.id]?.trim()} onClick={() => void submit("answer", row, responses[row.id])}>{c.saveAnswer}</button>
+          <button data-testid="m2c-skip" disabled={otherLocked} onClick={() => void submit("skip", row)}>{c.skip}</button>
+        </> : prompt.status === "answered" ? <><h4>{c.response}</h4><p data-testid="m2c-saved-response">{prompt.response}</p>
+          {responseCorrection?.target.id === row.id ? <>
+            <label htmlFor={`correct-response-${row.id}`}>{c.editResponseLabel}</label>
+            <textarea autoFocus id={`correct-response-${row.id}`} data-testid="m2c-response-correction" readOnly={locked} value={responseCorrection.text} onChange={(e) => { if (!locked) setResponseCorrection({ ...responseCorrection, text: e.target.value }); }} />
+            <p data-testid="m2c-response-unsaved">{c.draft}</p>
+            <button data-testid="m2c-save-response-correction" disabled={locked || !responseCorrection.text.trim() || responseCorrection.text.trim() === prompt.response?.trim()} onClick={() => void submit("correctResponse", responseCorrection.target, responseCorrection.text)}>{c.saveResponseCorrection}</button>
+            <button data-testid="m2c-cancel-response-correction" disabled={locked} onClick={() => { setResponseCorrection(null); setState("idle"); onLock(false); }}>{c.cancel}</button>
+          </> : canCorrectResponse(row, source, rows) ? <button data-testid="m2c-edit-response" disabled={otherLocked} onClick={() => { if (busy.current || otherLocked) return; setResponseCorrection({ target: row, text: prompt.response! }); setState("idle"); onLock(true); }}>{c.editResponse}</button> : null}
+        </> : <p data-testid="m2c-skipped">{c.skipped}</p>}
         <ArtifactDetails provenance={prompt.promptProvenance} response={prompt.responseProvenance} locale={locale} testId="m2c-reflection-provenance" />
       </article>;
     })}
-    {evidence.length > 0 && !rows.some((v) => v.kind === "reflection" && v.lifecycleState === "active") ? <button data-testid="m2c-generate-question" disabled={locked || !localQuestion(source, rows, locale)} onClick={() => void submit("question", null, localQuestion(source, rows, locale))}>{c.ask}</button> : null}
-    {import.meta.env.VITE_LIFE_OS_ANDROID_M2C_DEBUG_HOOKS === "1" ? <details hidden data-debug-only="artifact"><summary>Disposable artifact debug probes</summary>{(["beforeCommit", "afterCommitBeforeAck", "rollbackAfterProjection"] as DebugPhase[]).map((phase) => <button key={phase} data-artifact-debug-phase={phase} disabled={locked} onClick={() => setDebugPhase(phase)}>{phase}</button>)}</details> : null}
+    {evidence.length > 0 && !rows.some((v) => v.kind === "reflection" && v.lifecycleState === "active") ? <button data-testid="m2c-generate-question" disabled={otherLocked || !localQuestion(source, rows, locale)} onClick={() => void submit("question", null, localQuestion(source, rows, locale))}>{c.ask}</button> : null}
+    {import.meta.env.VITE_LIFE_OS_ANDROID_M2C_DEBUG_HOOKS === "1" ? <details hidden data-debug-only="artifact"><summary>Disposable artifact debug probes</summary>{(["beforeCommit", "afterCommitBeforeAck", "rollbackAfterProjection"] as DebugPhase[]).map((phase) => <button key={phase} data-artifact-debug-phase={phase} disabled={otherLocked} onClick={() => setDebugPhase(phase)}>{phase}</button>)}</details> : null}
   </section>;
 }

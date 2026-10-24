@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { currentEvidence, localQuestion, reflectionPacket } from "./ReflectionJourney";
-import { artifactRequest } from "./androidM2CStore";
-import type { ArtifactSnapshot, Snapshot } from "./androidM2CStore";
+import { describe, expect, it, vi } from "vitest";
+import { canCorrectResponse, ReflectionJourney, currentEvidence, localQuestion, reflectionPacket } from "./ReflectionJourney";
+import { artifactRequest, m2cStore } from "./androidM2CStore";
+import type { ArtifactRequest, M2CStore, ArtifactSnapshot, Snapshot } from "./androidM2CStore";
 import { journeyCopy } from "./journeyCopy";
 import { generateLocalReflectionPrompts, placeholderProvider } from "../ai/providers/placeholderProvider";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -138,5 +138,187 @@ describe("UX001 separate source, candidate and reflection", () => {
     expect(sourceCopy["zh-TW"].edit).toBe("編輯原文");
     expect(journeyCopy["zh-TW"].candidate).toBe("線索候選・本機示範");
     expect(journeyCopy["zh-TW"].confirm).toBe("採用為反思線索");
+  });
+});
+
+
+const artifactInvoke = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/api/core", () => ({ invoke: artifactInvoke }));
+
+// Drives the actual component hooks and rendered handlers, without a new DOM
+// dependency. This does not claim browser layout/focus or SQLite persistence.
+const hooks = vi.hoisted(() => ({ active: false, cursor: 0, values: [] as unknown[], effects: [] as (() => void)[], deps: [] as unknown[][] }));
+vi.mock("react", async (original) => {
+  const actual = await original<typeof import("react")>();
+  return { ...actual,
+    useState: (initial: unknown) => {
+      if (!hooks.active) return actual.useState(initial);
+      const i = hooks.cursor++;
+      if (!(i in hooks.values)) hooks.values[i] = initial;
+      return [hooks.values[i], (v: unknown) => { hooks.values[i] = typeof v === "function" ? v(hooks.values[i]) : v; }];
+    },
+    useRef: (initial: unknown) => {
+      if (!hooks.active) return actual.useRef(initial);
+      const i = hooks.cursor++;
+      if (!(i in hooks.values)) hooks.values[i] = { current: initial };
+      return hooks.values[i];
+    },
+    useEffect: (effect: () => void, deps: unknown[]) => {
+      if (!hooks.active) return actual.useEffect(effect, deps);
+      const i = hooks.cursor++, prior = hooks.deps[i];
+      if (!prior || deps.some((v, n) => v !== prior[n])) { hooks.deps[i] = deps; hooks.effects.push(effect); }
+    },
+  };
+});
+const tick = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(); };
+type Element = { props: Record<string, any> }; // JSX handler inspection only; not a mock persistence layer.
+function elements(tree: any): Element[] {
+  if (Array.isArray(tree)) return tree.flatMap(elements);
+  if (!tree || typeof tree !== "object" || !tree.props) return [];
+  return [tree, ...elements(tree.props.children)];
+}
+const savedPrompt = (): ArtifactSnapshot => ({ id: "m2c-response-synthetic", kind: "reflection", revisionId: "v5ar_answer",
+  reviewState: "not_applicable", lifecycleState: "active", eligibilityState: "eligible", payload: {
+    id: "m2c-response-synthetic", sourceEntryId: source.entry.id, question: "Persisted original question?", status: "answered", response: "My saved words.",
+    sourceEvidenceIds: [row.id], createdAt: source.entry.createdAt, updatedAt: "2026-10-04T00:00:01.000Z",
+    promptProvenance: { origin: "local_mock", provider: "mock", model: null, sourceEntryId: source.entry.id, sourceArtifactIds: [row.id] },
+    responseProvenance: { origin: "user", sourceEntryId: source.entry.id, sourceArtifactIds: ["m2c-response-synthetic"] },
+  } });
+async function component(locale: "en" | "zh-TW" | "ja" = "en") {
+  hooks.cursor = 0; hooks.values = []; hooks.effects = []; hooks.deps = [];
+  let rows = [structuredClone(row), savedPrompt()];
+  const store = { artifacts: vi.fn(async () => structuredClone(rows)), get: vi.fn(async () => structuredClone(source)),
+    artifactMutate: vi.fn(async (r: ArtifactRequest) => {
+      const old = rows[1]; rows = [rows[0], { ...old, revisionId: old.revisionId + "_next", payload: { ...old.payload!, response: r.text, updatedAt: r.occurredAt } } as ArtifactSnapshot];
+      return { requestId: r.requestId, acknowledgement: "committed" as const };
+    }) };
+  let tree: any;
+  const onLock = vi.fn(), onReopen = vi.fn();
+  const render = () => {
+    hooks.cursor = 0; hooks.active = true;
+    try { tree = ReflectionJourney({ source, locale, store: store as unknown as M2CStore, onLock, onReopen }); }
+    finally { hooks.active = false; }
+    hooks.effects.splice(0).forEach((effect) => effect());
+  };
+  const find = (id: string) => elements(tree).find((e) => e.props["data-testid"] === id);
+  const get = (id: string) => { const e = find(id); expect(e, id).toBeTruthy(); return e!; };
+  const click = (id: string) => { const e = get(id); expect(e.props.disabled, id + " disabled").not.toBe(true); e.props.onClick(); render(); };
+  const change = (text: string) => { get("m2c-response-correction").props.onChange({ target: { value: text } }); render(); };
+  render(); await tick(); render();
+  return { store, get, find, click, change, render, onLock, onReopen, setRows: (v: ArtifactSnapshot[]) => { rows = v; } };
+}
+describe("saved-response correction R1 actual component handlers", () => {
+  it.each(["en", "zh-TW", "ja"] as const)("prefills, labels saved/draft, cancels without a request, saves and corrects again in %s", async (locale) => {
+    const ui = await component(locale), c = journeyCopy[locale];
+    expect(ui.get("m2c-saved-response").props.children).toBe("My saved words.");
+    expect(ui.get("m2c-question").props.children).toBe("Persisted original question?");
+    expect(ui.get("m2c-edit-response").props.children).toBe(c.editResponse);
+    ui.click("m2c-edit-response");
+    expect(ui.get("m2c-response-correction").props.value).toBe("My saved words.");
+    expect(ui.get("m2c-save-response-correction").props.disabled).toBe(true);
+    ui.change("  "); expect(ui.get("m2c-save-response-correction").props.disabled).toBe(true);
+    ui.change(" My saved words. "); expect(ui.get("m2c-save-response-correction").props.disabled).toBe(true);
+    ui.change("Discarded draft");
+    expect(ui.get("m2c-response-unsaved").props.children).toBe(c.draft);
+    ui.click("m2c-cancel-response-correction");
+    expect(ui.store.artifactMutate).not.toHaveBeenCalled(); expect(ui.find("m2c-response-correction")).toBeUndefined();
+    expect(ui.get("m2c-saved-response").props.children).toBe("My saved words.");
+    let count = 0;
+    for (const text of ["我的新回答。静かに選ぶ。", "A later correction."]) {
+      ui.click("m2c-edit-response"); ui.change("  " + text + "  "); ui.click("m2c-save-response-correction");
+      expect(ui.get("m2c-artifact-feedback").props.children).toBe(c.working);
+      count++; await vi.waitFor(() => expect(ui.store.artifactMutate).toHaveBeenCalledTimes(count));
+      await vi.waitFor(() => { ui.render(); expect(ui.get("m2c-artifact-feedback").props.children).toBe(c.saved); });
+      expect(ui.get("m2c-saved-response").props.children).toBe(text);
+      expect(ui.get("m2c-artifact-feedback").props.children).toBe(c.saved);
+      expect(ui.find("m2c-response-correction")).toBeUndefined();
+    }
+    expect(ui.store.artifactMutate).toHaveBeenCalledTimes(2);
+    const [first, second] = ui.store.artifactMutate.mock.calls.map(([r]) => r);
+    expect(first.operation).toBe("correctResponse"); expect(first.text).toBe("我的新回答。静かに選ぶ。");
+    expect(first.artifactId).toBe(savedPrompt().id); expect(first.expectedArtifactRevisionId).toBe("v5ar_answer");
+    expect(second.expectedArtifactRevisionId).toBe("v5ar_answer_next");
+    expect(first.evidence).toEqual([{ artifactId: row.id, revisionId: row.revisionId }]);
+    expect(first.expectedSourceRevisionId).toBe(source.revisionId);
+  });
+  it("fences hashing, duplicate clicks and IPC; success waits for verified reread", async () => {
+    const ui = await component(); let resolve!: (ack: any) => void;
+    ui.store.artifactMutate.mockImplementationOnce((r) => new Promise((done) => { resolve = (ack) => done({ requestId: r.requestId, ...ack }); }));
+    ui.click("m2c-edit-response"); ui.change("Not committed yet");
+    const handler = ui.get("m2c-save-response-correction").props.onClick;
+    handler(); handler(); ui.render();
+    expect(ui.get("m2c-save-response-correction").props.disabled).toBe(true);
+    expect(ui.get("m2c-cancel-response-correction").props.disabled).toBe(true);
+    await vi.waitFor(() => expect(ui.store.artifactMutate).toHaveBeenCalledTimes(1));
+    expect(ui.get("m2c-artifact-feedback").props.children).toBe(journeyCopy.en.working);
+    resolve({ acknowledgement: "committed" }); await tick(); ui.render();
+    // An acknowledgement without matching durable reread is not success.
+    expect(ui.get("m2c-artifact-feedback").props.children).toBe(journeyCopy.en.conflict);
+    expect(ui.get("m2c-response-correction").props.value).toBe("Not committed yet");
+  });
+  it.each(["m2c_not_committed", "m2c_stale_revision_preserved", "m2c_outcome_unconfirmed"])("retains draft and frozen identity after %s; inspection is read-only", async (failure) => {
+    const ui = await component(); ui.store.artifactMutate.mockRejectedValueOnce(new Error(failure));
+    ui.click("m2c-edit-response"); ui.change("Keep these unsaved words"); ui.click("m2c-save-response-correction");
+    await vi.waitFor(() => expect(ui.store.artifactMutate).toHaveBeenCalledTimes(1)); await tick(); ui.render();
+    expect(ui.get("m2c-artifact-feedback").props.children).not.toBe(journeyCopy.en.saved);
+    expect(ui.get("m2c-response-correction").props.value).toBe("Keep these unsaved words");
+    expect(ui.get("m2c-saved-response").props.children).toBe("My saved words.");
+    expect(ui.get("m2c-artifact-reopen").props.children).toBe(journeyCopy.en.discardResponseDraft);
+    ui.click("m2c-inspect-response"); await tick(); ui.render();
+    expect(ui.get("m2c-inspected-response")).toBeTruthy(); expect(ui.store.artifactMutate).toHaveBeenCalledTimes(1);
+    expect(ui.get("m2c-response-correction").props.value).toBe("Keep these unsaved words");
+    ui.click("m2c-artifact-reconcile"); await tick(); ui.render();
+    expect(ui.store.artifactMutate).toHaveBeenCalledTimes(2);
+    expect(ui.store.artifactMutate.mock.calls[1][0]).toBe(ui.store.artifactMutate.mock.calls[0][0]);
+    expect(ui.get("m2c-artifact-feedback").props.children).toBe(journeyCopy.en.saved);
+  });
+  it("does not offer correction for invalid lifecycle/eligibility, missing evidence or wrong authorship", () => {
+    const prompt = savedPrompt(); expect(canCorrectResponse(prompt, source, [row, prompt])).toBe(true);
+    for (const invalid of [{ ...prompt, lifecycleState: "invalidated" }, { ...prompt, eligibilityState: "ineligible" }, { ...prompt, revisionId: null }, { ...prompt, reviewState: "pending" }, { ...prompt, payload: null }]) expect(canCorrectResponse(invalid, source, [row, invalid])).toBe(false);
+    expect(canCorrectResponse(prompt, source, [prompt])).toBe(false);
+    expect(canCorrectResponse(prompt, { ...source, entry: { ...source.entry, id: "foreign" } }, [row, prompt])).toBe(false);
+  });
+
+  it("forwards the identical correction descriptor through the existing artifact IPC", async () => {
+    const request = await artifactRequest(source, "correctResponse", "ja", savedPrompt(), "修正", [{ artifactId: row.id, revisionId: row.revisionId! }]);
+    artifactInvoke.mockReset(); artifactInvoke.mockResolvedValue({ requestId: request.requestId, acknowledgement: "alreadyCommitted" });
+    await m2cStore.artifactMutate(request); await m2cStore.artifactMutate(request);
+    expect(artifactInvoke.mock.calls).toEqual([["m2c_mutate_artifact", { request, debugPhase: undefined }], ["m2c_mutate_artifact", { request, debugPhase: undefined }]]);
+    expect(artifactInvoke.mock.calls[0][1].request).toBe(request);
+  });
+  it.each(["reread-fails", "source-missing", "source-changed", "not-current", "wrong-ack", "provenance-changed", "artifacts-fail"])("keeps draft and withholds success when %s", async (caseName) => {
+    const ui = await component();
+    if (caseName === "reread-fails") ui.store.get.mockRejectedValueOnce(new Error("read failed"));
+    if (caseName === "source-missing") ui.store.get.mockResolvedValueOnce(null as unknown as Snapshot);
+    if (caseName === "source-changed") ui.store.get.mockResolvedValueOnce({ ...source, revisionId: "other-source-revision" });
+    if (caseName === "artifacts-fail") ui.store.artifacts.mockRejectedValueOnce(new Error("read failed"));
+    if (caseName === "not-current") ui.store.artifactMutate.mockImplementationOnce(async (r) => ({ requestId: r.requestId, acknowledgement: "committedNotCurrent" as "committed" }));
+    if (caseName === "wrong-ack") ui.store.artifactMutate.mockImplementationOnce(async () => ({ requestId: "other-request", acknowledgement: "committed" }));
+    if (caseName === "provenance-changed") ui.store.artifactMutate.mockImplementationOnce(async (r) => {
+      const p = savedPrompt(); ui.setRows([row, { ...p, revisionId: "other-answer", payload: { ...p.payload!, response: r.text, promptProvenance: { origin: "user", sourceEntryId: source.entry.id, sourceArtifactIds: [] } } } as ArtifactSnapshot]);
+      return { requestId: r.requestId, acknowledgement: "committed" };
+    });
+    ui.click("m2c-edit-response"); ui.change("Retain on uncertain reread"); ui.click("m2c-save-response-correction");
+    await vi.waitFor(() => { ui.render(); expect(ui.find("m2c-artifact-reconcile")).toBeTruthy(); });
+    expect(ui.get("m2c-response-correction").props.value).toBe("Retain on uncertain reread");
+    expect(ui.get("m2c-artifact-feedback").props.children).not.toBe(journeyCopy.en.saved);
+    expect(ui.store.artifactMutate).toHaveBeenCalledTimes(1); expect(ui.onReopen).not.toHaveBeenCalled();
+  });
+
+  it("binds every correction coordinate and operation into immutable identity", async () => {
+    const target = savedPrompt(), refs = [{ artifactId: row.id, revisionId: row.revisionId! }], time = "2026-10-04T00:00:02.000Z";
+    const r = await artifactRequest(source, "correctResponse", "en", target, "changed", refs, time);
+    expect(r.requestId).toBe("m2c_81dc40dbb5a20883d6413b865c2eb805e486b16c6c042b9af3757502c6bd5fcd");
+    expect(r).toEqual(await artifactRequest(source, "correctResponse", "en", target, "changed", refs, time));
+    expect(Object.isFrozen(r)).toBe(true); expect(Object.isFrozen(r.evidence[0])).toBe(true);
+    const variants = await Promise.all([
+      artifactRequest(source, "answer", "en", target, "changed", refs, time),
+      artifactRequest({ ...source, revisionId: "other-source" }, "correctResponse", "en", target, "changed", refs, time),
+      artifactRequest(source, "correctResponse", "en", { ...target, revisionId: "other-target" }, "changed", refs, time),
+      artifactRequest(source, "correctResponse", "en", target, "changed", [{ ...refs[0], revisionId: "other-evidence" }], time),
+      artifactRequest(source, "correctResponse", "ja", target, "changed", refs, time),
+      artifactRequest(source, "correctResponse", "en", target, "other text", refs, time),
+    ]); for (const v of variants) expect(v.requestId).not.toBe(r.requestId);
+    expect(reflectionPacket(source, [row, target], "en").packet.answeredReflectionResponses).toEqual([]);
   });
 });

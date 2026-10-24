@@ -93,7 +93,7 @@ try {
         $target = $match.Groups[1].Value.Trim()
         if ($target -match '^(https?://|mailto:|#)' -or $target -notmatch '\.md(?:#.*)?$') { continue }
         $pathOnly = $target.Split('#')[0]
-        $resolved = Join-Path $document.DirectoryName $pathOnly
+        $resolved = if ([System.IO.Path]::IsPathRooted($pathOnly)) { $pathOnly } else { Join-Path $document.DirectoryName $pathOnly }
         if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
           $linkFailures.Add("$($document.FullName): $target")
         }
