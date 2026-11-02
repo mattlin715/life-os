@@ -18,6 +18,8 @@ export interface SaveArtifactsOptions {
   expectedExperienceUpdatedAt?: string;
   /** Revalidated inside the serialized mutation queue before a generated result is applied. */
   generationSnapshot?: GenerationSnapshot;
+  /** Local Reflection set plus exact relevant inputs, including suggested prompts; never provider context. */
+  expectedReflectionSet?: string;
 }
 
 export interface SaveArtifactsResult {

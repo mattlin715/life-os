@@ -187,6 +187,10 @@ function validateEventChain(events, contract, errors) {
       if (event.role !== "orchestrator" || event.from_status !== "human_decision_required" || event.to_status !== "human_decision_required" || !event.decision_reference) errors.push(`event ${event.event_id ?? "unknown"}: invalid decision resolution event`);
     } else if (event.event_type === "artifact_recorded") {
       if (event.from_status !== event.to_status || event.role !== contract.artifact_roles[event.artifact_key] || !contract.artifact_files[event.artifact_key] || !contract.artifact_statuses[event.artifact_key]?.includes(event.artifact_status)) errors.push(`event ${event.event_id ?? "unknown"}: invalid artifact record event`);
+    } else if (event.event_type === "scoped_manual_verification_recorded") {
+      if (event.role !== "orchestrator" || event.from_status !== event.to_status || !["validation", "theory_alignment_review", "human_decision_required"].includes(event.to_status)) errors.push(`event ${event.event_id}: invalid scoped manual registration event`);
+      validateScopedManualProjection(event.manual_verification, errors);
+      if (event.manual_verification?.scoped_evidence?.sprint_id !== event.sprint_id) errors.push(`event ${event.event_id}: scoped manual sprint mismatch`);
     } else if (event.event_type === "verification_recorded") {
       if (event.role !== "orchestrator" || event.from_status !== event.to_status || !["passed", "failed", "skipped"].includes(event.verification_status)) errors.push(`event ${event.event_id ?? "unknown"}: invalid verification record event`);
     } else if (event.event_type === "resume_verification_refreshed") {
@@ -236,6 +240,12 @@ export function validateWorkflow(root = defaultRoot, options = {}) {
   if (state.state_revision !== events.length) errors.push(`state_revision ${state.state_revision} does not match event count ${events.length}`);
 
   validateEventChain(events, contract, errors);
+  const manualEvent = events.findLast((event) => event.event_type === "scoped_manual_verification_recorded");
+  if (state.verification?.manual_ui?.scoped_evidence !== undefined || manualEvent) {
+    validateScopedManualProjection(state.verification?.manual_ui, errors);
+    if (state.verification?.manual_ui?.scoped_evidence?.sprint_id !== state.sprint_id) errors.push("scoped manual state sprint mismatch");
+    if (!manualEvent || stable(manualEvent.manual_verification) !== stable(state.verification?.manual_ui)) errors.push("scoped manual projection does not match its registration event");
+  }
   const last = events.at(-1);
   if (last) {
     if (state.last_event_id !== last.event_id || state.last_event_hash !== last.event_hash) errors.push("state last event does not match EVENTS.jsonl");
@@ -704,6 +714,135 @@ function commandRefreshVerificationForResume(root, args) {
   }
 }
 
+// Optional extension: legacy not_run/manual records remain legacy, never promoted.
+function validateScopedManualProjection(manual, errors) {
+  const s = manual?.scoped_evidence;
+  const nonempty = (value) => typeof value === "string" && value.trim().length > 0;
+  if (manual?.status !== "passed" || manual.owner !== "founder" || !s || s.format !== "life-os/scoped-manual-verification-v1"
+    || !nonempty(manual.completed_at) || !nonempty(s.registered_at) || manual.completed_at !== s.registered_at
+    || !nonempty(s.acceptance?.exactFounderResponse) || s.acceptance?.source !== "direct-founder-chat"
+    || !nonempty(s.sprint_id) || !nonempty(s.scope) || !nonempty(s.scopeQuote) || !s.prior_verification
+    || !nonempty(s.target?.reviewSuffix) || !nonempty(s.target?.identity)
+    || s.target?.platform !== "windows" || s.target?.dataClass !== "synthetic" || s.target?.providerMode !== "mock" || s.target?.installMode !== "current-user"
+    || !Array.isArray(s.observations) || s.observations.length === 0 || !Array.isArray(s.limits) || s.limits.length === 0
+    || !s.observations.every((step) => Number.isInteger(step.step) && step.step > 0 && nonempty(step.action) && /^PASS(?:_|$)/.test(step.result) && nonempty(step.observationSource))
+    || new Set(s.observations.map((step) => step.step)).size !== s.observations.length) {
+    errors.push("invalid scoped manual verification projection");
+    return;
+  }
+  for (const key of ["request", "receipt", "ledger", "supplement", "sourceBinding", "installer", "manifest"]) {
+    if (!nonempty(s.evidence?.[key]?.path) || !/^[a-f0-9]{64}$/.test(s.evidence?.[key]?.sha256 ?? "")) errors.push(`scoped manual verification missing ${key} binding`);
+  }
+  if (manual.evidence_reference !== s.evidence?.receipt?.path) errors.push("scoped manual receipt reference mismatch");
+}
+
+function commandRecordScopedManualVerification(root, args) {
+  const supported = new Set(["_", "root", "sprint_id", "expected_sequence", "evidence", "evidence_sha256", "acceptance_source", "founder_response", "scope", "idempotency_key"]);
+  for (const key of Object.keys(args)) if (!supported.has(key)) throw new Error(`Unsupported scoped manual option: ${key}; no preview/dry-run is provided`);
+  const paths = workflowPaths(root);
+  const state = readJson(paths.state);
+  if (args.expected_sequence === undefined || Number(args.expected_sequence) !== state.state_revision) throw new Error(`--expected-sequence must equal ${state.state_revision}`);
+  if (!args.sprint_id || args.sprint_id !== state.sprint_id) throw new Error("--sprint-id must match current sprint");
+  if (!["validation", "theory_alignment_review", "human_decision_required"].includes(state.status)) throw new Error("Scoped manual registration requires an active validation/review/decision state");
+  if (args.acceptance_source !== "direct-founder-chat" || typeof args.founder_response !== "string" || !args.founder_response.trim()) throw new Error("Explicit direct-founder-chat acceptance source and --founder-response required; hashes do not establish human authority");
+  if (typeof args.scope !== "string" || !args.scope.trim()) throw new Error("--scope is required");
+  const priorErrors = validateWorkflow(root, { checkRepositoryFreshness: false });
+  if (priorErrors.length) throw new Error(priorErrors.join("\n"));
+
+  const checked = (ref, name, json = true) => {
+    if (!ref || !/^[a-f0-9]{64}$/.test(ref.sha256 ?? "")) throw new Error(`${name} requires SHA-256`);
+    const file = repositoryFile(root, ref.path, name);
+    const bytes = readFileSync(file.absolute);
+    if (sha256(bytes) !== ref.sha256) throw new Error(`${name} hash mismatch`);
+    return { ref: { path: file.relative, sha256: ref.sha256 }, value: json ? JSON.parse(bytes.toString("utf8")) : bytes };
+  };
+  const input = checked({ path: args.evidence, sha256: args.evidence_sha256 }, "request");
+  const r = input.value;
+  if (r.format !== "life-os/scoped-manual-verification-v1" || r.sprintId !== state.sprint_id || r.acceptanceSource !== args.acceptance_source || r.scope !== args.scope || typeof r.scopeQuote !== "string" || !r.scopeQuote.trim()) throw new Error("Request sprint/acceptance/scope mismatch");
+  const target = r.target;
+  if (!target || typeof target.reviewSuffix !== "string" || !target.reviewSuffix.trim() || typeof target.identity !== "string" || !target.identity.trim()
+    || target.platform !== "windows" || target.dataClass !== "synthetic" || target.providerMode !== "mock" || target.installMode !== "current-user") throw new Error("Only explicitly scoped Windows/mock/synthetic/current-user acceptance is supported");
+  const evidence = { request: input.ref };
+  const values = {};
+  for (const key of ["receipt", "sourceBinding", "installer", "manifest", "ledger", "supplement"]) {
+    const item = checked(r.evidence?.[key], key, key !== "installer");
+    evidence[key] = item.ref; values[key] = item.value;
+  }
+  const { receipt: a, sourceBinding: b, installer, manifest: m, ledger: l, supplement: p } = values;
+  const eq = (actual, expected, name) => { if (actual !== expected) throw new Error(`${name} binding mismatch`); };
+  eq(a.decision, "ACCEPTED", "explicit acceptance");
+  eq(a.exactFounderResponse, args.founder_response, "Founder response");
+  eq(a.evidenceSource, "Founder explicit chat reply after scoped acceptance clarification", "direct acceptance source");
+  eq(a.acceptedScope, r.scope, "accepted scope"); eq(a.precedingFounderScopeQuote, r.scopeQuote, "scope quote");
+  if (!Number.isFinite(Date.parse(a.recordedAtUtc)) || Date.parse(a.recordedAtUtc) > Date.now()) throw new Error("Past acceptance receipt timestamp required");
+  for (const key of ["reviewSuffix", "identity"]) eq(a[key], target[key], key);
+  eq(l.environment?.identity, target.identity, "ledger identity");
+  eq(l.candidate?.reviewSuffix, target.reviewSuffix, "ledger candidate");
+  for (const [key, ref] of [["installerSha256", "installer"], ["manifestSha256", "manifest"], ["sourceBindingSha256", "sourceBinding"]]) {
+    eq(a[key], evidence[ref].sha256, `receipt ${key}`); eq(l.candidate?.[key], evidence[ref].sha256, `ledger ${key}`);
+  }
+  eq(a.journeyLedgerSha256, evidence.ledger.sha256, "ledger hash"); eq(a.journeyLedger, evidence.ledger.path, "ledger path");
+  eq(a.payloadSupplementSha256, evidence.supplement.sha256, "supplement hash"); eq(l.candidate?.supplementSha256, evidence.supplement.sha256, "ledger supplement");
+  eq(p.originalBindingSha256, evidence.sourceBinding.sha256, "supplement source");
+  eq(p.installerSha256, evidence.installer.sha256, "supplement installer"); eq(p.manifestSha256, evidence.manifest.sha256, "supplement manifest");
+  eq(a.embeddedAndFounderInstalledPayloadSha256, p.embeddedPayloadSha256, "payload");
+  eq(p.installedHashFounderReported, p.embeddedPayloadSha256, "installed payload report");
+  eq(l.candidate?.embeddedAndFounderInstalledPayloadSha256, p.embeddedPayloadSha256, "ledger payload");
+  if (!/^[a-f0-9]{64}$/.test(b.sourceSetDigest ?? "") || !/^[a-f0-9]{64}$/.test(p.embeddedPayloadSha256 ?? "")) throw new Error("Source/payload digest format invalid");
+  for (const object of [a, p, l.candidate]) eq(object.sourceSetDigest, b.sourceSetDigest, "source digest");
+  const snapshot = repositorySnapshot(root);
+  eq(b.branch, snapshot.branch, "source branch"); eq(b.baseGitSha, snapshot.head, "source base HEAD");
+  for (const object of [a, l.candidate]) eq(object.baseGitSha, b.baseGitSha, "source base");
+  eq(m.gitSha, b.baseGitSha, "manifest base"); eq(m.sha256, evidence.installer.sha256, "manifest installer");
+  eq(m.artifactSize, installer.length, "installer size");
+  eq(evidence.installer.path.split("/").at(-1), m.artifactFilename, "installer filename");
+  if (!Array.isArray(b.files) || b.files.length === 0 || !Array.isArray(b.protectedFiles)) throw new Error("Source binding file lists required");
+  const seen = new Set();
+  for (const f of [...b.files, ...b.protectedFiles]) {
+    const file = checked(f, "accepted source", false);
+    if (seen.has(file.ref.path)) throw new Error("Duplicate accepted source path");
+    seen.add(file.ref.path);
+  }
+  // Recheck immutable raw receipts, never the installed executable/profile/DB.
+  for (const [list, parent] of [[l.evidence, evidence.ledger.path], [p.artifacts, evidence.supplement.path]]) {
+    if (!Array.isArray(list)) throw new Error("Raw evidence list required");
+    for (const f of list) checked({ path: join(dirname(parent), f.file), sha256: f.sha256 }, "raw observation", false);
+  }
+  if (stable(a.observedStepsAccepted) !== stable(l.steps) || stable(a.limits) !== stable(l.limits)) throw new Error("Accepted observations/limits differ from ledger");
+  if (state.verification?.manual_ui?.status !== "not_run" || state.verification.manual_ui.scoped_evidence !== undefined) throw new Error("Duplicate or conflicting manual verification registration refused");
+  const now = new Date().toISOString();
+  const next = structuredClone(state);
+  next.updated_at = now;
+  next.verification.manual_ui = {
+    status: "passed", owner: "founder", completed_at: now, evidence_reference: evidence.receipt.path,
+    scoped_evidence: {
+      format: r.format, sprint_id: state.sprint_id, registered_at: now, registration_meaning: "Current registration of previously observed and explicitly accepted journey; not a new run or historical timestamp rewrite",
+      scope: r.scope, scopeQuote: r.scopeQuote, target, evidence, sourceSetDigest: b.sourceSetDigest,
+      acceptance: { source: args.acceptance_source, exactFounderResponse: a.exactFounderResponse, receipt_recorded_at: a.recordedAtUtc },
+      observations: a.observedStepsAccepted, limits: a.limits, prior_verification: state.verification.manual_ui,
+    },
+  };
+  const projectionErrors = [];
+  validateScopedManualProjection(next.verification.manual_ui, projectionErrors);
+  if (projectionErrors.length) throw new Error(projectionErrors.join("\n"));
+  const event = buildEvent(state, next, snapshot, loadContract(root), {
+    eventType: "scoped_manual_verification_recorded", reason: "Register existing explicit Founder acceptance for exact synthetic Windows candidate journey only", idempotencyKey: args.idempotency_key,
+  });
+  event.role = "orchestrator";
+  event.manual_verification = next.verification.manual_ui;
+  event.event_hash = sha256(stable(Object.fromEntries(Object.entries(event).filter(([key]) => key !== "event_hash"))));
+  const previousState = readFileSync(paths.state, "utf8");
+  const previousEvents = readFileSync(paths.events, "utf8");
+  try {
+    appendEventAndState(root, state, next, event);
+    const errors = validateWorkflow(root, { checkRepositoryFreshness: false });
+    if (errors.length) throw new Error(errors.join("\n"));
+  } catch (error) {
+    writeAtomic(paths.events, previousEvents); writeAtomic(paths.state, previousState);
+    throw new Error(`Scoped manual registration rejected and rolled back: ${error.message}`);
+  }
+}
+
 function commandRecordArtifact(root, args) {
   if (!args.artifact || !args.status) throw new Error("--artifact and --status are required");
   if (args.expected_sequence === undefined) throw new Error("--expected-sequence is required");
@@ -862,7 +1001,7 @@ function commandArchive(root) {
 }
 
 function usage() {
-  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs start-terminal-follow-up --sprint-id <id> --expected-head <sha> --expected-branch <name> --expected-sequence <n> --authorization-reference <ref> --authorization-evidence <path> --reason <text>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
+  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs start-terminal-follow-up --sprint-id <id> --expected-head <sha> --expected-branch <name> --expected-sequence <n> --authorization-reference <ref> --authorization-evidence <path> --reason <text>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-scoped-manual-verification --sprint-id <id> --expected-sequence <n> --evidence <path> --evidence-sha256 <hash> --acceptance-source direct-founder-chat --founder-response <text> --scope <exact scope>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
 }
 
 async function main() {
@@ -875,6 +1014,7 @@ async function main() {
   else if (command === "start-terminal-follow-up") commandStartTerminalFollowUp(root, args);
   else if (command === "transition") commandTransition(root, args);
   else if (command === "record-artifact") commandRecordArtifact(root, args);
+  else if (command === "record-scoped-manual-verification") commandRecordScopedManualVerification(root, args);
   else if (command === "resolve-decision") commandResolveDecision(root, args);
   else if (command === "record-verification") commandRecordVerification(root, args);
   else if (command === "refresh-verification-for-resume") commandRefreshVerificationForResume(root, args);

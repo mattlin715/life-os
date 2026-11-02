@@ -22,6 +22,31 @@ const R3_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-18-desktop-schema-v5-rea
 const ANDROID_M0_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-20-android-build-feasibility-m0/";
 const ANDROID_M1_ARCHIVE_PREFIX = ".ai/workflow/HISTORY/2026-09-22-android-m1-disposable-persistence-review/";
 
+test("Reflection generation correction admits only precise product and diagnostic files", () => {
+  for (const file of ["src/shared/storage/sqlite/reflectionProjectionOrdering.test.ts", "src-tauri/tests/fixtures/schema_v5/reflection_projection_ordering.json", "src-tauri/tests/diagnostics/reflection_projection_ordering.rs"]) {
+    assert.equal(isFounderPackageChangedPathAllowed(file), true);
+    assert.equal(isFounderPackageChangedPathAllowed(file + ".bak"), false);
+    assert.equal(isFounderPackageChangedPathAllowed(file.replace(/\.(ts|json|rs)$/, "_other.$1")), false);
+  }
+  for (const path of ["src/shared/storage/artifactMutation.ts", "src/shared/storage/inMemoryLocalEvidenceStore.ts", "src/shared/storage/types.ts", "src/shared/storage/sqlite/sqliteLocalEvidenceStore.ts", "docs/product/00_MVP_User_Flow.md"]) {
+    assert.equal(isFounderPackageChangedPathAllowed(path), true);
+    assert.equal(isFounderPackageChangedPathAllowed(path + ".bak"), false);
+    assert.equal(isFounderPackageChangedPathAllowed(path.replace(/\.(ts|md)$/, "_other.$1")), false);
+  }
+  for (const path of ["src/app/reflectionGeneration.ts", "src/app/reflectionGeneration.test.ts", "src/shared/storage/reflectionWritePrecondition.ts", "src/shared/storage/reflectionGenerationCapture.test.ts", "src/shared/storage/sqlite/founderReflectionGeneration.test.ts", "src-tauri/tests/diagnostics/reflection_generation_capture.rs", "src-tauri/tests/diagnostics/reflection_generation_additions.rs", "src-tauri/tests/fixtures/schema_v5/reflection_generation_capture.json"]) {
+    assert.equal(isFounderPackageChangedPathAllowed(path), true);
+    assert.equal(isFounderPackageChangedPathAllowed(path + ".bak"), false);
+    assert.equal(isFounderPackageChangedPathAllowed(path.replace(/\.(ts|rs|json)$/, "_other.$1")), false);
+  }
+});
+
+test("desktop Reflection payload admits only the exact captured synthetic fixture", () => {
+  assert.equal(isFounderPackageChangedPathAllowed("src-tauri/tests/fixtures/schema_v5/desktop_reflection_answers.json"), true);
+  for (const name of ["desktop_reflection_answers_other.json", "desktop_reflection_answers.json.bak", "desktop_reflection_answer.json"]) {
+    assert.equal(isFounderPackageChangedPathAllowed(`src-tauri/tests/fixtures/schema_v5/${name}`), false);
+  }
+});
+
 test("M2-C delegates only the exact guarded frontend prefix and named adapters", () => {
   for (const path of ["src/android-m2c/ReflectionJourney.tsx", "src-tauri/src/android_m2c.rs", "src-tauri/src/schema_v5_android_reflection.rs", "scripts/android-m2c-contract.node-test.mjs", "src/ai/providers/placeholderProvider.ts"]) assert.equal(isFounderPackageChangedPathAllowed(path), true);
   for (const path of ["src/android-m2c-neighbor/ReflectionJourney.tsx", "src/android-m2c2/ReflectionJourney.tsx", "src-tauri/src/android_m2c_other.rs", "src-tauri/src/schema_v5_android_reflection_other.rs", "scripts/android-m2c-other.mjs"]) assert.equal(isFounderPackageChangedPathAllowed(path), false);

@@ -1,6 +1,7 @@
 import type { PersistedArtifactBundle, SaveArtifactsOptions } from "./types";
 import type { LocalEvidenceStore } from "./types";
 import { isGenerationSnapshotCompatible, isGenerationSnapshotCurrent } from "../../ai/harness/generationSnapshot";
+import { reflectionWritePrecondition } from "./reflectionWritePrecondition";
 export type ArtifactMutation = (current: PersistedArtifactBundle) => PersistedArtifactBundle;
 export interface ArtifactMutationRunnerOptions { store: LocalEvidenceStore; onCommitted: (entryId: string, bundle: PersistedArtifactBundle) => void; onError: (error: unknown) => void; }
 export interface ArtifactMutationOutcome { status: "committed" | "stale_generation" | "failed"; bundle?: PersistedArtifactBundle; validationIssues: string[]; }
@@ -10,6 +11,9 @@ export function createArtifactMutationRunner(options: ArtifactMutationRunnerOpti
     const operation = queue.then(async () => {
       try {
         const durable = await options.store.listArtifacts(entryId);
+        if (saveOptions?.expectedReflectionSet !== undefined && saveOptions.expectedReflectionSet !== reflectionWritePrecondition(durable)) {
+          return { status: "stale_generation" as const, validationIssues: [] };
+        }
         const snapshot = saveOptions?.generationSnapshot;
         if (snapshot) {
           const durableExperience = await options.store.getExperience(entryId);

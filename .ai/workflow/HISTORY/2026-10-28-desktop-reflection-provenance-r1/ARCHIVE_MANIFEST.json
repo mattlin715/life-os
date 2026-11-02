@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "sprint_id": "2026-10-28-desktop-reflection-provenance-r1",
+  "terminal_status": "completed",
+  "archived_at": "2026-11-02T18:01:32.445Z",
+  "repository_head": "7b9e7244ab39bb57f37d3856c366529efc4b25b6",
+  "working_branch": "codex/desktop-reflection-provenance-r1",
+  "working_tree_digest": "bea777e212ea61ece6aea016cca8576232abdd69b75b45f05141f243df48de88",
+  "last_event_id": "2026-10-28-desktop-reflection-provenance-r1:0099",
+  "last_event_hash": "610b027e6a54d085668428aa3d36f1061df4794e57778514303b1c11f8e4bd23",
+  "files": [
+    "CURRENT_MISSION.md",
+    "PRODUCT_REVIEW.md",
+    "ENGINEERING_PLAN.md",
+    "ENGINEERING_REPORT.md",
+    "THEORY_ALIGNMENT_REVIEW.md",
+    "DECISION_REQUIRED.md",
+    "SPRINT_REPORT.md",
+    "WORKFLOW_STATE.json",
+    "EVENTS.jsonl",
+    "WORKFLOW_CONTRACT.json"
+  ]
+}

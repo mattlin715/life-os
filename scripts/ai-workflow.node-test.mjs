@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,6 +9,222 @@ import test from "node:test";
 import { createTransition, loadContract, validateWorkflow } from "./ai-workflow.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
+
+const digestBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+function prepareScopedManual(root) {
+  const old = prepareResolvedTheoryDecision(root);
+  const put = (path, value) => {
+    mkdirSync(resolve(root, path, ".."), { recursive: true });
+    writeFileSync(join(root, path), typeof value === "string" ? value : JSON.stringify(value));
+    return { path, sha256: digestBytes(readFileSync(join(root, path))) };
+  };
+  const source = put("synthetic-source.txt", "unchanged synthetic product source");
+  const sourceBinding = put(".artifacts/manual/source.json", {
+    branch: readState(root).working_branch, baseGitSha: readState(root).repository_head,
+    sourceSetDigest: "a".repeat(64), files: [source], protectedFiles: [],
+  });
+  const installer = put(".artifacts/manual/candidate.exe", "NOT AN EXECUTABLE: synthetic bytes only");
+  const manifest = put(".artifacts/manual/manifest.json", {
+    gitSha: readState(root).repository_head, sha256: installer.sha256,
+    artifactFilename: "candidate.exe", artifactSize: readFileSync(join(root, installer.path)).length,
+  });
+  const target = { reviewSuffix: "synthetic-review-001", identity: "com.lifeos.synthetic", platform: "windows", dataClass: "synthetic", providerMode: "mock", installMode: "current-user" };
+  const supplement = put(".artifacts/manual/supplement.json", {
+    originalBindingSha256: sourceBinding.sha256, sourceSetDigest: "a".repeat(64),
+    installerSha256: installer.sha256, manifestSha256: manifest.sha256,
+    embeddedPayloadSha256: "b".repeat(64), installedHashFounderReported: "b".repeat(64),
+    artifacts: [],
+  });
+  const steps = [{ step: 1, action: "synthetic observation", result: "PASS_UI_REPORTED", observationSource: "Founder reported, not agent direct" }];
+  const ledger = put(".artifacts/manual/ledger.json", {
+    environment: { identity: target.identity },
+    candidate: { ...target, sourceBindingSha256: sourceBinding.sha256, sourceSetDigest: "a".repeat(64), installerSha256: installer.sha256, manifestSha256: manifest.sha256, supplementSha256: supplement.sha256, embeddedAndFounderInstalledPayloadSha256: "b".repeat(64), baseGitSha: readState(root).repository_head },
+    steps, evidence: [], limits: ["No Android or zero-network proof"],
+  });
+  const receipt = put(".artifacts/manual/acceptance.json", {
+    decision: "ACCEPTED", exactFounderResponse: "接受", evidenceSource: "Founder explicit chat reply after scoped acceptance clarification",
+    precedingFounderScopeQuote: "specified synthetic Windows journey only", acceptedScope: "Only the synthetic candidate journey, not release",
+    recordedAtUtc: "2026-10-01T00:00:00Z", ...target,
+    sourceBindingSha256: sourceBinding.sha256, sourceSetDigest: "a".repeat(64), installerSha256: installer.sha256,
+    manifestSha256: manifest.sha256, payloadSupplementSha256: supplement.sha256,
+    embeddedAndFounderInstalledPayloadSha256: "b".repeat(64), baseGitSha: readState(root).repository_head,
+    journeyLedger: ledger.path, journeyLedgerSha256: ledger.sha256,
+    observedStepsAccepted: steps, limits: ["No Android or zero-network proof"],
+  });
+  const request = {
+    format: "life-os/scoped-manual-verification-v1", sprintId: old.id,
+    acceptanceSource: "direct-founder-chat", scope: "Only the synthetic candidate journey, not release",
+    scopeQuote: "specified synthetic Windows journey only", target,
+    evidence: { receipt, sourceBinding, installer, manifest, ledger, supplement },
+  };
+  const requestRef = put(".artifacts/manual/request.json", request);
+  const args = () => ["record-scoped-manual-verification", "--sprint-id", old.id, "--expected-sequence", String(readState(root).state_revision), "--evidence", requestRef.path, "--evidence-sha256", digestBytes(readFileSync(join(root, requestRef.path))), "--acceptance-source", "direct-founder-chat", "--founder-response", "接受", "--scope", request.scope];
+  return { ...old, request, args, put, requestRef };
+}
+
+function pairBytes(root) {
+  return ["WORKFLOW_STATE.json", "EVENTS.jsonl"].map((name) => readFileSync(join(root, ".ai/workflow", name), "utf8"));
+}
+
+test("scoped manual registration preserves gates, old decision and observation planes; archive retains result", () => {
+  withGitWorkflow((root) => {
+    const f = prepareScopedManual(root);
+    const before = readState(root);
+    const events = pairBytes(root)[1];
+    const result = runWorkflow(root, ...f.args());
+    assert.equal(result.status, 0, result.stderr);
+    const after = readState(root);
+    assert.equal(after.status, before.status);
+    assert.deepEqual(after.decision_resolution, before.decision_resolution);
+    assert.deepEqual(after.verification.repository_verify, before.verification.repository_verify);
+    assert.deepEqual(after.artifacts, before.artifacts);
+    assert.deepEqual(after.verification.manual_ui.scoped_evidence.prior_verification, before.verification.manual_ui);
+    assert.equal(after.verification.manual_ui.status, "passed");
+    assert.equal(after.verification.manual_ui.scoped_evidence.acceptance.exactFounderResponse, "接受");
+    assert.equal(after.verification.manual_ui.scoped_evidence.observations[0].observationSource, "Founder reported, not agent direct");
+    assert.ok(pairBytes(root)[1].startsWith(events));
+    assert.deepEqual(validateWorkflow(root), []);
+    const once = pairBytes(root);
+    assert.notEqual(runWorkflow(root, ...f.args()).status, 0, "duplicate must be refused");
+    assert.deepEqual(pairBytes(root), once);
+    f.request.scope = "different scope";
+    f.put(f.requestRef.path, f.request);
+    assert.notEqual(runWorkflow(root, ...f.args()).status, 0, "conflict must be refused");
+    assert.deepEqual(pairBytes(root), once);
+
+    assert.equal(runWorkflow(root, ...refreshVerificationArgs(after, f.decisionReference)).status, 0);
+    assert.equal(runWorkflow(root, "transition", "--to", "theory_alignment_review", "--decision-reference", f.decisionReference, "--expected-sequence", String(readState(root).state_revision)).status, 0);
+    for (const [key, file, status] of [["theory_alignment_review", "THEORY_ALIGNMENT_REVIEW.md", "approved"], ["sprint_report", "SPRINT_REPORT.md", "completed"]]) {
+      completeArtifact(root, file, status, f.id);
+      assert.equal(runWorkflow(root, "record-artifact", "--artifact", key, "--status", status, "--expected-sequence", String(readState(root).state_revision)).status, 0);
+    }
+    assert.equal(runWorkflow(root, "transition", "--to", "completed", "--expected-sequence", String(readState(root).state_revision)).status, 0);
+    assert.equal(runWorkflow(root, "archive").status, 0);
+    const archived = JSON.parse(readFileSync(join(root, ".ai/workflow/HISTORY", f.id, "WORKFLOW_STATE.json")));
+    assert.deepEqual(archived.verification.manual_ui, after.verification.manual_ui);
+    assert.deepEqual(archived.decision_resolution, before.decision_resolution);
+    assert.equal(readState(root).verification.manual_ui.status, "not_run");
+    assert.deepEqual(validateWorkflow(root), []);
+    // Standalone archived validation has no ignored artifact files to reopen.
+    const inspection = join(root, "archive-inspection");
+    mkdirSync(join(inspection, ".ai"), { recursive: true });
+    cpSync(join(root, ".ai/workflow/HISTORY", f.id), join(inspection, ".ai/workflow"), { recursive: true });
+    assert.deepEqual(validateWorkflow(inspection), []);
+  });
+});
+
+test("scoped manual refuses stale, malformed, missing, forged scope and cross-binding drift without writes", () => {
+  withGitWorkflow((root) => {
+    const f = prepareScopedManual(root);
+    const original = JSON.stringify(f.request);
+    const before = pairBytes(root);
+    const reject = (args = f.args()) => {
+      const r = runWorkflow(root, ...args);
+      assert.notEqual(r.status, 0, r.stdout);
+      assert.deepEqual(pairBytes(root), before);
+    };
+    reject([...f.args(), "--dry-run"]);
+    for (const [flag, value] of [["--expected-sequence", "0"], ["--sprint-id", "other-sprint"], ["--scope", "accept everything"], ["--founder-response", "recommended"], ["--acceptance-source", "agent-report"], ["--evidence-sha256", "0".repeat(64)]]) {
+      const a = f.args(); a[a.indexOf(flag) + 1] = value; reject(a);
+    }
+    for (const key of ["receipt", "ledger", "sourceBinding", "installer", "manifest", "supplement"]) {
+      f.request.evidence[key].sha256 = "0".repeat(64); f.put(f.requestRef.path, f.request); reject();
+      Object.assign(f.request, JSON.parse(original));
+    }
+    for (const mutate of [
+      (r) => { r.scope = ""; }, (r) => { r.target.platform = "android"; },
+      (r) => { r.evidence.receipt.path = "missing.json"; },
+      (r) => { r.evidence.receipt.path = "../escape.json"; },
+    ]) { Object.assign(f.request, JSON.parse(original)); mutate(f.request); f.put(f.requestRef.path, f.request); reject(); }
+    Object.assign(f.request, JSON.parse(original)); f.put(f.requestRef.path, f.request);
+    const receiptPath = f.request.evidence.receipt.path;
+    const receipt = JSON.parse(readFileSync(join(root, receiptPath)));
+    for (const [key, value] of [["decision", "PENDING"], ["acceptedScope", "different"], ["installerSha256", "0".repeat(64)], ["identity", "other.identity"], ["journeyLedgerSha256", "0".repeat(64)], ["evidenceSource", "agent recommendation"]]) {
+      const changed = { ...receipt, [key]: value };
+      f.request.evidence.receipt = f.put(receiptPath, changed); f.put(f.requestRef.path, f.request); reject();
+    }
+    f.request.evidence.receipt = f.put(receiptPath, receipt); f.put(f.requestRef.path, f.request);
+    // Valid hashes are not enough: independently corrupt each bound object's content.
+    for (const [key, mutate] of [
+      ["sourceBinding", (v) => { v.baseGitSha = "0".repeat(40); }],
+      ["ledger", (v) => { v.candidate.reviewSuffix = "other-candidate"; }],
+      ["ledger", (v) => { v.steps[0].observationSource = "falsely relabeled direct"; }],
+      ["supplement", (v) => { v.installedHashFounderReported = "0".repeat(64); }],
+      ["manifest", (v) => { v.artifactSize += 1; }],
+    ]) {
+      const ref = { ...f.request.evidence[key] };
+      const originalBytes = readFileSync(join(root, ref.path), "utf8");
+      const v = JSON.parse(originalBytes); mutate(v);
+      f.request.evidence[key] = f.put(ref.path, v);
+      f.put(f.requestRef.path, f.request); reject();
+      f.put(ref.path, originalBytes); f.request.evidence[key] = ref;
+    }
+    f.put(f.requestRef.path, f.request);
+    // Malformed hashed receipt is not accepted as an explicit human decision.
+    f.request.evidence.receipt = f.put(receiptPath, "{invalid");
+    f.put(f.requestRef.path, f.request); reject();
+    f.request.evidence.receipt = f.put(receiptPath, receipt); f.put(f.requestRef.path, f.request);
+    f.put("synthetic-source.txt", "drift"); reject();
+    f.put("synthetic-source.txt", "unchanged synthetic product source");
+    f.put(f.requestRef.path, "{broken"); reject();
+  });
+});
+
+test("scoped extension does not promote legacy state; wrong active state and tampered projection refuse", () => {
+  withGitWorkflow((root) => {
+    const f = prepareScopedManual(root);
+    const before = readState(root);
+    assert.equal(before.verification.manual_ui.status, "not_run");
+    assert.equal(before.verification.manual_ui.scoped_evidence, undefined);
+    assert.deepEqual(validateWorkflow(root), []);
+    const statePath = join(root, ".ai/workflow/WORKFLOW_STATE.json");
+    const stateBytes = readFileSync(statePath);
+    writeFileSync(statePath, JSON.stringify({ ...before, status: "implementation" }));
+    const wrongState = pairBytes(root);
+    const rejected = runWorkflow(root, ...f.args());
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /active validation\/review\/decision state/);
+    assert.deepEqual(pairBytes(root), wrongState);
+    writeFileSync(statePath, stateBytes);
+    assert.equal(runWorkflow(root, ...f.args()).status, 0);
+    const tampered = readState(root);
+    tampered.verification.manual_ui.scoped_evidence.scope = "all platforms";
+    writeFileSync(statePath, JSON.stringify(tampered));
+    assert.ok(validateWorkflow(root).some((e) => e.includes("does not match its registration event")));
+  });
+});
+
+test("scoped optional fields leave an existing historical archive valid and unpromoted", () => {
+  withWorkflow((root) => {
+    const history = join(root, ".ai/workflow/HISTORY");
+    const name = readdirSync(history, { withFileTypes: true }).find((e) => e.isDirectory() && !e.name.startsWith("."))?.name;
+    assert.ok(name, "existing legacy archive fixture required");
+    const inspection = join(root, "legacy-inspection");
+    mkdirSync(join(inspection, ".ai"), { recursive: true });
+    cpSync(join(history, name), join(inspection, ".ai/workflow"), { recursive: true });
+    const before = pairBytes(inspection);
+    assert.deepEqual(validateWorkflow(inspection), []);
+    assert.deepEqual(pairBytes(inspection), before);
+    assert.equal(readState(inspection).verification.manual_ui.scoped_evidence, undefined);
+  });
+});
+
+test("scoped manual pair write failures roll back with no acceptance event", () => {
+  withGitWorkflow((root) => {
+    const f = prepareScopedManual(root);
+    const before = pairBytes(root);
+    for (const failAt of [1, 2]) {
+      const result = spawnSync(process.execPath, [join(root, "scripts/ai-workflow.mjs"), ...f.args()], {
+        cwd: root, encoding: "utf8", env: { ...process.env, NODE_ENV: "test", LIFE_OS_AI_WORKFLOW_TEST_FAIL_ATOMIC_RENAME_AT: String(failAt) },
+      });
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Injected atomic rename failure/);
+      assert.deepEqual(pairBytes(root), before);
+      assert.deepEqual(validateWorkflow(root), []);
+    }
+  });
+});
 
 const currentWorkflowTemplates = {
   "CURRENT_MISSION.md": "current-mission.template.md",

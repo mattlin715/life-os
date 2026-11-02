@@ -20,6 +20,15 @@ mod schema_v5_founder_activation;
 mod schema_v5_fresh_base;
 #[allow(dead_code)]
 mod schema_v5_migration;
+#[cfg(all(test, not(target_os = "android"), feature = "founder-schema-v5"))]
+#[path = "../tests/diagnostics/reflection_generation_capture.rs"]
+mod reflection_generation_capture;
+#[cfg(all(test, not(target_os = "android")))]
+#[path = "../tests/diagnostics/reflection_generation_additions.rs"]
+mod reflection_generation_additions;
+#[cfg(all(test, not(target_os = "android")))]
+#[path = "../tests/diagnostics/reflection_projection_ordering.rs"]
+mod reflection_projection_ordering;
 #[cfg(all(not(target_os = "android"), feature = "desktop-schema-v5"))]
 mod schema_v5_prepared_recovery;
 #[cfg(not(target_os = "android"))]

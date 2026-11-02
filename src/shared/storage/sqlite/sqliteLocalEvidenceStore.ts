@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import type { ArtifactProvenance, ContextRecoveryTurn, EvidenceCandidate, ExperienceEntry, ISODateTime, PatternNote, ReflectionPrompt } from "../../../types/domain";
 import { validateArtifactBundle } from "../artifactValidation";
+import { reflectionWritePrecondition } from "../reflectionWritePrecondition";
 import type { CreateExperienceInput, LocalEvidenceStore, PersistedArtifactBundle, UpdateExperiencePatch } from "../types";
 import type { HistoricalConsentEvent, HistoricalQuestionArtifact, HistoricalTransmissionEvent } from "../../../historicalContext/governedPacket";
 const DATABASE_PATH = "sqlite:life-os.db";
@@ -43,6 +44,10 @@ export function createSqliteLocalEvidenceStore(dbPromise: Promise<Database> = in
     async listArtifacts(entryId: string) { const [evidence, reflections, patterns, recoveryTurns] = await Promise.all([listByKind<EvidenceCandidate & Record<string, unknown>>(entryId, "evidence"), listByKind<ReflectionPrompt & Record<string, unknown>>(entryId, "reflection"), listByKind<PatternNote & Record<string, unknown>>(entryId, "pattern"), listByKind<ContextRecoveryTurn & Record<string, unknown>>(entryId, "recovery_turn")]); return { evidence, reflections, patterns, recoveryTurns }; },
     async saveArtifacts(entryId, bundle, options = {}) {
       if (!(await getExperience(entryId))) throw new Error("Cannot save artifacts for a missing experience.");
+      if (options.expectedReflectionSet !== undefined) {
+        const current = await this.listArtifacts(entryId);
+        if (options.expectedReflectionSet !== reflectionWritePrecondition(current)) return { status: "stale_generation", bundle: current, validationIssues: [] };
+      }
       const validated = validateArtifactBundle(entryId, bundle);
       const result = await invoke<ExperienceMutationResult>("save_sqlite_artifacts", { entryId, bundle: validated.bundle, expectedExperienceUpdatedAt: options.expectedExperienceUpdatedAt });
       if (result.status === "not_found") throw new Error("Cannot save artifacts for a missing experience.");

@@ -287,6 +287,8 @@ export const uiText = {
       "Answer a question in your own words. Your saved response is your reflection, not confirmed evidence.",
     shapingQuestions: "Shaping questions...",
     generateReflection: "Generate reflection",
+    addReflection: "Add another reflection question",
+    reflectionNoNewQuestion: "No new reflection question was added. Your existing questions and answers are unchanged.",
     reflectionBoundary:
       "Reflection prompts are questions, not conclusions.",
     reflectionNextNeedEvidence: "Next: confirm one evidence candidate first.",
@@ -805,6 +807,8 @@ export const uiText = {
       "用你自己的話回應問題。保存的回應屬於你的反思，不會被當成已確認的可觀察線索。",
     shapingQuestions: "正在形成問題...",
     generateReflection: "產生反思問題",
+    addReflection: "新增另一個反思問題",
+    reflectionNoNewQuestion: "這次沒有新增反思問題。原有問題與回答都保留不變。",
     reflectionBoundary:
       "反思提示是問題，不是結論。",
     reflectionNextNeedEvidence: "下一步：先確認一項候選線索。",
@@ -1323,6 +1327,8 @@ export const uiText = {
       "自分の言葉で問いに答えます。保存した回答はあなたの振り返りであり、確認済みの手がかりではありません。",
     shapingQuestions: "問いを形にしています...",
     generateReflection: "振り返りの問いを作る",
+    addReflection: "振り返りの問いを追加する",
+    reflectionNoNewQuestion: "新しい問いは追加されませんでした。既存の問いと回答はそのままです。",
     reflectionBoundary:
       "振り返りの提示は問いであり、結論ではありません。",
     reflectionNextNeedEvidence: "次: まず候補の手がかりをひとつ確認します。",

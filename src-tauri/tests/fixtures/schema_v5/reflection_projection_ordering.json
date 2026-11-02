@@ -1,0 +1,404 @@
+{
+  "source": {
+    "id": "ordering-source",
+    "body": "SYNTHETIC: inspect reflection projection ordering.",
+    "userEditable": true,
+    "createdAt": "2026-10-31T00:00:00.000Z",
+    "updatedAt": "2026-10-31T00:00:00.000Z"
+  },
+  "confirmedEvidence": [
+    {
+      "id": "ordering-evidence-1",
+      "sourceEntryId": "ordering-source",
+      "text": "SYNTHETIC evidence 1",
+      "originalText": "SYNTHETIC evidence 1",
+      "kind": "observation",
+      "status": "confirmed",
+      "userEditable": true,
+      "provenance": {
+        "origin": "local_mock",
+        "sourceEntryId": "ordering-source",
+        "sourceArtifactIds": [],
+        "provider": "mock",
+        "model": null,
+        "harnessVersion": "harness-v1",
+        "promptVersion": "v1",
+        "generatedAt": "2026-10-31T00:00:00.000Z"
+      },
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "updatedAt": "2026-10-31T00:00:01.000Z"
+    },
+    {
+      "id": "ordering-evidence-2",
+      "sourceEntryId": "ordering-source",
+      "text": "SYNTHETIC evidence 2",
+      "originalText": "SYNTHETIC evidence 2",
+      "kind": "observation",
+      "status": "confirmed",
+      "userEditable": true,
+      "provenance": {
+        "origin": "local_mock",
+        "sourceEntryId": "ordering-source",
+        "sourceArtifactIds": [],
+        "provider": "mock",
+        "model": null,
+        "harnessVersion": "harness-v1",
+        "promptVersion": "v1",
+        "generatedAt": "2026-10-31T00:00:00.000Z"
+      },
+      "createdAt": "2026-10-31T00:00:00.000Z",
+      "updatedAt": "2026-10-31T00:00:01.000Z"
+    }
+  ],
+  "first": {
+    "before": {
+      "evidence": [
+        {
+          "id": "ordering-evidence-1",
+          "sourceEntryId": "ordering-source",
+          "text": "SYNTHETIC evidence 1",
+          "originalText": "SYNTHETIC evidence 1",
+          "kind": "observation",
+          "status": "confirmed",
+          "userEditable": true,
+          "provenance": {
+            "origin": "local_mock",
+            "sourceEntryId": "ordering-source",
+            "sourceArtifactIds": [],
+            "provider": "mock",
+            "model": null,
+            "harnessVersion": "harness-v1",
+            "promptVersion": "v1",
+            "generatedAt": "2026-10-31T00:00:00.000Z"
+          },
+          "createdAt": "2026-10-31T00:00:00.000Z",
+          "updatedAt": "2026-10-31T00:00:01.000Z"
+        },
+        {
+          "id": "ordering-evidence-2",
+          "sourceEntryId": "ordering-source",
+          "text": "SYNTHETIC evidence 2",
+          "originalText": "SYNTHETIC evidence 2",
+          "kind": "observation",
+          "status": "confirmed",
+          "userEditable": true,
+          "provenance": {
+            "origin": "local_mock",
+            "sourceEntryId": "ordering-source",
+            "sourceArtifactIds": [],
+            "provider": "mock",
+            "model": null,
+            "harnessVersion": "harness-v1",
+            "promptVersion": "v1",
+            "generatedAt": "2026-10-31T00:00:00.000Z"
+          },
+          "createdAt": "2026-10-31T00:00:00.000Z",
+          "updatedAt": "2026-10-31T00:00:01.000Z"
+        }
+      ],
+      "reflections": [],
+      "patterns": [],
+      "recoveryTurns": []
+    },
+    "request": {
+      "entryId": "ordering-source",
+      "bundle": {
+        "evidence": [
+          {
+            "id": "ordering-evidence-1",
+            "sourceEntryId": "ordering-source",
+            "text": "SYNTHETIC evidence 1",
+            "originalText": "SYNTHETIC evidence 1",
+            "kind": "observation",
+            "status": "confirmed",
+            "userEditable": true,
+            "provenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:00.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:00.000Z",
+            "updatedAt": "2026-10-31T00:00:01.000Z"
+          },
+          {
+            "id": "ordering-evidence-2",
+            "sourceEntryId": "ordering-source",
+            "text": "SYNTHETIC evidence 2",
+            "originalText": "SYNTHETIC evidence 2",
+            "kind": "observation",
+            "status": "confirmed",
+            "userEditable": true,
+            "provenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:00.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:00.000Z",
+            "updatedAt": "2026-10-31T00:00:01.000Z"
+          }
+        ],
+        "reflections": [
+          {
+            "id": "ordering-question-Z",
+            "sourceEntryId": "ordering-source",
+            "sourceEvidenceIds": [
+              "ordering-evidence-1"
+            ],
+            "question": "What stands out when you read this evidence again?",
+            "status": "suggested",
+            "promptProvenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [
+                "ordering-evidence-1"
+              ],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:02.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:02.000Z",
+            "updatedAt": "2026-10-31T00:00:02.000Z"
+          },
+          {
+            "id": "ordering-question-A",
+            "sourceEntryId": "ordering-source",
+            "sourceEvidenceIds": [
+              "ordering-evidence-2"
+            ],
+            "question": "What stands out when you read this evidence again?",
+            "status": "suggested",
+            "promptProvenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [
+                "ordering-evidence-2"
+              ],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:02.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:02.000Z",
+            "updatedAt": "2026-10-31T00:00:02.000Z"
+          }
+        ],
+        "patterns": [],
+        "recoveryTurns": []
+      },
+      "expectedExperienceUpdatedAt": "2026-10-31T00:00:00.000Z",
+      "occurredAt": "2026-10-31T00:00:02.000Z"
+    }
+  },
+  "append": {
+    "before": {
+      "evidence": [
+        {
+          "id": "ordering-evidence-1",
+          "sourceEntryId": "ordering-source",
+          "text": "SYNTHETIC evidence 1",
+          "originalText": "SYNTHETIC evidence 1",
+          "kind": "observation",
+          "status": "confirmed",
+          "userEditable": true,
+          "provenance": {
+            "origin": "local_mock",
+            "sourceEntryId": "ordering-source",
+            "sourceArtifactIds": [],
+            "provider": "mock",
+            "model": null,
+            "harnessVersion": "harness-v1",
+            "promptVersion": "v1",
+            "generatedAt": "2026-10-31T00:00:00.000Z"
+          },
+          "createdAt": "2026-10-31T00:00:00.000Z",
+          "updatedAt": "2026-10-31T00:00:01.000Z"
+        },
+        {
+          "id": "ordering-evidence-2",
+          "sourceEntryId": "ordering-source",
+          "text": "SYNTHETIC evidence 2",
+          "originalText": "SYNTHETIC evidence 2",
+          "kind": "observation",
+          "status": "confirmed",
+          "userEditable": true,
+          "provenance": {
+            "origin": "local_mock",
+            "sourceEntryId": "ordering-source",
+            "sourceArtifactIds": [],
+            "provider": "mock",
+            "model": null,
+            "harnessVersion": "harness-v1",
+            "promptVersion": "v1",
+            "generatedAt": "2026-10-31T00:00:00.000Z"
+          },
+          "createdAt": "2026-10-31T00:00:00.000Z",
+          "updatedAt": "2026-10-31T00:00:01.000Z"
+        }
+      ],
+      "reflections": [
+        {
+          "id": "ordering-question-M",
+          "sourceEntryId": "ordering-source",
+          "sourceEvidenceIds": [
+            "ordering-evidence-1"
+          ],
+          "question": "What stands out when you read this evidence again?",
+          "status": "suggested",
+          "promptProvenance": {
+            "origin": "local_mock",
+            "sourceEntryId": "ordering-source",
+            "sourceArtifactIds": [
+              "ordering-evidence-1"
+            ],
+            "provider": "mock",
+            "model": null,
+            "harnessVersion": "harness-v1",
+            "promptVersion": "v1",
+            "generatedAt": "2026-10-31T00:00:02.000Z"
+          },
+          "createdAt": "2026-10-31T00:00:02.000Z",
+          "updatedAt": "2026-10-31T00:00:02.000Z"
+        }
+      ],
+      "patterns": [],
+      "recoveryTurns": []
+    },
+    "request": {
+      "entryId": "ordering-source",
+      "bundle": {
+        "evidence": [
+          {
+            "id": "ordering-evidence-1",
+            "sourceEntryId": "ordering-source",
+            "text": "SYNTHETIC evidence 1",
+            "originalText": "SYNTHETIC evidence 1",
+            "kind": "observation",
+            "status": "confirmed",
+            "userEditable": true,
+            "provenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:00.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:00.000Z",
+            "updatedAt": "2026-10-31T00:00:01.000Z"
+          },
+          {
+            "id": "ordering-evidence-2",
+            "sourceEntryId": "ordering-source",
+            "text": "SYNTHETIC evidence 2",
+            "originalText": "SYNTHETIC evidence 2",
+            "kind": "observation",
+            "status": "confirmed",
+            "userEditable": true,
+            "provenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:00.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:00.000Z",
+            "updatedAt": "2026-10-31T00:00:01.000Z"
+          }
+        ],
+        "reflections": [
+          {
+            "id": "ordering-question-M",
+            "sourceEntryId": "ordering-source",
+            "sourceEvidenceIds": [
+              "ordering-evidence-1"
+            ],
+            "question": "What stands out when you read this evidence again?",
+            "status": "suggested",
+            "promptProvenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [
+                "ordering-evidence-1"
+              ],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:02.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:02.000Z",
+            "updatedAt": "2026-10-31T00:00:02.000Z"
+          },
+          {
+            "id": "ordering-question-Z",
+            "sourceEntryId": "ordering-source",
+            "sourceEvidenceIds": [
+              "ordering-evidence-1"
+            ],
+            "question": "What stands out when you read this evidence again?",
+            "status": "suggested",
+            "promptProvenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [
+                "ordering-evidence-1"
+              ],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:02.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:02.000Z",
+            "updatedAt": "2026-10-31T00:00:02.000Z"
+          },
+          {
+            "id": "ordering-question-A",
+            "sourceEntryId": "ordering-source",
+            "sourceEvidenceIds": [
+              "ordering-evidence-2"
+            ],
+            "question": "What stands out when you read this evidence again?",
+            "status": "suggested",
+            "promptProvenance": {
+              "origin": "local_mock",
+              "sourceEntryId": "ordering-source",
+              "sourceArtifactIds": [
+                "ordering-evidence-2"
+              ],
+              "provider": "mock",
+              "model": null,
+              "harnessVersion": "harness-v1",
+              "promptVersion": "v1",
+              "generatedAt": "2026-10-31T00:00:02.000Z"
+            },
+            "createdAt": "2026-10-31T00:00:02.000Z",
+            "updatedAt": "2026-10-31T00:00:02.000Z"
+          }
+        ],
+        "patterns": [],
+        "recoveryTurns": []
+      },
+      "expectedExperienceUpdatedAt": "2026-10-31T00:00:00.000Z",
+      "occurredAt": "2026-10-31T00:00:02.000Z"
+    }
+  }
+}
