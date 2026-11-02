@@ -42,6 +42,7 @@ import { decideContextGate } from "../ai/harness/gateDecision";
 import { decidePatternAvailability, type PatternAvailabilityReason } from "../ai/harness/patternAvailability";
 import { addSuggestedRecoveryTurn, answerRecoveryTurn, skipRecoveryTurnRecord } from "../ai/harness/recoveryTurn";
 import { skipReflectionPromptRecord } from "../ai/harness/reflectionResponse";
+import { generateReflectionForSource } from "./reflectionGeneration";
 import { createGenerationSnapshot, isGenerationSnapshotCurrent } from "../ai/harness/generationSnapshot";
 import { HARNESS_VERSION, PROMPT_VERSION } from "../ai/harness/version";
 import {
@@ -646,6 +647,8 @@ export function App() {
   >({});
   const [reflectionDrafts, setReflectionDrafts] = useState<ReflectionDrafts>({});
   const reflectionSaveFlightsRef = useRef<ReflectionSaveFlights>(new Map());
+  const reflectionGenerationFlightsRef = useRef(new Set<string>());
+  const [reflectionGenerationFlights, setReflectionGenerationFlights] = useState(new Set<string>());
   const [reflectionSaveFlights, setReflectionSaveFlights] =
     useState<ReflectionSaveFlights>(() => new Map());
   const [historicalContextOpenPanels, setHistoricalContextOpenPanels] =
@@ -1180,26 +1183,38 @@ export function App() {
   }, [clearPatternSetAside, copy.evidenceReviewUpdated, openJourneyStage, runArtifactMutation]);
 
   const generateReflectionPrompts = useCallback(async (entry: ExperienceEntry) => {
-    const packet = buildPacket(entry, "reflection").packet;
-    const snapshot = createGenerationSnapshot(packet);
-    if (!packet.confirmedEvidence.length) { setPortabilityStatus(copy.reflectionNeedEvidence); return; }
-    setPendingAction(`reflection:${entry.id}`);
-    try {
-      let prompts: ReflectionPrompt[]; let usedFallback = false;
-      try { prompts = await chooseProvider(aiRuntime).generateReflectionPrompts(packet); }
-      catch (error) { usedFallback = true; const fallback = { ...packet, provider: "mock" as const, model: null }; prompts = await placeholderProvider.generateReflectionPrompts(fallback); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); }
-      if (!isGenerationSnapshotCurrent(snapshot, await store.getExperience(entry.id), await store.listArtifacts(entry.id))) { setPortabilityStatus(copy.staleGeneration); return; }
-      const committed = await runArtifactMutation(entry.id, (current) => ({ ...current, reflections: prompts, patterns: [] }), undefined, { generationSnapshot: snapshot });
-      if (committed) {
+    let usedFallback = false;
+    const result = await generateReflectionForSource(entry, {
+      flights: reflectionGenerationFlightsRef.current, store,
+      buildPacket: (source, durable) => createContextPacket({ currentExperience: source,
+        evidence: durable.evidence, reflections: durable.reflections, recoveryTurns: durable.recoveryTurns,
+        patterns: durable.patterns, locale: language, requestedTask: "reflection",
+        provider: aiRuntime?.provider ?? "mock", model: aiRuntime?.model ?? null }).packet,
+      generate: async packet => {
+        try { return await chooseProvider(aiRuntime).generateReflectionPrompts(packet); }
+        catch (error) { usedFallback = true; const fallback = { ...packet, provider: "mock" as const, model: null }; const prompts = await placeholderProvider.generateReflectionPrompts(fallback); setPortabilityStatus(unavailableProviderMessage(error, aiRuntime, copy)); return prompts; }
+      },
+      mutate: artifactMutationRunner,
+      onPending: pending => {
+        setReflectionGenerationFlights(current => { const next = new Set(current); if (pending) next.add(entry.id); else next.delete(entry.id); return next; });
+        setPendingAction(current => pending ? `reflection:${entry.id}` : current === `reflection:${entry.id}` ? null : current);
+      },
+      onError: error => { setStorageError(error instanceof Error ? error.message : String(error)); setPortabilityStatus(null); },
+    });
+    if (result.status === "no_evidence") setPortabilityStatus(copy.reflectionNeedEvidence);
+    if (result.status === "stale_generation") setPortabilityStatus(copy.staleGeneration);
+    if (result.status === "empty") setPortabilityStatus(copy.reflectionNoNewQuestion);
+    const committed = result.bundle;
+    if (result.status === "committed" && committed) {
+        setStorageError(null);
         clearPatternSetAside(entry.id);
         openJourneyStage(entry.id, "reflection");
-        const firstSuggested = committed.reflections.find((prompt) => prompt.status === "suggested");
-        if (firstSuggested) focusJourneyTarget(`reflection-prompt-${firstSuggested.id}`);
-      }
-      if (committed && !usedFallback) setPortabilityStatus(successfulGenerationMessage("reflection", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
-      if (committed && !usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
-    } finally { setPendingAction(null); }
-  }, [aiRuntime, buildPacket, clearPatternSetAside, copy, hasRealAiSuccess, openJourneyStage, runArtifactMutation, store]);
+        const firstAddedId = result.addedPromptIds?.[0];
+        if (firstAddedId) focusJourneyTarget(`reflection-prompt-${firstAddedId}`);
+        if (!usedFallback) setPortabilityStatus(successfulGenerationMessage("reflection", aiRuntime, !hasRealAiSuccess && isRealAiActive(aiRuntime), copy));
+        if (!usedFallback && isRealAiActive(aiRuntime)) setHasRealAiSuccess(true);
+    }
+  }, [aiRuntime, artifactMutationRunner, clearPatternSetAside, copy, hasRealAiSuccess, language, openJourneyStage, store]);
 
   const updateReflectionPromptDraft = useCallback((entryId: string, prompt: ReflectionPrompt, response: string) => {
     setReflectionDrafts((drafts) => setReflectionDraft(drafts, entryId, prompt, response));
@@ -1857,7 +1872,7 @@ export function App() {
               const patternSummary = summarizePatternNotes(patternNotes);
               const isEvidencePending = pendingAction === `evidence:${entry.id}`;
               const isReflectionPending =
-                pendingAction === `reflection:${entry.id}`;
+                reflectionGenerationFlights.has(entry.id);
               const isPatternPending = pendingAction === `pattern:${entry.id}`;
               const patternAvailability = decidePatternAvailability({
                 body: entry.body,
@@ -2342,7 +2357,7 @@ export function App() {
                         >
                           {isReflectionPending
                             ? copy.shapingQuestions
-                            : copy.generateReflection}
+                            : reflectionPrompts.length > 0 ? copy.addReflection : copy.generateReflection}
                         </button>
                       </div>
                       <p className="phase-purpose">{copy.reflectionPurpose}</p>

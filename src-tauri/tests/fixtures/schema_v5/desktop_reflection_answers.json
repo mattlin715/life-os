@@ -1,0 +1,89 @@
+{
+  "suggested": {
+    "id": "runtime-reflection",
+    "sourceEntryId": "fixture-v4-history",
+    "sourceEvidenceIds": [
+      "runtime-evidence"
+    ],
+    "question": "What stands out when you read this evidence again?",
+    "status": "suggested",
+    "promptProvenance": {
+      "origin": "local_mock",
+      "sourceEntryId": "fixture-v4-history",
+      "sourceArtifactIds": [
+        "runtime-evidence"
+      ],
+      "provider": "mock",
+      "model": null,
+      "harnessVersion": "harness-v1",
+      "promptVersion": "v1",
+      "generatedAt": "2026-08-13T12:00:02.000Z"
+    },
+    "createdAt": "2026-08-13T12:00:02.000Z",
+    "updatedAt": "2026-08-13T12:00:02.000Z"
+  },
+  "answerA": {
+    "id": "runtime-reflection",
+    "sourceEntryId": "fixture-v4-history",
+    "sourceEvidenceIds": [
+      "runtime-evidence"
+    ],
+    "question": "What stands out when you read this evidence again?",
+    "status": "answered",
+    "promptProvenance": {
+      "origin": "local_mock",
+      "sourceEntryId": "fixture-v4-history",
+      "sourceArtifactIds": [
+        "runtime-evidence"
+      ],
+      "provider": "mock",
+      "model": null,
+      "harnessVersion": "harness-v1",
+      "promptVersion": "v1",
+      "generatedAt": "2026-08-13T12:00:02.000Z"
+    },
+    "createdAt": "2026-08-13T12:00:02.000Z",
+    "updatedAt": "2026-08-13T12:00:03.000Z",
+    "response": "Synthetic answer A",
+    "responseProvenance": {
+      "origin": "user",
+      "sourceEntryId": "fixture-v4-history",
+      "sourceArtifactIds": [
+        "runtime-reflection"
+      ],
+      "generatedAt": "2026-08-13T12:00:03.000Z"
+    }
+  },
+  "answerB": {
+    "id": "runtime-reflection",
+    "sourceEntryId": "fixture-v4-history",
+    "sourceEvidenceIds": [
+      "runtime-evidence"
+    ],
+    "question": "What stands out when you read this evidence again?",
+    "status": "answered",
+    "promptProvenance": {
+      "origin": "local_mock",
+      "sourceEntryId": "fixture-v4-history",
+      "sourceArtifactIds": [
+        "runtime-evidence"
+      ],
+      "provider": "mock",
+      "model": null,
+      "harnessVersion": "harness-v1",
+      "promptVersion": "v1",
+      "generatedAt": "2026-08-13T12:00:02.000Z"
+    },
+    "createdAt": "2026-08-13T12:00:02.000Z",
+    "updatedAt": "2026-08-13T12:00:04.000Z",
+    "response": "Synthetic answer B",
+    "responseProvenance": {
+      "origin": "user",
+      "sourceEntryId": "fixture-v4-history",
+      "sourceArtifactIds": [
+        "runtime-reflection"
+      ],
+      "generatedAt": "2026-08-13T12:00:04.000Z"
+    }
+  }
+}

@@ -151,6 +151,51 @@ refresh grants no new Founder authority.
 
 ## Phase 5: Theory Alignment Review
 
+### Scoped manual verification registration (Engineering Harness follow-up, 2026/11/03)
+
+Use `node scripts/ai-workflow.mjs record-scoped-manual-verification` with
+`--sprint-id`, `--expected-sequence`, `--evidence`, `--evidence-sha256`,
+`--acceptance-source direct-founder-chat`, `--founder-response` and `--scope`.
+It registers a previously observed and explicitly accepted Windows, synthetic,
+mock, current-user candidate journey in an active validation/theory-review/human
+decision state. It does not run an app, infer acceptance or complete/archive.
+
+The repository-contained JSON request has format
+`life-os/scoped-manual-verification-v1`, `sprintId`, `acceptanceSource`, exact
+`scope` and `scopeQuote`, and a `target` object (`reviewSuffix`, `identity`,
+`platform: windows`, `dataClass: synthetic`, `providerMode: mock`,
+`installMode: current-user`). Its `evidence` holds `{path, sha256}` references
+for `receipt`, `sourceBinding`, `installer`, `manifest`, `ledger`, `supplement`.
+All paths are repository-relative, realpath-contained, existing files; mutable
+current workflow files cannot serve as authorization evidence.
+
+This narrow receipt adapter accepts existing explicit scoped Founder chat
+acceptance receipts: `decision: ACCEPTED`, `exactFounderResponse`, exact
+`acceptedScope`/`precedingFounderScopeQuote` and
+`evidenceSource: Founder explicit chat reply after scoped acceptance clarification`.
+It validates all candidate/source/package/ledger/supplement cross-bindings,
+accepted source and protected file bytes, and referenced raw receipt hashes.
+Both reported and directly observed steps and explicit limits are retained.
+An agent recommendation, silence, host PASS or a hash is NOT human authority:
+the caller must have the direct Founder reply and identify it explicitly;
+the CLI cannot cryptographically authenticate a human author.
+
+Optional `manual_ui.scoped_evidence` is a backward-compatible extension; old
+not_run records/archives remain unchanged. `completed_at` and `registered_at`
+are the CURRENT registration time, with the historical acceptance receipt time
+separate. Prior manual verification and old decision resolution are preserved.
+The new hash-chained event contains the full scoped projection; validation
+requires that exact event/projection match, without reopening ignored artifacts
+when verifying an archive. Missing/stale/malformed/mismatched inputs and all
+duplicates/conflicts refuse without writes. No dry-run option is provided.
+
+Writes reuse the existing `appendEventAndState` atomic-file/paired rollback
+mechanism and validation rollback. The existing single-writer boundary remains;
+this does not add locks, concurrent leases or a new storage protocol. Fault
+injection covers both event and state rename failures. Archive copies the scoped
+state/event and formal Markdown summary before the usual validated idle reset.
+No acceptance standard or other completion gate is relaxed.
+
 Apply the Chief Product Theorist role to the actual diff and completed
 Engineering Report. Complete `THEORY_ALIGNMENT_REVIEW.md` against acceptance
 criteria, Constitution, primary definitions, ADRs, user agency, privacy,

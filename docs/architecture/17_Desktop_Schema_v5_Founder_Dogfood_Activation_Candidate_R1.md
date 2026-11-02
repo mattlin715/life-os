@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.8
+version: 0.11
 owner: product-and-engineering
-last_updated: 2026/08/18
+last_updated: 2026/10/31
 depends:
   - docs/00_Constitution.md
   - docs/adr/ADR-0009-govern-historical-context-use-with-explicit-consent-and-provenance.md
@@ -16,6 +16,141 @@ referenced_by:
 ---
 
 # 17 Desktop Schema-v5 Founder Dogfood Activation Candidate R1
+
+## Reflection projection-order correction — separately authorized 2026/10/31
+
+Runtime reproduction, not merely review inference, is recorded under
+`.artifacts/reflection-projection-ordering-r1/run-001/`. Actual coordinator/typed
+adapter payloads first create Z,A with equal createdAt, or append Z,A to existing
+M with the same key. Both pre-fix requests committed all questions but returned
+postcondition mismatch; the reopened order was A,Z or A,M,Z. Red DBs/output and
+the old candidates remain immutable. This proves the synthetic trigger, not the
+original stopped manual session's historical cause (still UNKNOWN).
+
+### Persisted representation contract
+
+The fixed persisted_artifacts table has TEXT id/created_at with default BINARY
+collation. The promoted Reflection writer binds the same prompt.id/created_at
+into those columns and payload.id/createdAt; updates retain original creation
+keys. Runtime reads now explicitly reject a Reflection column/payload key
+contradiction. Array order is canonical projection presentation, not user ranking
+or provider-generation order: no ordinal exists in the domain/schema, and no
+accepted primary or Book One definition promises a generation-order sequence.
+Read SQL orders ascending by created_at, then full id. Time values are compared
+as stored text, not parsed instants; differing fractional precision is significant.
+Identifier ties use SQLite BINARY, never locale order or JavaScript UTF-16 order.
+
+### Single normalization boundary and refusal rules
+
+Only the typed Rust runtime's Reflection mutation path normalizes expected array
+presentation, BEFORE the writer. A bound-input SELECT over json_each orders the
+complete supplied Reflection collection using SQLite BINARY on createdAt and id.
+It neither queries the post-write actual bundle for expected content nor changes
+fields, IDs, timestamps, question/answer text, provenance or other collections.
+Frontend/provider/adapters do not duplicate this sorting. No date parsing or
+timestamp repair is used; existing writer format/legality rules stay authoritative.
+
+Permutations of one otherwise exact legal Reflection bundle are equivalent.
+Unknown fields, duplicate IDs, bad key types/formats, rewritten retained content,
+source/provenance contradictions, stale inputs and illegal replacement remain
+refused. New suggestions are checked against the promoted writer's exact payload
+mapping before mutation, including status, updatedAt=createdAt, model null and
+source-array representation. Noncanonical nested representations are refused,
+not silently normalized. Skip projection also receives an exact pre-write
+content check. The accepted response fix still normalizes ONLY its four optional
+user-provider absent/null fields. Native writer, schema, transaction boundaries,
+single-action checks and the final full actual != desired postcondition remain
+unchanged; no set comparison, retry, split write or false-success catch exists.
+
+The bounded audit covers Reflection suggestion mapping, read keys, skip and
+SaveResponse/CorrectResponse representation only. It is not an all-artifact,
+legacy-data recovery, dependent-hypothesis lifecycle or cross-process-lock upgrade.
+Existing dependent invalidation remains governed by its writer and is not bypassed.
+New host/package evidence and Founder acceptance are distinct from the previous
+provenance-only and additive-generation candidates. A new candidate may be built
+only after focused green, source review and the full canonical verifier pass.
+
+## Reflection additive generation correction R1 — separately authorized 2026/10/31
+
+This follow-up is not covered by the accepted provenance-only seven-file diff
+or its `09e0e7c0...` installer. The new candidate is cumulative; its source binding,
+verification and Founder review are separate. Original diagnostic receipt and
+DBs remain under `.artifacts/reflection-generation-capture-r1/`. They reproduce
+a state-dependent contract mismatch, not the historical cause of the stopped
+manual session, which remains UNKNOWN.
+
+The explicit first-generation action creates suggested questions. Once questions
+exist, the action says **Add another reflection question** and appends the full
+generated batch in one existing `CreateSuggestedBatch` mutation, preserving
+question IDs, answers, provenance, lineage and UI-only drafts. It never removes
+old questions, truncates a batch, retries a failed write, or clears other artifact
+collections. Adding a suggestion does not change an answered revision on which
+an existing Pattern depends; ordinary source/evidence/answer invalidation rules
+are unchanged.
+
+The App uses the shared `reflectionGeneration` coordinator. A source-scoped
+synchronous flight guard precedes all awaits. Packets are assembled from durable
+source/artifacts, and source, confirmed Evidence, answered Reflection and recovery
+snapshots are rechecked before and inside the serialized mutation queue. An exact
+local Reflection-set precondition additionally protects suggested changes; it is
+checked again at the typed adapter read boundary. This precondition is not provider
+context, confirmed evidence, or a new native command/schema/CAS policy. A later
+conflicting native write still faces the unchanged canonical single-action and
+full-bundle postcondition rules; this slice does not claim cross-process locking.
+ID collisions, empty or invalid batches and unconfirmed commits cannot become
+success messages. Canonical writers and the prior absent/null provenance fix
+remain unchanged. No new ADR is required: ADR-0007/0011 identities, lifecycle,
+provenance and deletion decisions are preserved.
+
+Host frontend/mock-IPC, real Rust/SQLite, package and manual UI evidence remain
+separate. The new package is not authorized for installation or launch. Do not
+touch the stopped profile or transfer its old install/manual authorization.
+
+## Desktop Reflection provenance correction R1 — independent host/build slice
+
+The Founder authorized this follow-up from `7b9e7244ab39bb57f37d3856c366529efc4b25b6`
+on 2026/10/28. The historical acceptance/promotion below is not acceptance of
+this new diff, package, or complete durable journey.
+
+Before the correction, two new host regressions used captured outputs of the
+actual frontend `answerReflectionPrompt` helper through the desktop runtime and
+synthetic SQLite. Both first Save and Correct returned
+`founder_runtime_projection_postcondition_mismatch` after the canonical write;
+verified rereads already contained answer A and B respectively. The actual test
+exit was 101. Failed synthetic databases, raw output and the pre-fix test diff
+remain under ignored `.artifacts/desktop-reflection-provenance-r1/run-001/`.
+The only payload differences were four omitted frontend provenance fields versus
+canonical `null`: `provider`, `model`, `harnessVersion`, and `promptVersion`.
+
+The runtime now validates the complete proposed response operation before
+invoking SaveResponse or CorrectResponse. Only absent/null representations of
+those four fields are normalized. User origin, source/prompt relationships,
+operation time, question, prompt provenance, other artifacts and unknown content
+remain exact. Non-null contradictions and other mismatches are refused before
+mutation. The full post-write comparison remains; no writer, schema, transaction,
+retention, retry, Android adapter, UI or Product Harness policy changes.
+
+The runtime is shared by Founder and ordinary desktop compilation; host testing
+of both configurations grants no ordinary-profile authority. The captured JSON
+fixture is pinned by the frontend typed-adapter test and consumed by the real
+Rust SQLite regression. Host connection close/reopen, lineage and parent-delete
+checks do not establish application lifecycle or Android/device durability.
+
+The existing candidate build and inspection path remains authoritative. This
+slice permits a new suffix package and hash verification only, not installation,
+launch, OS-account creation, real/historical-profile access or runtime DB creation.
+Fresh canonical/package results and exact bytes are separate run receipts, not
+historical PASS transfer. Founder diff and manual acceptance remain separate.
+
+Future manual review requires a new dedicated disposable Windows account/profile,
+the unchanged `com.lifeos.founderdogfood` identity and both candidate build gates.
+Do not reuse or clear an older candidate/review profile, or substitute `APPDATA`.
+Every launch/reopen must explicitly inherit process-scoped `AI_PROVIDER=mock`.
+Existing selection directly chooses mock rather than waiting for a provider
+failure; its unsupported-provider explanation remains, and remote IPC remains
+compiled into the binary. This is not binary-level network prohibition.
+See the [Founder package runbook](../dev/09_Windows_Founder_Dogfooding_Package_R1.md).
+The original `ANDROID-M2D-036-DIAGNOSTIC-STOP` remains unresolved and untouched.
 
 ## Status and authority
 

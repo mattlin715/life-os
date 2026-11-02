@@ -247,7 +247,7 @@ pub(crate) async fn list_artifacts(path: &Path, source_id: &str) -> Result<Value
     verify_activated_v5_runtime(path).await?;
     let mut connection = connect(path, true).await?;
     let rows = sqlx::query(
-        "SELECT artifact_kind, payload FROM persisted_artifacts \
+        "SELECT artifact_kind, payload, id, created_at FROM persisted_artifacts \
          WHERE source_entry_id = ? ORDER BY created_at, id",
     )
     .bind(source_id)
@@ -263,6 +263,14 @@ pub(crate) async fn list_artifacts(path: &Path, source_id: &str) -> Result<Value
         let raw: String = row.get(1);
         let value: Value =
             serde_json::from_str(&raw).map_err(|_| fail("founder_runtime_projection_malformed"))?;
+        if kind == "reflection"
+            && (value.get("id").and_then(Value::as_str)
+                != Some(row.get::<String, _>("id").as_str())
+                || value.get("createdAt").and_then(Value::as_str)
+                    != Some(row.get::<String, _>("created_at").as_str()))
+        {
+            return Err(fail("founder_runtime_reflection_projection_key_mismatch"));
+        }
         match kind.as_str() {
             "evidence" => evidence.push(value),
             "reflection" => reflections.push(value),
@@ -491,6 +499,138 @@ fn canonicalize_recovery_response_provenance(
     Ok(())
 }
 
+fn canonicalize_reflection_response(
+    desired: &mut Value,
+    current: &Value,
+    artifact_id: &str,
+    source_id: &str,
+    occurred_at: &str,
+) -> Result<(), MigrationError> {
+    let mut normalized = desired.clone();
+    let prompt = normalized["reflections"]
+        .as_array_mut()
+        .and_then(|rows| rows.iter_mut().find(|row| row["id"] == artifact_id))
+        .ok_or_else(|| fail("founder_runtime_reflection_projection_missing"))?;
+    let response = field(prompt, "response")?.to_string();
+    let provenance = prompt["responseProvenance"]
+        .as_object_mut()
+        .ok_or_else(|| fail("founder_runtime_reflection_response_provenance_invalid"))?;
+    // Only these four absent/null fields are representation-equivalent. Never
+    // erase contradictory provider metadata or unknown fields to obtain parity.
+    for key in ["provider", "model", "harnessVersion", "promptVersion"] {
+        if provenance.get(key).is_some_and(|value| !value.is_null()) {
+            return Err(fail(
+                "founder_runtime_reflection_response_provenance_mismatch",
+            ));
+        }
+        provenance.insert(key.into(), Value::Null);
+    }
+    let mut expected = current.clone();
+    let expected_prompt = expected["reflections"]
+        .as_array_mut()
+        .and_then(|rows| rows.iter_mut().find(|row| row["id"] == artifact_id))
+        .ok_or_else(|| fail("founder_runtime_reflection_projection_missing"))?;
+    expected_prompt["status"] = Value::String("answered".into());
+    expected_prompt["response"] = Value::String(response);
+    expected_prompt["updatedAt"] = Value::String(occurred_at.into());
+    expected_prompt["responseProvenance"] = serde_json::json!({
+        "origin": "user", "sourceEntryId": source_id,
+        "sourceArtifactIds": [artifact_id], "generatedAt": occurred_at,
+        "provider": null, "model": null, "harnessVersion": null, "promptVersion": null
+    });
+    // Compare the entire bundle before invoking the writer: question, prompt
+    // lineage, other artifacts and unknown content are not normalization input.
+    if normalized != expected {
+        return Err(fail(
+            "founder_runtime_reflection_response_projection_mismatch",
+        ));
+    }
+    *desired = normalized;
+    Ok(())
+}
+
+/// Canonical *presentation*, not generation/user order. SQLite compares the
+/// supplied TEXT keys with the same BINARY collation as persisted_artifacts.
+/// This never copies post-write actual state into the expected bundle.
+async fn canonicalize_reflection_order(
+    path: &Path,
+    bundle: &mut Value,
+) -> Result<(), MigrationError> {
+    let rows = bundle
+        .get("reflections")
+        .and_then(Value::as_array)
+        .ok_or_else(|| fail("founder_runtime_reflections_invalid"))?;
+    for row in rows {
+        for key in ["id", "createdAt"] {
+            if row.get(key).and_then(Value::as_str).is_none() {
+                // Sorting needs TEXT, not a new timestamp policy for retained
+                // legacy projections. New prompt legality is checked below.
+                return Err(fail(format!("founder_runtime_reflection_{key}_invalid")));
+            }
+        }
+    }
+    let input = serde_json::to_string(rows)
+        .map_err(|_| fail("founder_runtime_reflection_order_invalid"))?;
+    let mut connection = connect(path, true).await?;
+    let sorted: Result<Vec<String>, _> = sqlx::query_scalar(
+        "SELECT value FROM json_each(?) \
+         ORDER BY json_extract(value, '$.createdAt') COLLATE BINARY ASC, \
+                  json_extract(value, '$.id') COLLATE BINARY ASC",
+    )
+    .bind(input)
+    .fetch_all(&mut connection)
+    .await;
+    let closed = connection.close().await;
+    let sorted = sorted.map_err(|_| fail("founder_runtime_reflection_order_unreadable"))?;
+    closed.map_err(|_| fail("founder_runtime_reflection_order_close_failed"))?;
+    bundle["reflections"] = Value::Array(
+        sorted
+            .into_iter()
+            .map(|row| {
+                serde_json::from_str(&row)
+                    .map_err(|_| fail("founder_runtime_reflection_order_malformed"))
+            })
+            .collect::<Result<Vec<Value>, _>>()?,
+    );
+    Ok(())
+}
+
+/// Pin the promoted writer's exact suggested projection before any mutation.
+/// Only the outer Reflection array order is normalized, not content/provenance.
+fn suggested_reflection_projection(prompt: &SuggestedPromptInput) -> Result<Value, MigrationError> {
+    for (key, value) in [
+        ("id", prompt.id.as_str()),
+        ("createdAt", prompt.created_at.as_str()),
+        ("generatedAt", prompt.provenance.generated_at.as_str()),
+    ] {
+        if value.trim().is_empty()
+            || value.len() > 512
+            || value.chars().any(char::is_control)
+            || (key != "id" && (!value.contains('T') || !value.ends_with('Z')))
+        {
+            // Preserve the canonical writer's existing lexical format checks;
+            // never interpret or reformat time for ordering.
+            return Err(fail(format!("founder_runtime_reflection_{key}_invalid")));
+        }
+    }
+    let mut evidence_ids: Vec<_> = prompt
+        .evidence
+        .iter()
+        .map(|item| item.artifact_id.clone())
+        .collect();
+    evidence_ids.sort();
+    let mut source_ids = prompt.provenance.source_artifact_ids.clone();
+    source_ids.sort();
+    Ok(serde_json::json!({
+        "id":prompt.id, "sourceEntryId":prompt.source_id, "sourceEvidenceIds":evidence_ids,
+        "question":prompt.question, "status":"suggested", "createdAt":prompt.created_at, "updatedAt":prompt.created_at,
+        "promptProvenance": {"origin":prompt.provenance.origin, "sourceEntryId":prompt.source_id,
+            "sourceArtifactIds":source_ids, "provider":prompt.provenance.provider, "model":prompt.provenance.model,
+            "harnessVersion":prompt.provenance.harness_version, "promptVersion":prompt.provenance.prompt_version,
+            "generatedAt":prompt.provenance.generated_at}
+    }))
+}
+
 fn one_changed<'a>(
     current: &'a BTreeMap<String, Value>,
     desired: &'a BTreeMap<String, Value>,
@@ -536,6 +676,9 @@ pub(crate) async fn save_artifacts(
         }
         Err(error) => return Err(error),
     };
+    if categories[0] == "reflections" {
+        canonicalize_reflection_order(path, &mut desired).await?;
+    }
     match categories[0] {
         "evidence" => {
             let before = category_map(&current, "evidence")?;
@@ -676,6 +819,44 @@ pub(crate) async fn save_artifacts(
                     _ => return Err(fail("founder_runtime_reflection_action_unsupported")),
                 }
             };
+            if let ReflectionWriteCommand::CreateSuggestedBatch { prompts, .. } = &command {
+                let mut expected = current.clone();
+                for prompt in prompts {
+                    expected["reflections"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(suggested_reflection_projection(prompt)?);
+                }
+                canonicalize_reflection_order(path, &mut expected).await?;
+                if desired != expected {
+                    return Err(fail("founder_runtime_reflection_batch_projection_mismatch"));
+                }
+            }
+            if let ReflectionWriteCommand::SaveResponse { artifact_id, .. }
+            | ReflectionWriteCommand::CorrectResponse { artifact_id, .. } = &command
+            {
+                canonicalize_reflection_response(
+                    &mut desired,
+                    &current,
+                    artifact_id,
+                    source_id,
+                    occurred_at,
+                )?;
+            }
+            if let ReflectionWriteCommand::SkipSuggested { artifact_id, .. } = &command {
+                let mut expected = current.clone();
+                let prompt = expected["reflections"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|row| row["id"] == *artifact_id)
+                    .unwrap();
+                prompt["status"] = Value::String("skipped".into());
+                prompt["updatedAt"] = Value::String(occurred_at.into());
+                if desired != expected {
+                    return Err(fail("founder_runtime_reflection_skip_projection_mismatch"));
+                }
+            }
             execute_reflection(
                 path,
                 command,
@@ -1557,6 +1738,333 @@ mod tests {
         .unwrap();
         assert_eq!(result.status, "committed");
         verify_activated_v5_runtime(&path).await.unwrap();
+    }
+
+    // Captured from the real frontend helper; the adapter test pins the same bytes/shape.
+    const DESKTOP_REFLECTION: &str =
+        include_str!("../tests/fixtures/schema_v5/desktop_reflection_answers.json");
+
+    async fn desktop_reflection_fixture() -> (TempDir, std::path::PathBuf) {
+        let (directory, path) = fixture().await;
+        let mut bundle = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        bundle["evidence"] = serde_json::json!([{
+            "id": "runtime-evidence", "sourceEntryId": SOURCE_ID,
+            "text": "A synthetic observation", "originalText": "A synthetic observation",
+            "kind": "observation", "userEditable": true, "status": "candidate",
+            "provenance": {"origin":"local_mock", "sourceEntryId":SOURCE_ID,
+                "sourceArtifactIds":[], "provider":"mock", "model":null,
+                "harnessVersion":"harness-v1", "promptVersion":"v1", "generatedAt":AT},
+            "createdAt":AT, "updatedAt":AT
+        }]);
+        save_artifacts(
+            &path,
+            SOURCE_ID,
+            bundle,
+            None,
+            AT,
+            "guard-desktop-evidence-0123456789abcdef",
+        )
+        .await
+        .unwrap();
+        let mut bundle = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        bundle["evidence"][0]["status"] = serde_json::json!("confirmed");
+        bundle["evidence"][0]["updatedAt"] = serde_json::json!("2026-08-13T12:00:01.000Z");
+        save_artifacts(
+            &path,
+            SOURCE_ID,
+            bundle,
+            None,
+            "2026-08-13T12:00:01.000Z",
+            "guard-desktop-confirm-0123456789abcdef",
+        )
+        .await
+        .unwrap();
+        let payloads: Value = serde_json::from_str(DESKTOP_REFLECTION).unwrap();
+        let mut bundle = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        bundle["reflections"] = serde_json::json!([payloads["suggested"]]);
+        save_artifacts(
+            &path,
+            SOURCE_ID,
+            bundle,
+            None,
+            "2026-08-13T12:00:02.000Z",
+            "guard-desktop-question-0123456789abcdef",
+        )
+        .await
+        .unwrap();
+        (directory, path)
+    }
+
+    fn canonical_response(mut prompt: Value) -> Value {
+        for key in ["provider", "model", "harnessVersion", "promptVersion"] {
+            prompt["responseProvenance"][key] = Value::Null;
+        }
+        prompt
+    }
+
+    async fn save_desktop_response(
+        path: &Path,
+        prompt: Value,
+    ) -> Result<SaveArtifactsResult, MigrationError> {
+        let at = field(&prompt, "updatedAt").unwrap().to_string();
+        let source = get_experience(path, SOURCE_ID).await.unwrap().unwrap();
+        let mut bundle = list_artifacts(path, SOURCE_ID).await.unwrap();
+        bundle["reflections"] = serde_json::json!([prompt]);
+        save_artifacts(
+            path,
+            SOURCE_ID,
+            bundle,
+            Some(&source.updated_at),
+            &at,
+            "guard-desktop-answer-0123456789abcdef",
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn desktop_reflection_frontend_first_save_returns_committed() {
+        let (directory, path) = desktop_reflection_fixture().await;
+        let payloads: Value = serde_json::from_str(DESKTOP_REFLECTION).unwrap();
+        let result = save_desktop_response(&path, payloads["answerA"].clone()).await;
+        let durable = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        println!(
+            "first-save result={:?}; durable={durable}",
+            result.as_ref().map(|r| r.status)
+        );
+        if result.is_err() {
+            println!(
+                "preserved failing synthetic fixture: {}",
+                directory.keep().display()
+            );
+        }
+        assert_eq!(result.unwrap().status, "committed");
+        assert_eq!(
+            durable["reflections"][0],
+            canonical_response(payloads["answerA"].clone())
+        );
+    }
+
+    #[tokio::test]
+    async fn desktop_reflection_frontend_correction_returns_committed() {
+        let (directory, path) = desktop_reflection_fixture().await;
+        let payloads: Value = serde_json::from_str(DESKTOP_REFLECTION).unwrap();
+        save_desktop_response(&path, canonical_response(payloads["answerA"].clone()))
+            .await
+            .unwrap();
+        let result = save_desktop_response(&path, payloads["answerB"].clone()).await;
+        let durable = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        println!(
+            "correction result={:?}; durable={durable}",
+            result.as_ref().map(|r| r.status)
+        );
+        if result.is_err() {
+            println!(
+                "preserved failing synthetic fixture: {}",
+                directory.keep().display()
+            );
+        }
+        assert_eq!(result.unwrap().status, "committed");
+        assert_eq!(
+            durable["reflections"][0],
+            canonical_response(payloads["answerB"].clone())
+        );
+    }
+
+    #[tokio::test]
+    async fn desktop_reflection_null_shapes_reopen_lineage_and_source_delete() {
+        let (_directory, path) = desktop_reflection_fixture().await;
+        let payloads: Value = serde_json::from_str(DESKTOP_REFLECTION).unwrap();
+        for key in ["answerA", "answerB"] {
+            let result = save_desktop_response(&path, canonical_response(payloads[key].clone()))
+                .await
+                .unwrap();
+            assert_eq!(result.status, "committed");
+            // Each facade call closes its connection; this is a durable file reread,
+            // not an application/window lifecycle claim.
+            let reopened = list_artifacts(&path, SOURCE_ID).await.unwrap();
+            assert_eq!(result.bundle, reopened);
+            assert_eq!(
+                reopened["reflections"][0],
+                canonical_response(payloads[key].clone())
+            );
+        }
+        let mut c = connect(&path, true).await.unwrap();
+        let revisions: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
+            "SELECT id, authorship, revision_reason, predecessor_revision_id FROM artifact_revisions \
+             WHERE artifact_id = 'runtime-reflection' ORDER BY revision_number",
+        ).fetch_all(&mut c).await.unwrap();
+        assert_eq!(revisions.len(), 3);
+        assert_eq!(
+            (&revisions[1].1[..], &revisions[1].2[..]),
+            ("mixed", "answered")
+        );
+        assert_eq!(
+            (&revisions[2].1[..], &revisions[2].2[..]),
+            ("mixed", "corrected")
+        );
+        assert_eq!(revisions[2].3.as_ref(), Some(&revisions[1].0));
+        let target: String = sqlx::query_scalar(
+            "SELECT source_artifact_revision_id FROM artifact_dependencies \
+             WHERE dependent_revision_id = ? AND relationship_type = 'answers_prompt'",
+        )
+        .bind(&revisions[2].0)
+        .fetch_one(&mut c)
+        .await
+        .unwrap();
+        assert_eq!(target, revisions[0].0);
+        let roles: Vec<String> = sqlx::query_scalar(
+            "SELECT role FROM artifact_revision_provenance WHERE artifact_revision_id = ? ORDER BY role",
+        ).bind(&revisions[2].0).fetch_all(&mut c).await.unwrap();
+        assert_eq!(roles, vec!["prompt", "response"]);
+        c.close().await.unwrap();
+
+        let source = get_experience(&path, SOURCE_ID).await.unwrap().unwrap();
+        assert!(delete_experience(
+            &path,
+            SOURCE_ID,
+            &source.updated_at,
+            "2026-08-13T12:00:05.000Z",
+            "guard-desktop-delete-0123456789abcdef"
+        )
+        .await
+        .unwrap());
+        assert!(get_experience(&path, SOURCE_ID).await.unwrap().is_none());
+        assert_eq!(
+            list_artifacts(&path, SOURCE_ID).await.unwrap(),
+            serde_json::json!({
+                "evidence":[], "reflections":[], "patterns":[], "recoveryTurns":[]
+            })
+        );
+        let mut c = connect(&path, true).await.unwrap();
+        let content: i64 = sqlx::query_scalar(
+            "SELECT (SELECT COUNT(*) FROM source_revision_content c JOIN source_revisions r ON r.id=c.revision_id WHERE r.source_id=?) \
+             + (SELECT COUNT(*) FROM artifact_revision_content c JOIN artifact_revisions r ON r.id=c.revision_id WHERE r.source_id=?)",
+        ).bind(SOURCE_ID).bind(SOURCE_ID).fetch_one(&mut c).await.unwrap();
+        assert_eq!(content, 0);
+        let head: (Option<String>, String) = sqlx::query_as(
+            "SELECT current_revision_id, lifecycle_state FROM source_heads WHERE id = ?",
+        )
+        .bind(SOURCE_ID)
+        .fetch_one(&mut c)
+        .await
+        .unwrap();
+        assert_eq!(head, (None, "deleted".into()));
+        c.close().await.unwrap();
+        verify_activated_v5_runtime(&path).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn desktop_reflection_invalid_requests_never_mutate() {
+        let (_directory, path) = desktop_reflection_fixture().await;
+        let payloads: Value = serde_json::from_str(DESKTOP_REFLECTION).unwrap();
+        for key in ["answerA", "answerB"] {
+            let before_bundle = list_artifacts(&path, SOURCE_ID).await.unwrap();
+            let before_bytes = std::fs::read(&path).unwrap();
+            for (pointer, bad) in [
+                ("/responseProvenance/origin", serde_json::json!("ai")),
+                (
+                    "/responseProvenance/sourceEntryId",
+                    serde_json::json!("foreign-source"),
+                ),
+                (
+                    "/responseProvenance/sourceArtifactIds",
+                    serde_json::json!(["runtime-evidence"]),
+                ),
+                ("/responseProvenance/generatedAt", serde_json::json!(AT)),
+                ("/responseProvenance/provider", serde_json::json!("mock")),
+                ("/responseProvenance/model", serde_json::json!("remote")),
+                (
+                    "/responseProvenance/harnessVersion",
+                    serde_json::json!("h1"),
+                ),
+                ("/responseProvenance/promptVersion", serde_json::json!("p1")),
+                ("/responseProvenance/model", serde_json::json!(false)),
+                ("/responseProvenance", Value::Null),
+                ("/sourceEntryId", serde_json::json!("foreign-source")),
+                (
+                    "/sourceEvidenceIds",
+                    serde_json::json!(["foreign-evidence"]),
+                ),
+                ("/question", serde_json::json!("A substituted question")),
+                ("/promptProvenance/origin", serde_json::json!("user")),
+                ("/createdAt", serde_json::json!(AT)),
+                ("/response", serde_json::json!("   ")),
+            ] {
+                let mut proposed = canonical_response(payloads[key].clone());
+                *proposed.pointer_mut(pointer).unwrap() = bad;
+                assert!(
+                    save_desktop_response(&path, proposed).await.is_err(),
+                    "{key}: {pointer}"
+                );
+                assert_eq!(
+                    std::fs::read(&path).unwrap(),
+                    before_bytes,
+                    "{key}: {pointer}"
+                );
+            }
+            for extra_provenance in [false, true] {
+                let mut proposed = payloads[key].clone();
+                if extra_provenance {
+                    proposed["responseProvenance"]["unknown"] = serde_json::json!("do not discard");
+                } else {
+                    proposed["unknown"] = serde_json::json!("do not discard");
+                }
+                assert!(save_desktop_response(&path, proposed).await.is_err());
+                assert_eq!(std::fs::read(&path).unwrap(), before_bytes);
+            }
+            // A bundle-level unknown field must also be refused before the writer.
+            let mut proposed = before_bundle.clone();
+            proposed["reflections"] = serde_json::json!([payloads[key]]);
+            proposed["unknown"] = serde_json::json!("do not discard");
+            assert!(save_artifacts(
+                &path,
+                SOURCE_ID,
+                proposed,
+                None,
+                field(&payloads[key], "updatedAt").unwrap(),
+                "guard-desktop-extra-0123456789abcdef"
+            )
+            .await
+            .is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), before_bytes);
+            assert_eq!(
+                list_artifacts(&path, SOURCE_ID).await.unwrap(),
+                before_bundle
+            );
+            if key == "answerA" {
+                save_desktop_response(&path, payloads[key].clone())
+                    .await
+                    .unwrap();
+            }
+        }
+        // An unchanged correction and a stale source fail without writing.
+        let before = std::fs::read(&path).unwrap();
+        let mut unchanged = payloads["answerB"].clone();
+        unchanged["response"] = payloads["answerA"]["response"].clone();
+        assert_eq!(
+            save_desktop_response(&path, unchanged)
+                .await
+                .unwrap_err()
+                .code,
+            "reflection_response_unchanged"
+        );
+        let mut proposed = list_artifacts(&path, SOURCE_ID).await.unwrap();
+        proposed["reflections"] = serde_json::json!([payloads["answerB"]]);
+        assert_eq!(
+            save_artifacts(
+                &path,
+                SOURCE_ID,
+                proposed,
+                Some("2000-01-01T00:00:00.000Z"),
+                "2026-08-13T12:00:04.000Z",
+                "guard-desktop-stale-0123456789abcdef"
+            )
+            .await
+            .unwrap()
+            .status,
+            "stale_generation"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), before);
     }
 
     #[tokio::test]

@@ -1,0 +1,202 @@
+{
+  "schema_version": "1.1",
+  "state_revision": 99,
+  "last_event_id": "2026-10-28-desktop-reflection-provenance-r1:0099",
+  "last_event_hash": "610b027e6a54d085668428aa3d36f1061df4794e57778514303b1c11f8e4bd23",
+  "sprint_id": "2026-10-28-desktop-reflection-provenance-r1",
+  "mission_title": "Desktop Reflection Provenance Correction and Candidate Build R1",
+  "status": "completed",
+  "current_phase": "completed",
+  "current_role": "orchestrator",
+  "review_cycle": 1,
+  "max_review_cycles": 3,
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "接受精確 diff 與 host/build 證據",
+    "selected_option": "A",
+    "authorized_scope": "Accept ONLY the exact seven-file diff bound to worktree digest 19cf8be40f23f6a0a3f19c699b56fc8a84acc056c05dc9c073e2e214ad0260b1 and existing host/build evidence for candidate SHA256 09e0e7c0d285d87ba02ab75e3dd39bfd7b725a8767079c5202ca66632a49bc16. No OS-account creation by agent, installation, launch, runtime DB/manual journey, real or historical profiles, provider use, Git stage/commit/push/merge/PR/release, cleanup or036 continuation.",
+    "decided_at": "2026-10-29T12:44:47.542Z",
+    "evidence_reference": ".artifacts/desktop-reflection-provenance-r1/founder-review-001/diff-acceptance-001.json"
+  },
+  "last_completed_phase": "theory_alignment_review",
+  "next_action": null,
+  "base_branch": "develop",
+  "working_branch": "codex/desktop-reflection-provenance-r1",
+  "repository_head": "7b9e7244ab39bb57f37d3856c366529efc4b25b6",
+  "working_tree_digest": "bea777e212ea61ece6aea016cca8576232abdd69b75b45f05141f243df48de88",
+  "artifacts": {
+    "current_mission": "ready",
+    "product_review": "approved_with_conditions",
+    "engineering_plan": "approved",
+    "engineering_report": "completed_with_follow_up",
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "completed_with_follow_up"
+  },
+  "verification": {
+    "repository_verify": {
+      "status": "passed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 0,
+      "completed_at": "2026-11-02T18:01:27.306Z",
+      "repository_head": "7b9e7244ab39bb57f37d3856c366529efc4b25b6",
+      "working_branch": "codex/desktop-reflection-provenance-r1",
+      "working_tree_digest": "bea777e212ea61ece6aea016cca8576232abdd69b75b45f05141f243df48de88"
+    },
+    "manual_ui": {
+      "status": "passed",
+      "owner": "founder",
+      "completed_at": "2026-11-02T17:31:35.010Z",
+      "evidence_reference": ".artifacts/reflection-projection-ordering-r1/founder-review-001/journey-acceptance-001.json",
+      "scoped_evidence": {
+        "format": "life-os/scoped-manual-verification-v1",
+        "sprint_id": "2026-10-28-desktop-reflection-provenance-r1",
+        "registered_at": "2026-11-02T17:31:35.010Z",
+        "registration_meaning": "Current registration of previously observed and explicitly accepted journey; not a new run or historical timestamp rewrite",
+        "scope": "The observed controlled-mock synthetic Windows desktop journey on the dedicated non-admin R3 current-user installation of candidate20261031-projection-order-r1-001, as bound by the immutable ledger and supplemental payload binding",
+        "scopeQuote": "指定 projection-order R1 candidate 的本次 synthetic Windows 桌面旅程",
+        "target": {
+          "reviewSuffix": "20261031-projection-order-r1-001",
+          "identity": "com.lifeos.founderdogfood",
+          "platform": "windows",
+          "dataClass": "synthetic",
+          "providerMode": "mock",
+          "installMode": "current-user"
+        },
+        "evidence": {
+          "request": {
+            "path": ".artifacts/scoped-manual-verification-closeout-20261103/run-001/registration-request-001.json",
+            "sha256": "d6414dcd20a48cc72737cebf3b907495835c4a508c2feb7c99ac180260a36e79"
+          },
+          "receipt": {
+            "path": ".artifacts/reflection-projection-ordering-r1/founder-review-001/journey-acceptance-001.json",
+            "sha256": "2f92d6a177a9292141f9062f09d249fb1b0e70628f3adf38318a6b0b3a6d8e40"
+          },
+          "sourceBinding": {
+            "path": ".artifacts/reflection-projection-ordering-r1/run-001/source-binding-final.json",
+            "sha256": "5464eb76607aa83535e787e4eb89752b331be150c1c50ce96e20f6bbd3d5a023"
+          },
+          "installer": {
+            "path": ".artifacts/desktop-schema-v5-founder-candidate-r1/7b9e7244ab39-20261031-projection-order-r1-001/Life-OS-Founder-Schema-v5-Candidate-R1-Review-20261031-projection-order-r1-001_0.3.0_x86_64-pc-windows-msvc-setup.exe",
+            "sha256": "8602a8d45e38341e7c55defb96fbf36c25837003730166fa2905d2d1f3d4b5b7"
+          },
+          "manifest": {
+            "path": ".artifacts/desktop-schema-v5-founder-candidate-r1/7b9e7244ab39-20261031-projection-order-r1-001/manifest.json",
+            "sha256": "bab54891c83f10e78f298bc21a1098c0a11d0ae596c48d0c70272f93b6bb2ee5"
+          },
+          "ledger": {
+            "path": ".artifacts/reflection-projection-ordering-r1/manual-r3-001/journey-observed-result-001.json",
+            "sha256": "a6d17bb26a1f1a29a621e201da500b32be4a118f0aeafb731290498774a54126"
+          },
+          "supplement": {
+            "path": ".artifacts/reflection-projection-ordering-r1/static-package-binding-001/supplemental-payload-binding-001.json",
+            "sha256": "5ca0f275ea4cda491fa95ce3ffba16b968c77f53fcecaf99f33dbf14d676caef"
+          }
+        },
+        "sourceSetDigest": "6d7f7d33080386e2234637b0872a9ed6023f52dd8f48d0d2411be059ac137e7b",
+        "acceptance": {
+          "source": "direct-founder-chat",
+          "exactFounderResponse": "接受",
+          "receipt_recorded_at": "2026-11-02T16:18:57.5143019Z"
+        },
+        "observations": [
+          {
+            "result": "PASS_UI_REPORTED",
+            "observationSource": "Founder pasted saved UI text",
+            "step": 1,
+            "action": "create uniquely marked synthetic Experience",
+            "evidence": "source-evidence-q1-observations-001.json"
+          },
+          {
+            "result": "PASS_UI_REPORTED",
+            "observationSource": "Founder pasted successive UI results; later agent sees persisted confirmed count",
+            "step": 2,
+            "action": "generate and confirm synthetic Evidence",
+            "evidence": "source-evidence-q1-observations-001.json"
+          },
+          {
+            "result": "PASS_UI_REPORTED",
+            "observationSource": "Founder pasted success and one suggested question; agent later sees Q1/Q2",
+            "step": 3,
+            "action": "generate first batch, choose Q1",
+            "evidence": "source-evidence-q1-observations-001.json"
+          },
+          {
+            "result": "PASS_UI_DIRECT",
+            "observationSource": "Founder performed append; agent directly sees complete DRAFT-R3-001 in same Q1 and distinct Q2, two suggested",
+            "step": 4,
+            "action": "leave Q1 draft then explicitly append",
+            "evidence": "agent-ui-a-and-append-observations-001.json"
+          },
+          {
+            "result": "PASS_UI_DIRECT",
+            "observationSource": "Agent performed single save, observed explicit local-save success and exact A",
+            "step": 5,
+            "action": "save Q1 answer A once",
+            "evidence": "agent-ui-a-and-append-observations-001.json"
+          },
+          {
+            "result": "PASS_UI_DIRECT",
+            "observationSource": "Agent explicit one append; A/Q1/Q2 retained and Q3 added, two suggested/one answered",
+            "step": 6,
+            "action": "append with Q1 already answered",
+            "evidence": "agent-ui-a-and-append-observations-001.json"
+          },
+          {
+            "result": "PASS_INSTALLED_LIFECYCLE_UI_DIRECT",
+            "observationSource": "Agent normal close/PID23388 absent; Founder guarded R3 mock launch PID38248; agent directly observes same source/three prompt IDs/exact A",
+            "step": 7,
+            "action": "normal close/reopen and confirm A plus questions",
+            "evidence": [
+              "normal-exit-after-a-001.json",
+              "agent-ui-reopen-a-correct-b-observations-001.json"
+            ]
+          },
+          {
+            "result": "PASS_INSTALLED_LIFECYCLE_UI_DIRECT",
+            "observationSource": "Agent one B save with explicit success; normal close/PID38248 absent; Founder guarded R3 mock launch PID19492; agent directly observes B/same Q1/source/three IDs",
+            "step": 8,
+            "action": "correct same Q1 to B, normal close/reopen confirm B",
+            "evidence": [
+              "normal-exit-after-b-001.json",
+              "agent-ui-reopened-b-before-delete-001.json"
+            ]
+          },
+          {
+            "result": "PASS_INSTALLED_LIFECYCLE_UI_DIRECT",
+            "observationSource": "Founder action-time deletion confirmation; agent one delivered Delete click, zero counts/empty timeline; normal close/PID19492 absent; Founder guarded R3 mock launch PID9284; two agent direct final reads show zero global counts and no source/prompts/answers",
+            "step": 9,
+            "action": "explicit-confirmed source deletion; normal close/reopen confirm absence",
+            "evidence": [
+              "source-deletion-authorization-001.json",
+              "agent-ui-source-deletion-observations-001.json",
+              "normal-exit-after-deletion-001.json",
+              "agent-ui-final-reopen-absence-observations-001.json"
+            ]
+          }
+        ],
+        "limits": [
+          "No direct SQLite/profile/provenance/lineage or secure-erasure proof from UI",
+          "Adversarial equal-time/reverse-ID multi-question batches remain existing REAL SQLite host evidence, not manually forced",
+          "Mock semantic quality/novel wording not accepted; repeated wording has distinct UI IDs",
+          "Unsaved draft persistence across shutdown NOT required or claimed",
+          "No power-loss/concurrent-process/Android/device/ordinary-profile validation",
+          "Mock does NOT prove zero-network binary"
+        ],
+        "prior_verification": {
+          "status": "not_run",
+          "owner": "founder",
+          "completed_at": null,
+          "evidence_reference": null
+        }
+      }
+    }
+  },
+  "created_at": "2026-10-28T14:55:58.850Z",
+  "updated_at": "2026-11-02T18:01:30.660Z"
+}

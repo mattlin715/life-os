@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.0
+version: 1.1
 owner: LIN MENGLUNG
-last_updated: 2026/08/11
+last_updated: 2026/10/31
 depends:
   - docs/03_Principles.md
   - docs/06_Memory.md
@@ -79,6 +79,13 @@ The current per-Experience flow is:
 4. Generate direct Evidence observations from a validated task-specific Context Packet.
 5. Confirm, edit, or reject Evidence.
 6. Generate and optionally answer/skip Reflection prompts.
+   The first explicit action creates questions. If questions already exist,
+   **Add another reflection question** appends the complete generated batch once,
+   retaining existing IDs, answers, provenance and unsaved drafts. No automatic
+   continuous generation is introduced. Same-source in-flight requests are
+   blocked synchronously; later explicit requests remain available. Stale source,
+   relevant Evidence/answers or suggested-set changes discard a late result
+   without retry. Empty or uncertain results are not reported as success.
 7. Permit a tentative Pattern only when context is sufficient for that inference depth.
 8. Persist valid source-scoped artifacts and provenance locally.
 

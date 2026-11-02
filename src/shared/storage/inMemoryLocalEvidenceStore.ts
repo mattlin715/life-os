@@ -1,5 +1,6 @@
 ﻿import type { ExperienceEntry, ISODateTime } from "../../types/domain";
 import { validateArtifactBundle } from "./artifactValidation";
+import { reflectionWritePrecondition } from "./reflectionWritePrecondition";
 import type { CreateExperienceInput, LocalEvidenceStore, PersistedArtifactBundle, UpdateExperiencePatch } from "./types";
 import type { HistoricalConsentEvent, HistoricalQuestionArtifact, HistoricalTransmissionEvent } from "../../historicalContext/governedPacket";
 
@@ -54,6 +55,10 @@ export function createInMemoryLocalEvidenceStore(): LocalEvidenceStore {
     async saveArtifacts(entryId, bundle, options = {}) {
       const entry = entries.get(entryId);
       if (!entry) throw new Error("Cannot save artifacts for a missing experience.");
+      const current = artifacts.get(entryId) ?? emptyBundle();
+      if (options.expectedReflectionSet !== undefined && options.expectedReflectionSet !== reflectionWritePrecondition(current)) {
+        return { status: "stale_generation" as const, bundle: copyBundle(current), validationIssues: [] };
+      }
       if (options.expectedExperienceUpdatedAt && entry.updatedAt !== options.expectedExperienceUpdatedAt) {
         return { status: "stale_generation" as const, bundle: copyBundle(artifacts.get(entryId) ?? emptyBundle()), validationIssues: [] };
       }

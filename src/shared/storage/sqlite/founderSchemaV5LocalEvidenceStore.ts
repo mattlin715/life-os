@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { ISODateTime } from "../../../types/domain";
 import { validateArtifactBundle } from "../artifactValidation";
+import { reflectionWritePrecondition } from "../reflectionWritePrecondition";
 import type { LocalEvidenceStore, PersistedArtifactBundle } from "../types";
 
 const createId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -59,6 +60,9 @@ export function createFounderSchemaV5LocalEvidenceStore(): LocalEvidenceStore {
     async saveArtifacts(entryId, bundle, options = {}) {
       const validated = validateArtifactBundle(entryId, bundle);
       const current = await this.listArtifacts(entryId);
+      if (options.expectedReflectionSet !== undefined && options.expectedReflectionSet !== reflectionWritePrecondition(current)) {
+        return { status: "stale_generation", bundle: current, validationIssues: validated.validationIssues };
+      }
       const result = await invoke<{ status: "committed" | "stale_generation"; bundle: PersistedArtifactBundle }>("save_founder_v5_artifacts", {
         entryId,
         bundle: validated.bundle,

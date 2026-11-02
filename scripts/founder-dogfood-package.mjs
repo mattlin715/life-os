@@ -21,6 +21,7 @@ export const MANIFEST_KEYS = Object.freeze([
 ]);
 
 const SOURCE_ALLOWLIST = new Set([
+  "src-tauri/tests/fixtures/schema_v5/desktop_reflection_answers.json",
   ".gitignore",
   "scripts/build-founder-dogfood-package.ps1",
   "scripts/founder-dogfood-package.mjs",
@@ -61,6 +62,22 @@ const ACTIVE_SUCCESSOR_PREFIXES = [
     ".ai/workflow/HISTORY/2026-08-23-ordinary-v5-real-profile-phase-b-blocked-r1/",
   ];
 const ACTIVE_SUCCESSOR_ALLOWLIST = new Set([
+  "src/shared/storage/sqlite/reflectionProjectionOrdering.test.ts",
+  "src-tauri/tests/fixtures/schema_v5/reflection_projection_ordering.json",
+  "src-tauri/tests/diagnostics/reflection_projection_ordering.rs",
+  "src/app/reflectionGeneration.ts",
+  "src/app/reflectionGeneration.test.ts",
+  "src/shared/storage/reflectionWritePrecondition.ts",
+  "src/shared/storage/artifactMutation.ts",
+  "src/shared/storage/inMemoryLocalEvidenceStore.ts",
+  "src/shared/storage/types.ts",
+  "src/shared/storage/sqlite/sqliteLocalEvidenceStore.ts",
+  "docs/product/00_MVP_User_Flow.md",
+  "src/shared/storage/reflectionGenerationCapture.test.ts",
+  "src/shared/storage/sqlite/founderReflectionGeneration.test.ts",
+  "src-tauri/tests/diagnostics/reflection_generation_capture.rs",
+  "src-tauri/tests/diagnostics/reflection_generation_additions.rs",
+  "src-tauri/tests/fixtures/schema_v5/reflection_generation_capture.json",
   "docs/architecture/24_Android_M2C_Offline_Synthetic_Daily_Reflection.md",
   "docs/dev/15_Android_M2C_Offline_Synthetic_Daily_Reflection_Runbook.md",
   "scripts/android-m2c-contract.node-test.mjs",
