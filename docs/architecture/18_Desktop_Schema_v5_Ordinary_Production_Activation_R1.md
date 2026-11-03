@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.8
+version: 0.9
 owner: product-and-engineering
-last_updated: 2026/09/14
+last_updated: 2026/11/03
 depends:
   - docs/00_Constitution.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
@@ -380,6 +380,18 @@ separately explicit verified-backup restore. A shipped rollback would require
 a forward fix or read-only compatible build, not a down migration.
 
 ## R2 successor boundary
+
+Dated Founder decision `PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001`
+(2026/11/03) limits architecture/19's three explicit recovery actions and recovery
+receipt deletion to Windows. Non-Windows public commands refuse before profile
+resolution/I/O; private mutation helpers also refuse. Pure classifiers preserve
+blocked-state truth and R2B restore refusal. This is a new capability decision,
+not historical policy, and does not withdraw ADR-0006's Mac MVP direction or
+change ordinary migration/resume/restore. Cross-platform recovery needs separate
+design, review and authorization. See architecture/19's dated decision and
+original-case mapping; no real/stopped profile, release or Android/036 work is
+authorized by it.
+
 
 Architecture/19 adds only an explicit-open recovery contract for the exact
 retained pre-backup prepared state. It does not reinterpret the R1 evidence,

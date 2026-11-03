@@ -1,99 +1,98 @@
 # Product Review
 
-Status: pending
+Status: approved
 
-- Sprint ID: required
+- Sprint ID: 2026-11-03-prepared-recovery-platform-boundary-r1
 - Artifact schema: 1.0
 - Authoring role: chief_product_theorist
-- Repository HEAD reviewed: required
-- Working-tree digest reviewed: required
-- Created at: required
-- Updated at: required
+- Repository HEAD reviewed: 0b3987d6b34557939a8c557146d95a2893346a12
+- Working-tree digest reviewed: 5e1374579abd2292652cf8b997e8aebed69b9cd335a225fd96c2b6c75262301d
+- Created at: 2026/11/03
+- Updated at: 2026/11/03
 
 Allowed final status: `approved`, `approved_with_conditions`,
 `revision_required`, `human_decision_required`, or `rejected`.
 
 ## Mission Interpretation
 
-Required.
+Apply Founder A from .ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md.
 
 ## Problem Statement
 
-Required.
+Non-Windows File::open guard does not prove exclusion; raw-handle fixture differs by platform. CI is not support authority.
 
 ## User Value
 
-Required.
+Truthful recovery capability; preserve ambiguous state without withdrawing Mac MVP.
 
 ## Relevant Primary Definitions
 
-Required paths and applicable meanings.
+docs/00_Constitution.md agency/hierarchy/privacy; docs/00_Index.md routing. No Book Zero change.
 
 ## Relevant ADRs
 
-Required paths and decisions.
+ADR-0006 Mac/Windows MVP unchanged; ADR-0007 provenance unchanged; ADR-0011 separate implementation authority; ADR-0012 no implicit recovery portability.
 
 ## Current Implementation Context
 
-Required repository evidence; separate implemented, proposed,
-founder-approved, and implemented-and-verified states.
+architecture19 three recovery paths; first two file guard, R2B write-locked recheck. Existing ordinary non-Android desktop routes have no Windows gate.
 
 ## In Scope
 
-Required.
+Only recovery module/tests, panel tests with minimal recovery-specific localization if needed, architecture18/19 and current workflow. No Windows sharing/lock/move, R2B SQL core, DDL, ordinary migration/resume/restore, Reflection, icon, dependencies/features, CI, Constitution, ADR status or old archive changes.
 
 ## Out Of Scope
 
-Required.
+Merge, protected branch push, release/deploy, installer/candidate rebuild, app/profile/SDK/ADB/036 work.
 
 ## Product Constraints
 
-Required.
+Fixed recovery-specific unsupported reason; no private bypass, fallback or retry; preserve classifier truth and restore refusal.
 
 ## Evidence And Provenance Constraints
 
-Required; use `none` only with evidence.
+Synthetic technical evidence only; root path/type/bytes before and after every unsupported call. Preserve RED/failed exits separately.
 
 ## Historical Context Constraints
 
-Required; use `none` only with evidence.
+No content or context transmission.
 
 ## Consent Constraints
 
-Required; use `none` only with evidence.
+Recovery remains explicit and separate from migration.
 
 ## AI-Role Constraints
 
-Required.
+We Build Mirrors, Not Oracles; no interpretation/inference feature changes.
 
 ## Privacy Constraints
 
-Required.
+No real or stopped profile access.
 
 ## User-Agency Constraints
 
-Required.
+Specific localized recovery refusal, cancel/close remains available.
 
 ## Acceptance Criteria
 
-Required, observable list.
+AC1 centralized Windows capability; AC2 public pre-path/I-O and private mutation refusal; AC3 Windows behavior preserved; AC4 pure classifier and blocked/restore routing preserved; AC5 original30 named destinations and complete synthetic-root snapshots, held real SQLite rollback read/write/WAL connections; AC6三語 unsupported UI/close; AC7 canonical Windows and actual Ubuntu four checks; AC8 independent commit and stacked draft only.
 
 ## Risks
 
-Required.
+Non-Windows recovery intentionally unavailable; no Unix exclusion, cross-process, power-loss or release certification.
 
 ## Open Questions
 
-Required; use `none` when resolved.
+None inside explicit implementation authority.
 
 ## Human Decision Required
 
-Required boolean and decision IDs.
+false; A already resolved; final PR/CI awaits Founder review without merge.
 
 ## Recommendation
 
-Required.
+Proceed with exact bounded implementation.
 
 ## Review Status
 
-Required; must match the top-level Status.
+approved

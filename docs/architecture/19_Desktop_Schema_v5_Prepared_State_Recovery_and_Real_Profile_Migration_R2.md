@@ -1,8 +1,8 @@
 ---
 status: Implemented
-version: 0.6
+version: 0.7
 owner: product-and-engineering
-last_updated: 2026/09/14
+last_updated: 2026/11/03
 depends:
   - docs/00_Constitution.md
   - docs/adr/ADR-0007-persist-reviewed-ai-artifacts-with-provenance.md
@@ -17,6 +17,105 @@ referenced_by:
 ---
 
 # 19 Desktop Schema-v5 Prepared-State Recovery and Real-Profile Migration R2
+
+## Founder platform-capability decision R1 — 2026/11/03
+
+Founder decision `PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001` newly limits
+these specific actions to Windows: prepared-v4 recovery, v5 sidecar recovery,
+historical-frontend R2B lifecycle recovery (including explicit re-execution after
+interrupted activation/finalization), and recovery receipt deletion. The exact
+direct-chat response and subsequent implementation/publication limits are in
+[the current sprint authorization](../../.ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md).
+This is a new dated capability decision, not a rewrite of the earlier policy.
+ADR-0006's general Mac/Windows MVP direction is unchanged. Linux CI execution
+and historical Unix fallback code never establish recovery support authority.
+Cross-platform recovery requires separate design, review and Founder authority.
+No Accepted ADR status or general migration/restore policy changes here.
+
+A centralized native-platform check returns the fixed
+`prepared_recovery_platform_unsupported` reason on non-Windows. Public recovery
+inspection returns ineligible before profile-path resolution/I/O. Public execute
+and receipt-delete refuse before identity/path resolution, operation lock or
+related I/O; private mutation helpers enforce the same boundary before their
+first effect. A normal file open is no longer represented as exclusive access.
+There is no Unix lock, automatic retry, fallback, restore or repair addition.
+Windows sharing/LockFileEx/moves and R2B transaction logic are unchanged.
+
+Pure structural classifiers and retained receipt summaries remain readable and
+portable. A structurally recognized blocked R2B state still blocks startup with
+restore unavailable, even when its lifecycle contract was already activated
+before interruption. Platform refusal must not erase that classification or
+route the state into restore. The recovery panel shows a visible recovery-only
+explanation in English, Traditional Chinese and Japanese; no recovery action is
+offered for unsupported inspection, while Cancel and Preserve/close remain.
+This does not state that the entire Mac or Linux app is unavailable.
+
+### Original 30-case disposition
+
+The original 24 structural checks still execute on all applicable platforms.
+The original six execution predicates remain Windows mutation/refusal evidence;
+non-Windows checks prove a different capability contract, not equivalent locks.
+Cases are mapped individually rather than preserving a misleading total alone.
+
+| Original case | Meaning | Destination |
+| --- | --- | --- |
+| 1 | schema-v5 | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 2 | invalid-header | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 3 | journal | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 4 | missing-wal | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 5 | missing-shm | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 6 | short-wal | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 7 | framed-wal | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 8 | bad-wal-magic | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 9 | bad-wal-page | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 10 | empty-shm | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 11 | short-shm | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 12 | shm-copy-mismatch | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 13 | shm-version | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 14 | shm-uninitialized | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 15 | shm-frame | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 16 | shm-page | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 17 | shm-backfill | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 18 | staging-not-empty | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 19 | backup-present | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 20 | operation-extra-file | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 21 | state-malformed | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 22 | state-missing | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 23 | second-operation | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 24 | database-missing | Structural refusal on all applicable hosts; whole-root snapshot. |
+| 25 | wrong claim digest | Windows original execution refusal + root snapshot; non-Windows fixed unsupported + unchanged root. |
+| 26 | wrong database digest | Windows original execution refusal + root snapshot; non-Windows fixed unsupported + unchanged root. |
+| 27 | staging changed after review | Windows original execution refusal + root snapshot; non-Windows fixed unsupported + unchanged root. |
+| 28 | database changed after review | Windows original execution refusal + root snapshot; non-Windows fixed unsupported + unchanged root. |
+| 29 | receipt destination conflict | Windows original execution refusal + root snapshot; non-Windows fixed unsupported + unchanged root. |
+| 30 | active raw file handle | Windows original deny-sharing handle refusal; non-Windows raw handle + fixed unsupported + unchanged root, NOT SQLite exclusion proof. |
+
+Additional non-Windows tests cover valid reviewed claims, all three executors,
+repeated calls, every pre-backup/sidecar failure-injection boundary, valid prior
+receipt deletion, complex operation/backup/receipt/quarantine/journal/conflict
+state, and both disabled and already-enabled interrupted R2B completion. Each
+refusal compares the entire synthetic root's path set, file type, bytes and
+SHA-256, including directory creation/removal and absence; all fixture mutation
+and conflict injection precedes the before snapshot. Native Windows success,
+partial-failure and coordination-lock tests remain explicitly Windows tests,
+not ignored tests or non-Windows early-refusal substitutes. The direct SQL
+transaction-revalidation regression stays cross-platform.
+
+The smallest actual-SQLite activity matrix uses separate setup and held
+connections, rollback-mode read/write and WAL read/write transactions. Awaited
+SQL establishes activity; there is no arbitrary sleep. Snapshots are compared
+while each transaction remains open, before rollback/close cleanup. These tests
+prove only platform refusal with no recovery side effects, not Unix exclusion,
+cross-process safety, VFS equivalence, malicious same-user exclusion, crash
+atomicity, power-loss durability, release readiness or profile recovery safety.
+Source-order regressions independently check every public pre-path gate and
+private mutation-first gate without launching an app or resolving a profile.
+
+The bounded Windows baseline source-contract regression was RED (8 failures,
+17 existing panel tests passing) before product edits. Actual host/Ubuntu exits,
+commit/PR/merge-SHA binding and limitations belong to the current sprint reports;
+unexecuted or skipped checks are never passes. No real/stopped profile or 036
+authority follows from this capability decision.
 
 ## Status and authority
 
@@ -54,7 +153,7 @@ to that inspected claim.
 
 ## Supported predicate
 
-Recovery is offered only when every condition below is re-proved:
+On Windows only, recovery is offered when every condition below is re-proved:
 
 1. compiled identity is ordinary desktop `com.lifeos.app` with
    `desktop-schema-v5`;
