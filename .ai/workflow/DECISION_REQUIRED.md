@@ -1,41 +1,81 @@
 # Decision Required
 
-Status: resolved
+Status: open
 
 - Sprint ID: 2026-11-03-prepared-recovery-platform-boundary-r1
 - Artifact schema: 1.0
 - Authoring role: orchestrator
-- Repository HEAD reviewed: 0b3987d6b34557939a8c557146d95a2893346a12
-- Working-tree digest reviewed: 5e1374579abd2292652cf8b997e8aebed69b9cd335a225fd96c2b6c75262301d
 - Created at: 2026/11/03
 - Updated at: 2026/11/03
 
 ## Decision ID
 
-PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001
+PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-VALIDATION-RESOURCE-001
 
 ## Decision Summary
 
-New dated decision, not historical Windows-only policy.
+Disposition Windows validation resource failure only. Founder A platform policy remains resolved and unchanged.
+
+## Why Automation Stopped
+
+Canonical wrapper exit1, inner Cargo101. At Founder activation test linking, PDB LNK1318 LIMIT(12) and archive allocation error112 (disk full). Read-only post-failure capacity: C489164800 bytes; D155881574400 bytes. No product change is justified by this failure.
+
+## Relevant Constitution Clauses
+
+Evidence before conclusion, privacy, documentation hierarchy. Do not claim canonical or Ubuntu PASS.
+
+## Relevant Primary Definitions
+
+Architecture19 newly dated exact Founder policy; ADR0006 general Mac MVP remains.
+
+## Relevant ADRs
+
+No acceptance/status change or new ADR needed for host output placement.
+
+## Available Options
+
+A: separately authorize a fresh sufficiently provisioned validation output location (for example D), exact source commit, unchanged verifier, no old target/dist copy and no cleanup. B: preserve current source/failed evidence and stop.
+
+## Benefits
+
+A can finish verification without discarding evidence. B creates no more outputs or resource use.
+
+## Risks
+
+A consumes more disk and remains subject to host/linker failure; it does not prove Linux. B leaves validation/publication incomplete.
+
+## Reversibility
+
+No current output removal or reset. Any future cleanup needs explicit scope.
+
+## Data And Privacy Impact
+
+Synthetic test outputs only; no real/stopped profile, app, SDK/ADB or036 authority.
+
+## Orchestrator Recommendation
+
+A only after explicit resource-location approval. Preserve failed C outputs and use fresh outputs, not cache transplantation or verifier/guard weakening.
+
+## Default Safe Action
+
+B now: preserve and stop, no retry/push/PR/CI/merge.
+
+## Blocked Files Or Phases
+
+Full canonical, formal theory completion, normal push, stacked draft PR and Ubuntu CI. Product implementation is locally committed.
+
+## Exact Founder Response Needed
+
+Authorize a specific fresh adequately provisioned validation-output location for exact source638626a0e0dfbe9fa8c6e108158be26f78e4f4e6 with unchanged canonical verifier, preserving all current worktrees/outputs. This does not reopen A policy or grant cleanup.
 
 ## Resolution Status
 
-resolved
+open
 
-## Exact Founder Response
+## Prior Founder Policy Resolution
 
-核定 A：將架構19三項explicit recovery及其receipt刪除暫限Windows，非Windows於任何mutation前明確拒絕；保留Mac一般MVP承諾，跨平台recovery另案設計與授權
-
-## Selected Option And Authorized Scope
-
-- Selected option: A
-- Authorized scope: Three architecture19 recoveries and receipt deletion Windows-only; bounded implementation/synthetic tests/docs/host verification/commit/repair push/stacked draft PR/CI; no merge/profile/036.
-
-## Decided At And Evidence Reference
-
-- Decided at: 2026-11-03T08:40:35.009Z
-- Evidence reference: .ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md
+PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001 remains A, resolved. Exact response: 核定 A：將架構19三項explicit recovery及其receipt刪除暫限Windows，非Windows於任何mutation前明確拒絕；保留Mac一般MVP承諾，跨平台recovery另案設計與授權. Exact source/scope remain in PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md and the prior resolution event.
 
 ## Resume Phase
 
-product_review
+validation

@@ -1,51 +1,46 @@
 {
   "schema_version": "1.1",
-  "state_revision": 13,
-  "last_event_id": "2026-11-03-prepared-recovery-platform-boundary-r1:0013",
-  "last_event_hash": "cc4a632e6a75a14c689078b572232b7edc89fdca11744b1aa2fb30203f167a34",
+  "state_revision": 17,
+  "last_event_id": "2026-11-03-prepared-recovery-platform-boundary-r1:0017",
+  "last_event_hash": "ab3bafd617eaa1ef479e4b2318eba5ed3f94468e61369a36275b8c76f16b212f",
   "sprint_id": "2026-11-03-prepared-recovery-platform-boundary-r1",
   "mission_title": "Prepared Recovery platform boundary R1",
-  "status": "validation",
-  "current_phase": "validation",
+  "status": "human_decision_required",
+  "current_phase": "human_decision_required",
   "current_role": "orchestrator",
   "review_cycle": 0,
   "max_review_cycles": 3,
-  "human_approval_required": false,
-  "blocking_reason": null,
-  "blocked_phase": null,
-  "resume_phase": null,
-  "active_decision_ids": [],
-  "decision_resolution": {
-    "status": "resolved",
-    "exact_founder_response": "核定 A：將架構19三項explicit recovery及其receipt刪除暫限Windows，非Windows於任何mutation前明確拒絕；保留Mac一般MVP承諾，跨平台recovery另案設計與授權",
-    "selected_option": "A",
-    "authorized_scope": "Three architecture19 recoveries and receipt deletion Windows-only; bounded implementation/synthetic tests/docs/host verification/commit/repair push/stacked draft PR/CI; no merge/profile/036.",
-    "decided_at": "2026-11-03T08:40:35.009Z",
-    "evidence_reference": ".ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md"
-  },
-  "last_completed_phase": "implementation",
+  "human_approval_required": true,
+  "blocking_reason": "Host disk-space/linker failure blocks full canonical; preserve and stop without cleanup, retry or publication. Existing A policy remains resolved.",
+  "blocked_phase": "validation",
+  "resume_phase": "validation",
+  "active_decision_ids": [
+    "PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-VALIDATION-RESOURCE-001"
+  ],
+  "decision_resolution": null,
+  "last_completed_phase": "validation",
   "next_action": null,
   "base_branch": "develop",
   "working_branch": "codex/prepared-recovery-platform-boundary-r1",
-  "repository_head": "0b3987d6b34557939a8c557146d95a2893346a12",
-  "working_tree_digest": "08a52580707e8de1276bd85076990f6f8e3f3422b394d492f305ccb6f38ba1d7",
+  "repository_head": "638626a0e0dfbe9fa8c6e108158be26f78e4f4e6",
+  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
   "artifacts": {
     "current_mission": "ready",
     "product_review": "approved",
     "engineering_plan": "approved",
     "engineering_report": "completed_with_follow_up",
     "theory_alignment_review": "pending",
-    "decision_required": "resolved",
-    "sprint_report": "pending"
+    "decision_required": "open",
+    "sprint_report": "human_decision_required"
   },
   "verification": {
     "repository_verify": {
-      "status": "not_run",
-      "command": null,
-      "exit_code": null,
-      "completed_at": null,
-      "repository_head": null,
-      "working_tree_digest": null
+      "status": "failed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 1,
+      "completed_at": "2026-11-03T09:17:37.652Z",
+      "repository_head": "638626a0e0dfbe9fa8c6e108158be26f78e4f4e6",
+      "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e"
     },
     "manual_ui": {
       "status": "not_run",
@@ -55,5 +50,5 @@
     }
   },
   "created_at": "2026-11-03T08:38:22.916Z",
-  "updated_at": "2026-11-03T08:51:45.628Z"
+  "updated_at": "2026-11-03T09:17:39.858Z"
 }

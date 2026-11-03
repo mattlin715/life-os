@@ -68,7 +68,7 @@ Baseline focused panel/source suite RED: exit1, 8 new failures/17 existing passe
 
 ## Verification Results
 
-Bounded source review passed nine exact-body invariants: Windows guard/move, classifiers/summary unchanged, R2B body differs only by leading platform guard. git diff --check exit0, workflow validation passed. Canonical Windows pending; package guard requires new authorization record to be committed first (no allowlist bypass). Ubuntu pending until authorized push/stacked draft.
+Bounded source review passed nine exact-body invariants: Windows guard/move, classifiers/summary unchanged, R2B body differs only by leading platform guard. git diff --check exit0, workflow validation passed. Canonical Windows FAILED, wrapper exit1, inner Cargo exit101 at Founder schema-v5 activation test linking: LNK1318 PDB LIMIT(12), plus explicit archive allocation disk-space error112. Prior canonical stages passed: workflow38, frontend528, primary Rust272 + backup12 + contract8, Rust check, legacy compatibility check, legacy refusal33, ordinary activation10, Founder feature check. Founder activation tests did not execute; Founder runtime and later canonical repository-safety stages were not reached. Earlier independent whitespace/stage-secret checks remain separate evidence, not substitutes. No rerun, push, PR or Ubuntu run. New resource stop, not a recovery/Reflection/icon regression attribution. Source commit 638626a0e0dfbe9fa8c6e108158be26f78e4f4e6.
 
 ## Manual Verification Required
 
@@ -96,8 +96,12 @@ Cross-platform recovery intentionally unavailable until separate design/review/a
 
 ## Git State
 
-Branch codex/prepared-recovery-platform-boundary-r1 from exact0b3987d. No push yet; only bounded source/docs/current workflow changes. Icon branch/PR unchanged. Source commit and full canonical must precede push.
+Branch codex/prepared-recovery-platform-boundary-r1 from exact0b3987d. No push yet; only bounded source/docs/current workflow changes. Icon branch/PR unchanged. Source commit 638626a0e0dfbe9fa8c6e108158be26f78e4f4e6 created before clean-source verification under explicit authorization. Full canonical failed due host resources, so push/PR/CI remain blocked. Preserve all outputs; final workflow-only stop record follows without product changes.
 
 ## Engineer Completion Status
 
 completed_with_follow_up
+
+## Validation resource stop — 2026/11/03
+
+No cleanup or retry. Read-only capacity observation after failure: C available489164800 bytes, D available155881574400 bytes. Disk exhaustion is directly reported by Cargo; no claim that the complete LNK1318 cause was independently root-caused. New decision PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-VALIDATION-RESOURCE-001 concerns only a fresh adequately provisioned validation-output location, not the already resolved A policy. Formal theory review not reached; bounded source review remains recorded separately.
