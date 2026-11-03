@@ -79,6 +79,9 @@ export function PreparedStateRecoveryPanel({
         <ul>
           {boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}
         </ul>
+        {inspection.reason === "prepared_recovery_platform_unsupported" ? (
+          <p className="inline-error" role="alert">{copy.preparedRecoveryPlatformUnsupported}</p>
+        ) : null}
         <details className="secondary-tools prepared-recovery-details">
           <summary>{copy.preparedRecoveryTechnicalDetails}</summary>
           <dl>

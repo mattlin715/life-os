@@ -20,6 +20,19 @@ use std::{
 use tauri::AppHandle;
 use time::OffsetDateTime;
 
+// Founder PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001, 2026/11/03.
+// This is narrower than general Mac/Windows MVP support. Pure structural
+// classifiers stay portable; all recovery mutation must enforce this boundary.
+const RECOVERY_PLATFORM_UNSUPPORTED: &str = "prepared_recovery_platform_unsupported";
+
+fn require_recovery_platform() -> Result<(), String> {
+    if cfg!(windows) {
+        Ok(())
+    } else {
+        Err(RECOVERY_PLATFORM_UNSUPPORTED.into())
+    }
+}
+
 const ORDINARY_IDENTIFIER: &str = "com.lifeos.app";
 const DATABASE_FILENAME: &str = "life-os.db";
 const WAL_FILENAME: &str = "life-os.db-wal";
@@ -1042,13 +1055,12 @@ fn move_with_write_through(source: &Path, destination: &Path) -> Result<(), Stri
 }
 
 #[cfg(not(windows))]
-struct DatabaseActivityGuard(File);
+struct DatabaseActivityGuard;
 
 #[cfg(not(windows))]
-fn open_database_exclusive(path: &Path) -> Result<DatabaseActivityGuard, String> {
-    File::open(path)
-        .map(DatabaseActivityGuard)
-        .map_err(|_| "prepared_recovery_database_activity_not_exclusive".into())
+fn open_database_exclusive(_path: &Path) -> Result<DatabaseActivityGuard, String> {
+    require_recovery_platform()?;
+    Err(RECOVERY_PLATFORM_UNSUPPORTED.into())
 }
 
 fn execute_at(
@@ -1073,6 +1085,7 @@ fn execute_at_with_failure(
     expected_database_sha256: &str,
     failure_point: RecoveryFailurePoint,
 ) -> Result<PreparedRecoveryResult, String> {
+    require_recovery_platform()?;
     let _database_guard = open_database_exclusive(live)?;
     let inspection = inspect_at(root, live)?;
     if !inspection.eligible {
@@ -1225,6 +1238,7 @@ fn execute_v5_sidecar_at_with_failure(
     expected_database_sha256: &str,
     failure_point: RecoveryFailurePoint,
 ) -> Result<PreparedRecoveryResult, String> {
+    require_recovery_platform()?;
     let _database_guard = open_database_exclusive(live)?;
     let inspection = tauri::async_runtime::block_on(inspect_v5_sidecar_at(root, live))?;
     if !inspection.eligible
@@ -1387,6 +1401,7 @@ fn execute_post_commit_manifest_at(
     expected_claim_digest: &str,
     expected_database_sha256: &str,
 ) -> Result<PreparedRecoveryResult, String> {
+    require_recovery_platform()?;
     let inspection = tauri::async_runtime::block_on(inspect_post_commit_manifest_at(root, live))?;
     if !inspection.eligible {
         return Err(inspection
@@ -1529,6 +1544,9 @@ fn require_ordinary(app: &AppHandle) -> Result<(), String> {
 pub fn inspect_prepared_state_recovery(
     app: AppHandle,
 ) -> Result<PreparedRecoveryInspection, String> {
+    if let Err(reason) = require_recovery_platform() {
+        return Ok(PreparedRecoveryInspection::refused(reason));
+    }
     require_ordinary(&app)?;
     let (root, live) = paths(&app)?;
     match inspect_any_at(&root, &live) {
@@ -1543,6 +1561,7 @@ pub fn execute_prepared_state_recovery(
     expected_claim_digest: String,
     expected_database_sha256: String,
 ) -> Result<PreparedRecoveryResult, String> {
+    require_recovery_platform()?;
     require_ordinary(&app)?;
     let _operation_guard = operation_lock()?;
     let (root, live) = paths(&app)?;
@@ -1657,6 +1676,7 @@ pub(crate) fn recovery_receipt_summary(root: &Path) -> Option<RecoveryReceiptSum
 }
 
 fn delete_receipt_at(root: &Path, relative_path: &str) -> Result<(), String> {
+    require_recovery_platform()?;
     let summary = recovery_receipt_summary(root).ok_or("prepared_recovery_receipt_unavailable")?;
     if summary.relative_path != relative_path || relative_path.contains(['/', '\\']) {
         return Err("prepared_recovery_receipt_identity_mismatch".into());
@@ -1672,6 +1692,7 @@ pub fn delete_prepared_recovery_receipt(
     app: AppHandle,
     relative_path: String,
 ) -> Result<(), String> {
+    require_recovery_platform()?;
     require_ordinary(&app)?;
     let _operation_guard = operation_lock()?;
     let (root, _) = paths(&app)?;
@@ -1691,6 +1712,330 @@ mod tests {
     const V4_FIXTURE: &str = include_str!("../tests/fixtures/schema_v5/v4.sql");
 
     type FixtureMutation = Box<dyn Fn(&TempDir, &Path, &OwnedOperation)>;
+
+    // Includes directory/absence changes, not just the live database digest.
+    fn root_snapshot(root: &Path) -> std::collections::BTreeMap<String, (String, Vec<u8>, String)> {
+        fn visit(
+            root: &Path,
+            path: &Path,
+            facts: &mut std::collections::BTreeMap<String, (String, Vec<u8>, String)>,
+        ) {
+            let metadata = fs::symlink_metadata(path).unwrap();
+            let kind = if metadata.file_type().is_symlink() {
+                "symlink"
+            } else if metadata.is_dir() {
+                "directory"
+            } else {
+                "file"
+            };
+            let bytes = match kind {
+                "file" => fs::read(path).unwrap(),
+                "symlink" => fs::read_link(path)
+                    .unwrap()
+                    .to_string_lossy()
+                    .as_bytes()
+                    .to_vec(),
+                _ => Vec::new(),
+            };
+            facts.insert(
+                path.strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                (kind.into(), bytes.clone(), sha256_bytes(&bytes)),
+            );
+            if kind == "directory" {
+                for entry in fs::read_dir(path).unwrap() {
+                    visit(root, &entry.unwrap().path(), facts);
+                }
+            }
+        }
+        let mut facts = std::collections::BTreeMap::new();
+        visit(root, root, &mut facts);
+        facts
+    }
+
+    #[cfg(not(windows))]
+    fn assert_platform_refusal<T: std::fmt::Debug>(
+        root: &Path,
+        action: impl FnOnce() -> Result<T, String>,
+    ) {
+        let before = root_snapshot(root);
+        assert_eq!(action().unwrap_err(), RECOVERY_PLATFORM_UNSUPPORTED);
+        assert_eq!(root_snapshot(root), before);
+    }
+
+    #[test]
+    fn native_recovery_platform_capability_is_explicit() {
+        assert_eq!(require_recovery_platform().is_ok(), cfg!(windows));
+        #[cfg(not(windows))]
+        assert_eq!(
+            require_recovery_platform().unwrap_err(),
+            RECOVERY_PLATFORM_UNSUPPORTED
+        );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn original_execution_cases_25_to_30_refuse_platform_without_side_effects() {
+        for name in [
+            "wrong-claim",
+            "wrong-digest",
+            "staging-drift",
+            "database-drift",
+            "receipt-conflict",
+            "active-raw-handle",
+        ] {
+            let (directory, live, operation) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            let mut claim = inspection.claim_digest.unwrap();
+            let mut digest = inspection.database.unwrap().sha256;
+            let mut active = None;
+            match name {
+                "wrong-claim" => claim = "0".repeat(64),
+                "wrong-digest" => digest = "0".repeat(64),
+                "staging-drift" => fs::write(&operation.staging, b"changed").unwrap(),
+                "database-drift" => {
+                    let mut bytes = fs::read(&live).unwrap();
+                    bytes[100] = 1;
+                    fs::write(&live, bytes).unwrap();
+                }
+                "receipt-conflict" => fs::write(
+                    receipt_path(directory.path(), &operation.operation_id),
+                    b"conflict",
+                )
+                .unwrap(),
+                _ => {
+                    active = Some(
+                        OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .open(&live)
+                            .unwrap(),
+                    )
+                }
+            }
+            // All setup/drift occurs before the snapshot in this assertion.
+            assert_platform_refusal(directory.path(), || {
+                execute_at(directory.path(), &live, &claim, &digest)
+            });
+            drop(active);
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unsupported_prepared_execution_repetition_conflicts_and_delete_preserve_entire_root() {
+        let (directory, live, operation) = fixture();
+        let inspection = inspect_at(directory.path(), &live).unwrap();
+        assert!(inspection.eligible);
+        let claim = inspection.claim_digest.as_deref().unwrap();
+        let digest = &inspection.database.as_ref().unwrap().sha256;
+        for _ in 0..2 {
+            assert_platform_refusal(directory.path(), || {
+                execute_at(directory.path(), &live, claim, digest)
+            });
+        }
+        // Each injected mutation boundary must be unreachable, not an early
+        // failure misreported as coverage of actual partial mutation.
+        for point in [
+            RecoveryFailurePoint::AfterQuarantineCreate,
+            RecoveryFailurePoint::AfterWalMove,
+            RecoveryFailurePoint::AfterShmMove,
+            RecoveryFailurePoint::AfterStagingMove,
+            RecoveryFailurePoint::AfterStateMove,
+            RecoveryFailurePoint::AfterOperationCleanup,
+            RecoveryFailurePoint::BeforeReceiptWrite,
+            RecoveryFailurePoint::AfterReceiptWrite,
+        ] {
+            assert_platform_refusal(directory.path(), || {
+                execute_at_with_failure(directory.path(), &live, claim, digest, point)
+            });
+        }
+        assert_platform_refusal(directory.path(), || {
+            open_database_exclusive(&live).map(|_| ())
+        });
+        let receipt = receipt_path(directory.path(), &operation.operation_id);
+        fs::write(&receipt, b"existing-receipt-conflict").unwrap();
+        let quarantine = quarantine_path(directory.path(), &operation.operation_id);
+        fs::create_dir(&quarantine).unwrap();
+        fs::write(quarantine.join("retained-evidence"), b"keep").unwrap();
+        fs::write(&operation.backup, b"existing-backup").unwrap();
+        fs::write(directory.path().join(JOURNAL_FILENAME), b"existing-journal").unwrap();
+        fs::create_dir(directory.path().join("life-os-second.operation")).unwrap();
+        for (claim, digest) in [(claim, digest.as_str()), ("wrong-claim", "wrong-digest")] {
+            assert_platform_refusal(directory.path(), || {
+                execute_at(directory.path(), &live, claim, digest)
+            });
+        }
+        for _ in 0..2 {
+            assert_platform_refusal(directory.path(), || {
+                delete_receipt_at(
+                    directory.path(),
+                    receipt.file_name().unwrap().to_str().unwrap(),
+                )
+            });
+        }
+        // Missing/invalid paths must not change the fixed capability result.
+        assert_platform_refusal(directory.path(), || {
+            execute_at(
+                &directory.path().join("absent"),
+                &directory.path().join("absent.db"),
+                claim,
+                digest,
+            )
+        });
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unsupported_v5_sidecar_execution_and_valid_receipt_delete_preserve_entire_root() {
+        let (directory, live, _) = tauri::async_runtime::block_on(v5_sidecar_fixture());
+        let inspection =
+            tauri::async_runtime::block_on(inspect_v5_sidecar_at(directory.path(), &live)).unwrap();
+        assert!(inspection.eligible);
+        let claim = inspection.claim_digest.as_deref().unwrap();
+        let digest = &inspection.database.as_ref().unwrap().sha256;
+        for _ in 0..2 {
+            assert_platform_refusal(directory.path(), || {
+                execute_v5_sidecar_at(directory.path(), &live, claim, digest)
+            });
+        }
+        for point in [
+            RecoveryFailurePoint::AfterQuarantineCreate,
+            RecoveryFailurePoint::AfterWalMove,
+            RecoveryFailurePoint::AfterShmMove,
+            RecoveryFailurePoint::BeforeReceiptWrite,
+            RecoveryFailurePoint::AfterReceiptWrite,
+        ] {
+            assert_platform_refusal(directory.path(), || {
+                execute_v5_sidecar_at_with_failure(directory.path(), &live, claim, digest, point)
+            });
+        }
+        let prior = recovery_receipt_summary(directory.path()).unwrap();
+        for _ in 0..2 {
+            assert_platform_refusal(directory.path(), || {
+                delete_receipt_at(directory.path(), &prior.relative_path)
+            });
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn unsupported_r2b_disabled_and_interrupted_enabled_completion_stays_blocked_without_restore() {
+        let (directory, live, operation) =
+            tauri::async_runtime::block_on(historical_post_commit_fixture());
+        for enabled in [false, true] {
+            if enabled {
+                // Fixture setup only: model SQL activation committed but receipt
+                // and operation finalization interrupted. Snapshot comes AFTER it.
+                let evidence = read_migration_state_evidence(&operation).unwrap();
+                let receipt = exact_post_commit_receipt(&operation, &evidence).unwrap();
+                tauri::async_runtime::block_on(
+                    activate_exact_historical_frontend_lifecycle_writes(
+                        &live,
+                        &receipt,
+                        "2026-11-03T00:00:00Z",
+                    ),
+                )
+                .unwrap();
+            }
+            let inspection = tauri::async_runtime::block_on(inspect_post_commit_manifest_at(
+                directory.path(),
+                &live,
+            ))
+            .unwrap();
+            assert!(inspection.eligible, "{:?}", inspection.reason);
+            let before = root_snapshot(directory.path());
+            let startup = tauri::async_runtime::block_on(
+                crate::schema_v5_founder_activation::classify(directory.path(), &live),
+            );
+            let state = serde_json::to_value(startup).unwrap();
+            assert_eq!(state["state"], "blocked");
+            assert_eq!(
+                state["reason"],
+                "post_commit_schema_manifest_recovery_available"
+            );
+            assert_eq!(state["restoreAvailable"], false);
+            assert_eq!(root_snapshot(directory.path()), before);
+            for _ in 0..2 {
+                assert_platform_refusal(directory.path(), || {
+                    execute_post_commit_manifest_at(
+                        directory.path(),
+                        &live,
+                        inspection.claim_digest.as_deref().unwrap(),
+                        &inspection.database.as_ref().unwrap().sha256,
+                    )
+                });
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn held_real_sqlite_rollback_read_write_and_wal_transactions_prove_only_platform_refusal() {
+        tauri::async_runtime::block_on(async {
+            for mode in ["rollback-read", "rollback-write", "wal-read", "wal-write"] {
+                let directory = TempDir::new().unwrap();
+                let live = directory.path().join(DATABASE_FILENAME);
+                let options = sqlx::sqlite::SqliteConnectOptions::new()
+                    .filename(&live)
+                    .create_if_missing(true);
+                let mut setup = SqliteConnection::connect_with(&options).await.unwrap();
+                sqlx::raw_sql("CREATE TABLE synthetic (id INTEGER PRIMARY KEY); INSERT INTO synthetic VALUES (1); PRAGMA user_version = 4;").execute(&mut setup).await.unwrap();
+                let journal = if mode.starts_with("wal-") {
+                    "PRAGMA journal_mode = WAL"
+                } else {
+                    "PRAGMA journal_mode = DELETE"
+                };
+                sqlx::raw_sql(journal).execute(&mut setup).await.unwrap();
+                setup.close().await.unwrap();
+                let probe = Quiescent;
+                let guard = ExclusiveOperationGuard::acquire(&probe).unwrap();
+                let _operation =
+                    prepare_operation(directory.path(), &live, &guard, &SystemVolumeProbe).unwrap();
+                let mut active = SqliteConnection::connect_with(&options.create_if_missing(false))
+                    .await
+                    .unwrap();
+                if mode.ends_with("read") {
+                    sqlx::raw_sql("BEGIN").execute(&mut active).await.unwrap();
+                    let _: i64 = sqlx::query_scalar("SELECT count(*) FROM synthetic")
+                        .fetch_one(&mut active)
+                        .await
+                        .unwrap();
+                } else {
+                    sqlx::raw_sql("BEGIN IMMEDIATE; INSERT INTO synthetic VALUES (2)")
+                        .execute(&mut active)
+                        .await
+                        .unwrap();
+                }
+                // Awaited SQL statements establish the held transaction: no sleep,
+                // no shared-connection shortcut, no cross-process locking claim.
+                let digest = sha256_file(&live).unwrap();
+                for _ in 0..2 {
+                    assert_platform_refusal(directory.path(), || {
+                        execute_at(directory.path(), &live, &"0".repeat(64), &digest)
+                    });
+                    assert_platform_refusal(directory.path(), || {
+                        execute_v5_sidecar_at(directory.path(), &live, &"0".repeat(64), &digest)
+                    });
+                    assert_platform_refusal(directory.path(), || {
+                        execute_post_commit_manifest_at(
+                            directory.path(),
+                            &live,
+                            &"0".repeat(64),
+                            &digest,
+                        )
+                    });
+                }
+                sqlx::raw_sql("ROLLBACK")
+                    .execute(&mut active)
+                    .await
+                    .unwrap();
+                active.close().await.unwrap();
+            }
+        });
+    }
 
     struct Quiescent;
     impl QuiescenceProbe for Quiescent {
@@ -1934,6 +2279,7 @@ mod tests {
         bytes
     }
 
+    #[cfg(windows)]
     #[test]
     fn exact_v5_ready_legacy_sidecars_are_explicitly_recoverable() {
         let (directory, live, operation) = tauri::async_runtime::block_on(v5_sidecar_fixture());
@@ -1998,6 +2344,7 @@ mod tests {
             .is_empty());
     }
 
+    #[cfg(windows)]
     #[test]
     fn v5_sidecar_claim_and_contract_drift_fail_closed() {
         for mutation in ["wal", "state", "backup", "prior-receipt", "journal"] {
@@ -2031,6 +2378,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn v5_sidecar_partial_failures_never_change_protected_evidence() {
         for point in [
@@ -2061,6 +2409,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn exact_historical_post_commit_state_is_explicitly_recoverable() {
         let (directory, live, operation) =
@@ -2155,6 +2504,7 @@ mod tests {
             .is_empty());
     }
 
+    #[cfg(windows)]
     #[test]
     fn post_commit_claim_drift_fails_before_activation() {
         let (directory, live, operation) =
@@ -2221,6 +2571,7 @@ mod tests {
             .is_empty());
     }
 
+    #[cfg(windows)]
     #[test]
     fn exact_prepared_state_is_eligible_and_recovery_preserves_database() {
         let (directory, live, operation) = fixture();
@@ -2303,7 +2654,7 @@ mod tests {
     }
 
     #[test]
-    fn thirty_case_synthetic_recovery_matrix_fails_closed() {
+    fn original_thirty_cases_keep_structural_and_platform_execution_layers() {
         let preflight_cases: Vec<(&str, FixtureMutation)> = vec![
             (
                 "schema-v5",
@@ -2484,100 +2835,119 @@ mod tests {
         for (name, mutate) in &preflight_cases {
             let (directory, live, operation) = fixture();
             mutate(&directory, &live, &operation);
+            let before = root_snapshot(directory.path());
             let result = inspect_at(directory.path(), &live);
             assert!(result.is_err() || !result.unwrap().eligible, "case {name}");
+            assert_eq!(root_snapshot(directory.path()), before, "case {name}");
         }
 
-        let mut execute_cases = 0;
-        let (directory, live, _) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            &"0".repeat(64),
-            &inspection.database.as_ref().unwrap().sha256
-        )
-        .is_err());
-        execute_cases += 1;
-
-        let (directory, live, _) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            inspection.claim_digest.as_deref().unwrap(),
-            &"0".repeat(64)
-        )
-        .is_err());
-        execute_cases += 1;
-
-        let (directory, live, operation) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        fs::write(&operation.staging, b"changed").unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            inspection.claim_digest.as_deref().unwrap(),
-            &inspection.database.as_ref().unwrap().sha256
-        )
-        .is_err());
-        execute_cases += 1;
-
-        let (directory, live, _) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        let mut changed = fs::read(&live).unwrap();
-        changed[100] = 1;
-        fs::write(&live, changed).unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            inspection.claim_digest.as_deref().unwrap(),
-            &inspection.database.as_ref().unwrap().sha256
-        )
-        .is_err());
-        execute_cases += 1;
-
-        let (directory, live, _) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        fs::write(
-            receipt_path(
+        assert_eq!(preflight_cases.len(), 24);
+        #[cfg(windows)]
+        {
+            let mut execute_cases = 0;
+            let (directory, live, _) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            let before = root_snapshot(directory.path());
+            assert!(execute_at(
                 directory.path(),
-                inspection.operation_id.as_deref().unwrap(),
-            ),
-            b"conflict",
-        )
-        .unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            inspection.claim_digest.as_deref().unwrap(),
-            &inspection.database.as_ref().unwrap().sha256
-        )
-        .is_err());
-        execute_cases += 1;
+                &live,
+                &"0".repeat(64),
+                &inspection.database.as_ref().unwrap().sha256
+            )
+            .is_err());
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
 
-        let (directory, live, _) = fixture();
-        let inspection = inspect_at(directory.path(), &live).unwrap();
-        #[cfg(windows)]
-        use std::os::windows::fs::OpenOptionsExt;
-        let mut active_options = OpenOptions::new();
-        active_options.read(true).write(true);
-        #[cfg(windows)]
-        active_options.share_mode(0);
-        let active = active_options.open(&live).unwrap();
-        assert!(execute_at(
-            directory.path(),
-            &live,
-            inspection.claim_digest.as_deref().unwrap(),
-            &inspection.database.as_ref().unwrap().sha256
-        )
-        .is_err());
-        drop(active);
-        execute_cases += 1;
+            let (directory, live, _) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            let before = root_snapshot(directory.path());
+            assert!(execute_at(
+                directory.path(),
+                &live,
+                inspection.claim_digest.as_deref().unwrap(),
+                &"0".repeat(64)
+            )
+            .is_err());
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
 
-        assert_eq!(preflight_cases.len() + execute_cases, 30);
+            let (directory, live, operation) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            fs::write(&operation.staging, b"changed").unwrap();
+            let before = root_snapshot(directory.path());
+            assert!(execute_at(
+                directory.path(),
+                &live,
+                inspection.claim_digest.as_deref().unwrap(),
+                &inspection.database.as_ref().unwrap().sha256
+            )
+            .is_err());
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
+
+            let (directory, live, _) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            let mut changed = fs::read(&live).unwrap();
+            changed[100] = 1;
+            fs::write(&live, changed).unwrap();
+            let before = root_snapshot(directory.path());
+            assert!(execute_at(
+                directory.path(),
+                &live,
+                inspection.claim_digest.as_deref().unwrap(),
+                &inspection.database.as_ref().unwrap().sha256
+            )
+            .is_err());
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
+
+            let (directory, live, _) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            fs::write(
+                receipt_path(
+                    directory.path(),
+                    inspection.operation_id.as_deref().unwrap(),
+                ),
+                b"conflict",
+            )
+            .unwrap();
+            let before = root_snapshot(directory.path());
+            assert!(execute_at(
+                directory.path(),
+                &live,
+                inspection.claim_digest.as_deref().unwrap(),
+                &inspection.database.as_ref().unwrap().sha256
+            )
+            .is_err());
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
+
+            let (directory, live, _) = fixture();
+            let inspection = inspect_at(directory.path(), &live).unwrap();
+            #[cfg(windows)]
+            use std::os::windows::fs::OpenOptionsExt;
+            let mut active_options = OpenOptions::new();
+            active_options.read(true).write(true);
+            #[cfg(windows)]
+            active_options.share_mode(0);
+            let before = root_snapshot(directory.path());
+            let active = active_options.open(&live).unwrap();
+            assert!(execute_at(
+                directory.path(),
+                &live,
+                inspection.claim_digest.as_deref().unwrap(),
+                &inspection.database.as_ref().unwrap().sha256
+            )
+            .is_err());
+            drop(active);
+            assert_eq!(root_snapshot(directory.path()), before);
+            execute_cases += 1;
+
+            assert_eq!(execute_cases, 6);
+        }
     }
 
+    #[cfg(windows)]
     #[test]
     fn changed_claim_fails_closed_without_mutation() {
         let (directory, live, operation) = fixture();
@@ -2595,6 +2965,7 @@ mod tests {
         assert!(operation.root.exists());
     }
 
+    #[cfg(windows)]
     #[test]
     fn receipt_is_content_free_and_explicitly_deletable() {
         let (directory, live, _) = fixture();
@@ -2635,6 +3006,7 @@ mod tests {
         assert!(recovery_receipt_summary(directory.path()).is_none());
     }
 
+    #[cfg(windows)]
     #[test]
     fn every_recovery_mutation_boundary_fails_without_database_change() {
         for point in [

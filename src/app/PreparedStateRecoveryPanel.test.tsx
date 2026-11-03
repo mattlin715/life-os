@@ -6,6 +6,33 @@ import { uiText } from "./i18n";
 import { PreparedStateRecoveryPanel } from "./PreparedStateRecoveryPanel";
 
 const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+const recoverySource = readFileSync(new URL("../../src-tauri/src/schema_v5_prepared_recovery.rs", import.meta.url), "utf8");
+
+describe("recovery platform boundary source contract", () => {
+  it.each([
+    "inspect_prepared_state_recovery", "execute_prepared_state_recovery", "delete_prepared_recovery_receipt",
+  ])("guards public %s before profile path resolution or operation I/O", (name) => {
+    const body = recoverySource.slice(recoverySource.indexOf(`pub fn ${name}(`)).split(/\n(?:pub |fn |#\[)/)[0];
+    const gate = body.indexOf("require_recovery_platform()");
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(body.indexOf("paths(&app)"));
+    const lock = body.indexOf("operation_lock()");
+    if (lock >= 0) expect(gate).toBeLessThan(lock);
+  });
+
+  it.each([
+    "execute_at_with_failure", "execute_v5_sidecar_at_with_failure", "execute_post_commit_manifest_at", "delete_receipt_at",
+  ])("guards private %s before its first effect", (name) => {
+    const body = recoverySource.slice(recoverySource.indexOf(`fn ${name}(`));
+    expect(body.slice(body.indexOf("{") + 1).trimStart()).toMatch(/^require_recovery_platform\(\)\?;/);
+  });
+
+  it("does not equate non-Windows File::open with exclusion", () => {
+    const fallback = recoverySource.match(/#\[cfg\(not\(windows\)\)\]\s*fn open_database_exclusive\([\s\S]*?\n}/)?.[0];
+    expect(fallback).toContain("require_recovery_platform()");
+    expect(fallback).not.toContain("File::open");
+  });
+});
 
 const inspection = {
   eligible: true,
@@ -49,6 +76,20 @@ const postCommitManifestInspection = {
 } as const;
 
 describe("prepared-state recovery disclosure", () => {
+  it.each(["en", "zh-TW", "ja"] as const)("explains recovery-only unsupported capability visibly in %s", (language) => {
+    const copy = uiText[language];
+    const refused = { eligible: false, reason: "prepared_recovery_platform_unsupported", classification: null, operationId: null, database: null, databaseIdentity: null, evidenceFiles: [], preservedFiles: [], claimDigest: null };
+    const html = renderToStaticMarkup(
+      <PreparedStateRecoveryPanel copy={copy} inspection={refused} result={null} pending={false} error={null} closeError={null} onPrepare={vi.fn()} onCancel={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(html).toContain(copy.preparedRecoveryPlatformUnsupported);
+    expect(html.indexOf(copy.preparedRecoveryPlatformUnsupported)).toBeLessThan(html.indexOf("<details"));
+    expect(html).toContain(copy.preparedRecoveryCancel);
+    expect(html).toContain(copy.preparedRecoveryPreserveClose);
+    for (const action of [copy.preparedRecoveryPrepare, copy.v5SidecarRecoveryPrepare, copy.postCommitManifestRecoveryPrepare, copy.founderV5Authorize, copy.founderV5RestoreBackup]) {
+      expect(html).not.toContain(`>${action}<`);
+    }
+  });
   it.each(["en", "zh-TW", "ja"] as const)("keeps recovery distinct from migration in %s", (language) => {
     const copy = uiText[language];
     const html = renderToStaticMarkup(
