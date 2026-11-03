@@ -1,6 +1,6 @@
 # Decision Required
 
-Status: open
+Status: resolved
 
 - Sprint ID: 2026-11-03-prepared-recovery-platform-boundary-r1
 - Artifact schema: 1.0
@@ -70,7 +70,7 @@ Authorize a specific fresh adequately provisioned validation-output location for
 
 ## Resolution Status
 
-open
+resolved
 
 ## Prior Founder Policy Resolution
 
@@ -79,3 +79,17 @@ PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-001 remains A, resolved. Exact response: 
 ## Resume Phase
 
 validation
+
+## Exact Founder Response
+
+授權在 D: 使用全新驗證輸出目錄，保留現有證據，以不變的 canonical verifier 重驗相同 source commit
+
+## Selected Option And Authorized Scope
+
+- Selected option: A
+- Authorized scope: Fresh D-drive exact638626a validation source and outputs; unchanged canonical verifier; preserve failed C outputs and all worktrees. No cleanup or profile/app/036 work.
+
+## Decided At And Evidence Reference
+
+- Decided at: 2026-11-03T09:33:25.476Z
+- Evidence reference: .ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md

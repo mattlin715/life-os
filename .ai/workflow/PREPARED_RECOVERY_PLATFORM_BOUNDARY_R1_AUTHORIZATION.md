@@ -25,3 +25,21 @@ No merge, direct develop push, force/amend/rebase, release/deployment, candidate
 This is a new dated capability decision, not a statement that Windows-only recovery was always policy. ADR-0006's Mac/Windows MVP direction is unchanged. Cross-platform recovery needs separate design, review and authorization; no new ADR or ADR status change is authorized here.
 
 Verified before creating the isolated worktree: icon source/remote head 0b3987d6b34557939a8c557146d95a2893346a12; develop and PR #1 base e8db8f0f8e59aed7b321a8792a139b53e7328609; PR #1 open/draft, base develop, head codex/ci-tauri-icon-input-r1. Only new branch codex/prepared-recovery-platform-boundary-r1 starts from that exact icon commit. The source path supplied without the dot separator was resolved to the existing C:/Users/a7152/.codex/worktrees/ci-tauri-icon-input-r1/LifeOperatingSystem.
+
+## Validation resource decision — 2026/11/03
+
+Decision PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-VALIDATION-RESOURCE-001 explicitly resolved by the next direct Founder chat message:
+
+> 授權在 D: 使用全新驗證輸出目錄，保留現有證據，以不變的 canonical verifier 重驗相同 source commit
+
+Use fresh D:/Lin/Validation/prepared-recovery-platform-boundary-r1-d-20261103-01 with an exact detached638626a0e0dfbe9fa8c6e108158be26f78e4f4e6 clean clone. No old target/dist/node_modules/ignored assets are copied; installed toolchain/registry reuse only. Fresh Cargo output, TEMP/TMP, dependency install/store and logs are on D. The canonical verifier and source remain unchanged. Preserve all failed C outputs and all worktrees. This authorization is for revalidation, not cleanup, product changes, merge or profile/app/036 operations. Source-specific evidence must not be mislabeled as an exact newer workflow-commit PASS.
+
+## Prepublication and Ubuntu follow-through — 2026/11/03
+
+Evidence source: direct Founder request titled "Life OS — Recovery R1：完成發布前核對與 Ubuntu CI" in the current chat. Exact scope quote:
+
+> 授權：整理既有驗證紀錄、完成範圍內審閱與必要驗證、精確本地提交、正常 push recovery 分支、建立 stacked draft PR，並查核其 Ubuntu CI。
+
+Preserve638626a and230c45e; no amend/rebase/squash. Freeze one final publication HEAD after factual workflow records and bounded alignment review. Existing D PASS applies only to638626a. If formal gate requires fresh final-HEAD canonical, use one adequately provisioned isolated D source/output/TEMP with unchanged verifier and locked dependencies, without old target/dist/ignored asset transplantation. Save exact-HEAD validation and actual Ubuntu results as new ignored evidence; do not add PASS-only commits to cause an endless verification cycle. Later local workflow records must explicitly distinguish the frozen tested/published HEAD and uncommitted post-verification metadata.
+
+Normal recovery-branch push only after local gates; icon remote/base must remain0b3987d6b34557939a8c557146d95a2893346a12. Reuse matching PR if present, otherwise stacked draft base codex/ci-tauri-icon-input-r1, head codex/prepared-recovery-platform-boundary-r1; attach it. Inspect existing pull_request Check run at its actual synthetic merge SHA, all jobs/steps, maximum15 minutes, no blind rerun or background schedule. No PR1 changes, ready/merge/develop push, release/deployment/candidate/app/profile/cleanup/036 operation, Git settings/hook/signing bypass, or new product development is authorized.

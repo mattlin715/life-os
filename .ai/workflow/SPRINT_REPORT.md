@@ -1,6 +1,6 @@
 # Sprint Report
 
-Status: human_decision_required
+Status: pending
 
 - Sprint ID: 2026-11-03-prepared-recovery-platform-boundary-r1
 - Artifact schema: 1.0
@@ -26,7 +26,7 @@ Bounded Windows-only prepared recovery capability R1, explicit Founder A recorde
 
 ## Final Status
 
-human_decision_required
+pending — exact-source D revalidation passed; owning-candidate/theory/publication work not completed.
 
 ## Product Decision
 
@@ -86,7 +86,7 @@ Fresh adequately provisioned Windows validation; formal theory gate; normal repa
 
 ## Human Decisions
 
-A already resolved; VALIDATION-RESOURCE-001 open. No cleanup, rerun, push or merge now.
+A remains resolved. VALIDATION-RESOURCE-001 is now resolved by direct Founder D-drive authorization; one exact-source revalidation completed. No cleanup, push or merge.
 
 ## Review Cycles
 
@@ -98,8 +98,30 @@ Source commit-before-clean canonical was authorized and kept package guard uncha
 
 ## Recommended Next Sprint
 
-Resume current validation only after explicit output-location disposition, preserve all failed outputs and original STOP.
+Continue the original bounded workflow from validation with the exact-source D PASS evidence; do not silently transfer it to a different HEAD. Preserve failed outputs and original STOP.
 
 ## Git Status
 
 codex/prepared-recovery-platform-boundary-r1 locally only; no upstream/push/PR/CI. Icon branch and protected original38 file hashes/status remain unchanged per protection-check.json.
+
+## D-drive exact-source revalidation — 2026/11/03
+
+Founder resource authorization is resolved by the exact direct chat response recorded in PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md. A fresh --no-local clean clone checked out exact source 638626a0e0dfbe9fa8c6e108158be26f78e4f4e6 on D. The source tree is d53344daccaec769c46c0bd4bbb4e66ccf7435f0; scripts/verify.ps1 blob is ce1896ffe44f3d3aa25ac36bdc84cd55f95f077c, identical to that commit. No old target, dist, node_modules or ignored app asset was copied. Installed toolchain/registry reuse only; frozen dependency installation exited0. Cargo output and TEMP/TMP were fresh D directories.
+
+The unmodified canonical command completed all27 stages with exit0. Workflow38; frontend528; primary Rust272; backup12; contract8; legacy refusal33; ordinary activation10; Founder activation10; Founder runtime8 passed. Rust check, legacy compatibility, Founder feature check and all later repository-safety stages passed. No stage was skipped. Canonical log SHA-256: A3CC12DB3680624B8857E36A3A00C103C3BA1B57F734DA242B08DFE52324C407.
+
+Evidence root: `D:/Lin/Validation/prepared-recovery-platform-boundary-r1-d-20261103-01`. Raw canonical.log, canonical.exit.txt, start/end timestamps, source-binding.json and final-binding.json are under logs/. The source checkout remains detached at638626a; normalized tracked diff is empty after build. Generated desktop/windows schema stat changes have empty normalized diffs and are preserved uncommitted.
+
+The old C canonical failure remains exit1 with the exact same log SHA-256 as before this run; it is not overwritten or reclassified. Original38 protected file hashes/head/status remain unchanged. No cleanup, SDK/ADB/app/installer/profile/036 operation or product/test/verifier modification occurred.
+
+This PASS belongs specifically to source638626a, not an Ubuntu run or a same-SHA test of owning workflow HEAD230c45e. The owning current workflow remains in validation; its repository_verify field retains the historical C failure rather than falsely binding this external-source result to230c45e. Current role/theory/publication work is not marked complete. Resource-only revalidation records are left uncommitted; no commit, push, PR, CI rerun, merge or release is performed in this revalidation turn.
+
+## Fixed-candidate publication follow-through — 2026/11/03
+
+Current Founder request explicitly authorizes bounded record/alignment completion, precise local commit, normal recovery push, stacked draft and actual Ubuntu inspection. Bounded product/theory review is approved_with_follow_up with no product blocker; see THEORY_ALIGNMENT_REVIEW.md. No product/test/config/verifier/ADR changes are needed or allowed.
+
+Evidence planes remain separate: implementation638626a; C failure (exit1 and original hash retained); fresh D638626a complete27-stage PASS;230c45e and this pending records-only commit; Ubuntu not yet executed. Index was empty at intake. Remote icon0b3987d and develope8db8f0/PR1 open-draft coordinates were rechecked unchanged; no repair branch or matching PR existed. Generated schema changes are stat/EOL only with empty normalized diffs, excluded from stage.
+
+The existing kernel requires fresh repository verification for transition from validation to theory alignment. Freeze the final candidate first, verify that exact HEAD once in fresh D source/output/TEMP with unchanged verifier, then use existing record-verification/transition/artifact commands. Compare official repositorySnapshot of owner and tested source to bind HEAD/digest. Do not transfer D638626a PASS to a different SHA. Keep post-verification workflow metadata and CI evidence uncommitted/ignored as appropriate, explicitly distinguished from the frozen tested/published HEAD; no PASS-only commit loop. No tool or state/events manual edit.
+
+Final HEAD, per-file blob equivalence, final canonical results, PR/run/attempt/synthetic merge and actual step results will be bound in new ignored publication evidence. Ubuntu remains pending at this record's authoring. Stop at Founder PR/CI review; no merge/release/profile/cleanup/036.

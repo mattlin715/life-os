@@ -1,37 +1,42 @@
 {
   "schema_version": "1.1",
-  "state_revision": 17,
-  "last_event_id": "2026-11-03-prepared-recovery-platform-boundary-r1:0017",
-  "last_event_hash": "ab3bafd617eaa1ef479e4b2318eba5ed3f94468e61369a36275b8c76f16b212f",
+  "state_revision": 21,
+  "last_event_id": "2026-11-03-prepared-recovery-platform-boundary-r1:0021",
+  "last_event_hash": "37fc0f58519d604507e1ccfb9501501e14bf418bf33807ddad8f419897611ca4",
   "sprint_id": "2026-11-03-prepared-recovery-platform-boundary-r1",
   "mission_title": "Prepared Recovery platform boundary R1",
-  "status": "human_decision_required",
-  "current_phase": "human_decision_required",
+  "status": "validation",
+  "current_phase": "validation",
   "current_role": "orchestrator",
   "review_cycle": 0,
   "max_review_cycles": 3,
-  "human_approval_required": true,
-  "blocking_reason": "Host disk-space/linker failure blocks full canonical; preserve and stop without cleanup, retry or publication. Existing A policy remains resolved.",
-  "blocked_phase": "validation",
-  "resume_phase": "validation",
-  "active_decision_ids": [
-    "PREPARED-RECOVERY-PLATFORM-BOUNDARY-R1-VALIDATION-RESOURCE-001"
-  ],
-  "decision_resolution": null,
-  "last_completed_phase": "validation",
+  "human_approval_required": false,
+  "blocking_reason": null,
+  "blocked_phase": null,
+  "resume_phase": null,
+  "active_decision_ids": [],
+  "decision_resolution": {
+    "status": "resolved",
+    "exact_founder_response": "授權在 D: 使用全新驗證輸出目錄，保留現有證據，以不變的 canonical verifier 重驗相同 source commit",
+    "selected_option": "A",
+    "authorized_scope": "Fresh D-drive exact638626a validation source and outputs; unchanged canonical verifier; preserve failed C outputs and all worktrees. No cleanup or profile/app/036 work.",
+    "decided_at": "2026-11-03T09:33:25.476Z",
+    "evidence_reference": ".ai/workflow/PREPARED_RECOVERY_PLATFORM_BOUNDARY_R1_AUTHORIZATION.md"
+  },
+  "last_completed_phase": "human_decision_required",
   "next_action": null,
   "base_branch": "develop",
   "working_branch": "codex/prepared-recovery-platform-boundary-r1",
-  "repository_head": "638626a0e0dfbe9fa8c6e108158be26f78e4f4e6",
-  "working_tree_digest": "26192cb490b4e07f11a113b9e218e7a6db110179666643bf9ef7598dc54b0a6e",
+  "repository_head": "230c45e67c8ec999dcd83ae454920dee2f3469e0",
+  "working_tree_digest": "c56129dd3a946b1be48d7d265e560b5ebf3c933478573713b19ef6488ce362f8",
   "artifacts": {
     "current_mission": "ready",
     "product_review": "approved",
     "engineering_plan": "approved",
     "engineering_report": "completed_with_follow_up",
-    "theory_alignment_review": "pending",
-    "decision_required": "open",
-    "sprint_report": "human_decision_required"
+    "theory_alignment_review": "approved_with_follow_up",
+    "decision_required": "resolved",
+    "sprint_report": "pending"
   },
   "verification": {
     "repository_verify": {
@@ -50,5 +55,5 @@
     }
   },
   "created_at": "2026-11-03T08:38:22.916Z",
-  "updated_at": "2026-11-03T09:17:39.858Z"
+  "updated_at": "2026-11-03T10:25:04.331Z"
 }
