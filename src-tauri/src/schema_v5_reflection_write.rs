@@ -42,6 +42,12 @@ pub(super) enum ReflectionWriteCommand {
         expected_source_revision_id: String,
         prompts: Vec<SuggestedPromptInput>,
     },
+    #[cfg(feature = "android-pilot-online")]
+    CreateAnsweredModelTrial {
+        expected_source_revision_id: String,
+        prompt: SuggestedPromptInput,
+        response: String,
+    },
     SaveResponse {
         source_id: String,
         artifact_id: String,
@@ -2423,6 +2429,19 @@ async fn apply_command(
     context: &ReflectionWriteContext<'_>,
 ) -> Result<(String, String, Vec<String>, Vec<String>), MigrationError> {
     match command {
+        #[cfg(feature = "android-pilot-online")]
+        ReflectionWriteCommand::CreateAnsweredModelTrial { expected_source_revision_id, prompt, response } => {
+            validate_text(&response, "response")?;
+            if context.occurred_at <= prompt.created_at.as_str() || prompt.evidence.len() != 1 {
+                return Err(write_error("reflection_trial_binding_invalid"));
+            }
+            let source_id = prompt.source_id.clone();
+            let evidence = prompt.evidence.clone();
+            let (artifact_id, prompt_revision) = create_suggested(connection, &expected_source_revision_id, prompt, context).await?;
+            let (artifact_id, revision_id) = save_response(connection, &source_id, &artifact_id,
+                &expected_source_revision_id, &prompt_revision, &evidence, &response, context).await?;
+            Ok((artifact_id, revision_id, Vec::new(), Vec::new()))
+        }
         ReflectionWriteCommand::CreateSuggested {
             expected_source_revision_id,
             prompt,

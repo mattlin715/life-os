@@ -120,6 +120,11 @@ fn validate(r: &ArtifactRequest) -> Result<(), MigrationError> {
     Ok(())
 }
 
+#[cfg(feature = "android-pilot-online")]
+pub(crate) const MODEL_TRIAL_MODEL: &str = "gemini-3.1-flash-lite";
+#[cfg(feature = "android-pilot-online")]
+const MODEL_TRIAL_PROMPT: &str = "android-gemini-reflection-v1";
+
 /// Refuse unknown/cross-source dependency graphs before any mutation. This is
 /// scope admission, not a substitute for canonical projection verification.
 pub(crate) async fn verify_scope(path: &Path) -> Result<(), MigrationError> {
@@ -145,6 +150,19 @@ pub(crate) async fn verify_scope(path: &Path) -> Result<(), MigrationError> {
     if unsupported != 0 {
         return Err(fail("m2c_unsupported_dependency_preserved"));
     }
+    #[cfg(feature = "android-pilot-online")]
+    let unexpected_trial_role: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM artifact_revision_provenance ap
+         JOIN provenance_records p ON p.id=ap.provenance_id
+         JOIN artifact_revisions r ON r.id=ap.artifact_revision_id
+         JOIN artifact_heads h ON h.id=r.artifact_id
+         WHERE json_extract(p.canonical_payload,'$.origin')='ai'
+         AND (ap.role<>'prompt' OR h.artifact_kind<>'reflection')",
+    ).fetch_one(&mut c).await.map_err(|_| fail("m2c_provenance_inventory_failed"))?;
+    #[cfg(feature = "android-pilot-online")]
+    if unexpected_trial_role != 0 {
+        return Err(fail("m2c_provenance_unknown_preserved"));
+    }
     let provenance: Vec<String> =
         sqlx::query_scalar("SELECT canonical_payload FROM provenance_records")
             .fetch_all(&mut c)
@@ -160,6 +178,13 @@ pub(crate) async fn verify_scope(path: &Path) -> Result<(), MigrationError> {
                     && p["model"].is_null()
                     && p["harnessVersion"] == "harness-v1"
                     && p["promptVersion"] == "v1" =>
+            {
+                ()
+            }
+            #[cfg(feature = "android-pilot-online")]
+            Some("ai")
+                if p["provider"] == "gemini" && p["model"] == MODEL_TRIAL_MODEL
+                    && p["harnessVersion"] == "harness-v1" && p["promptVersion"] == MODEL_TRIAL_PROMPT =>
             {
                 ()
             }
@@ -192,6 +217,71 @@ pub(crate) async fn snapshot(path: &Path, source_id: &str) -> Result<Value, Migr
     Ok(Value::Array(result))
 }
 
+#[cfg(feature = "android-pilot-online")]
+pub(crate) struct ModelTrialWrite<'a> {
+    pub source_id: &'a str,
+    pub source_revision: &'a str,
+    pub clue_id: &'a str,
+    pub clue_revision: &'a str,
+    pub artifact_id: &'a str,
+    pub question: &'a str,
+    pub generated_at: &'a str,
+    pub response: &'a str,
+    pub saved_at: &'a str,
+}
+
+#[cfg(feature = "android-pilot-online")]
+pub(crate) async fn save_model_trial(path: &Path, write: ModelTrialWrite<'_>, rollback: bool) -> Result<(), MigrationError> {
+    let rows = snapshot(path, write.source_id).await?;
+    let rows = rows.as_array().ok_or_else(|| fail("m2c_model_snapshot_invalid"))?;
+    let current = super::runtime::direct_source_snapshot(path, write.source_id).await?
+        .ok_or_else(|| fail("m2c_stale_source_preserved"))?;
+    if current.revision_id != write.source_revision ||
+        !rows.iter().any(|v| v["id"] == write.clue_id && v["revisionId"] == write.clue_revision
+            && v["kind"] == "evidence" && v["reviewState"] == "confirmed"
+            && v["lifecycleState"] == "active" && v["eligibilityState"] == "eligible") {
+        return Err(fail("m2c_stale_revision_preserved"));
+    }
+    // A retry must match the original pair, never a different answer or a
+    // response edited later. Check the writer's role-qualified projection.
+    let exact_answer = |v: &Value| {
+        let p = &v["payload"];
+        v["id"] == write.artifact_id && v["kind"] == "reflection" && v["lifecycleState"] == "active"
+            && v["reviewState"] == "not_applicable" && v["eligibilityState"] == "eligible"
+            && p["status"] == "answered" && p["question"] == write.question && p["response"] == write.response
+            && p["sourceEvidenceIds"] == json!([write.clue_id])
+            && p["promptProvenance"]["origin"] == "ai" && p["promptProvenance"]["provider"] == "gemini"
+            && p["promptProvenance"]["model"] == MODEL_TRIAL_MODEL
+            && p["promptProvenance"]["promptVersion"] == MODEL_TRIAL_PROMPT
+            && p["promptProvenance"]["generatedAt"] == write.generated_at
+            && p["responseProvenance"]["origin"] == "user"
+    };
+    if let Some(existing) = rows.iter().find(|v| v["id"] == write.artifact_id) {
+        return if exact_answer(existing) { Ok(()) } else { Err(fail("m2c_model_identity_conflict")) };
+    }
+    let prompt = SuggestedPromptInput {
+        id: write.artifact_id.into(), source_id: write.source_id.into(),
+        question: write.question.into(), created_at: write.generated_at.into(),
+        evidence: vec![EvidenceRevisionRef { artifact_id: write.clue_id.into(), revision_id: write.clue_revision.into() }],
+        provenance: PromptProvenanceInput {
+            origin: "ai".into(), provider: "gemini".into(), model: Some(MODEL_TRIAL_MODEL.into()),
+            harness_version: "harness-v1".into(), prompt_version: MODEL_TRIAL_PROMPT.into(),
+            generated_at: write.generated_at.into(), source_artifact_ids: vec![write.clue_id.into()],
+        },
+    };
+    let guard = format!("m3-model-save-{}", sha256_hex(write.artifact_id.as_bytes()));
+    reflection_write::execute_direct_fresh(path, R::CreateAnsweredModelTrial {
+        expected_source_revision_id: write.source_revision.into(), prompt, response: write.response.into(),
+    }, ReflectionWriteContext {
+        occurred_at: write.saved_at, guard_token: &guard,
+        failure_point: if rollback { ReflectionWriteFailurePoint::AfterReconciliation } else { ReflectionWriteFailurePoint::None },
+    }).await?;
+    if !snapshot(path, write.source_id).await?.as_array().is_some_and(|rows| rows.iter().any(exact_answer)) {
+        return Err(fail("m2c_model_save_not_verified"));
+    }
+    Ok(())
+}
+
 fn quote(body: &str, locale: &str) -> String {
     let label = match locale {
         "zh-TW" => "你寫下的原文",
@@ -206,6 +296,250 @@ fn question(locale: &str) -> &'static str {
         "ja" => "この記録を読み返すと、何が最も気になりますか？",
         _ => "What stands out when you read this evidence again?",
     }
+}
+
+fn suggested_input(r: &ArtifactRequest) -> SuggestedPromptInput {
+    SuggestedPromptInput {
+        id: r.artifact_id.clone(),
+        source_id: r.source_id.clone(),
+        question: question(&r.locale).into(),
+        created_at: r.occurred_at.clone(),
+        evidence: r
+            .evidence
+            .iter()
+            .map(|v| EvidenceRevisionRef {
+                artifact_id: v.artifact_id.clone(),
+                revision_id: v.revision_id.clone(),
+            })
+            .collect(),
+        provenance: PromptProvenanceInput {
+            origin: "local_mock".into(),
+            provider: "mock".into(),
+            model: None,
+            harness_version: "harness-v1".into(),
+            prompt_version: "v1".into(),
+            generated_at: r.occurred_at.clone(),
+            source_artifact_ids: r.evidence.iter().map(|v| v.artifact_id.clone()).collect(),
+        },
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct QuestionBatchItem {
+    artifact_id: String,
+    evidence: EvidenceRef,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct QuestionBatchRequest {
+    request_id: String,
+    source_id: String,
+    expected_source_revision_id: String,
+    expected_reflection_set: String,
+    items: Vec<QuestionBatchItem>,
+    locale: String,
+    occurred_at: String,
+}
+
+fn question_batch_identity(r: &QuestionBatchRequest) -> String {
+    let items: Vec<_> = r
+        .items
+        .iter()
+        .map(|v| {
+            (
+                &v.artifact_id,
+                &v.evidence.artifact_id,
+                &v.evidence.revision_id,
+            )
+        })
+        .collect();
+    let tuple = json!([
+        "life-os/m2c-question-batch-v1",
+        r.source_id,
+        r.expected_source_revision_id,
+        r.expected_reflection_set,
+        items,
+        r.locale,
+        r.occurred_at
+    ]);
+    format!(
+        "m2c_{}",
+        sha256_hex(serde_json::to_string(&tuple).unwrap().as_bytes())
+    )
+}
+
+fn batch_members(r: &QuestionBatchRequest) -> Result<Vec<ArtifactRequest>, MigrationError> {
+    let unique: std::collections::HashSet<_> = r.items.iter().map(|v| &v.artifact_id).collect();
+    if !(1..=3).contains(&r.items.len()) || unique.len() != r.items.len() {
+        return Err(fail("m2c_batch_shape_refused"));
+    }
+    if question_batch_identity(r) != r.request_id {
+        return Err(fail("m2c_request_identity_conflict"));
+    }
+    r.items
+        .iter()
+        .map(|item| {
+            let mut member = ArtifactRequest {
+                request_id: String::new(),
+                operation: "question".into(),
+                source_id: r.source_id.clone(),
+                expected_source_revision_id: r.expected_source_revision_id.clone(),
+                artifact_id: item.artifact_id.clone(),
+                expected_artifact_revision_id: None,
+                evidence: vec![item.evidence.clone()],
+                text: Some(question(&r.locale).into()),
+                locale: r.locale.clone(),
+                occurred_at: r.occurred_at.clone(),
+            };
+            member.request_id = request_identity(&member);
+            validate(&member)?;
+            Ok(member)
+        })
+        .collect()
+}
+
+fn reflection_set(rows: &[Value]) -> String {
+    let set: Vec<_> = rows
+        .iter()
+        .filter(|row| row["kind"] == "reflection")
+        .map(|row| {
+            json!([
+                row["id"],
+                row["revisionId"],
+                row["reviewState"],
+                row["lifecycleState"],
+                row["eligibilityState"],
+                row["payload"]["status"]
+            ])
+        })
+        .collect();
+    serde_json::to_string(&set).expect("serializing a JSON array of values")
+}
+
+async fn batch_snapshot(
+    path: &Path,
+    r: &QuestionBatchRequest,
+) -> Result<(Vec<Value>, Vec<Value>), MigrationError> {
+    let source = super::runtime::direct_source_snapshot(path, &r.source_id)
+        .await?
+        .ok_or_else(|| fail("m2c_stale_source_preserved"))?;
+    if source.revision_id != r.expected_source_revision_id
+        || r.occurred_at <= source.entry.updated_at
+    {
+        return Err(fail("m2c_stale_source_preserved"));
+    }
+    let Value::Array(rows) = snapshot(path, &r.source_id).await? else {
+        return Err(fail("m2c_batch_snapshot_invalid"));
+    };
+    // Same ordering and bound as the existing local mock: one question per
+    // eligible confirmed Evidence, at most the first three in snapshot order.
+    let evidence = rows
+        .iter()
+        .filter(|row| {
+            row["kind"] == "evidence"
+                && row["lifecycleState"] == "active"
+                && row["reviewState"] == "confirmed"
+                && row["eligibilityState"] == "eligible"
+                && row["revisionId"].is_string()
+                && !row["payload"].is_null()
+        })
+        .take(3);
+    if !evidence
+        .map(|row| (row["id"].as_str(), row["revisionId"].as_str()))
+        .eq(r.items.iter().map(|v| {
+            (
+                Some(v.evidence.artifact_id.as_str()),
+                Some(v.evidence.revision_id.as_str()),
+            )
+        }))
+    {
+        return Err(fail("m2c_stale_evidence_preserved"));
+    }
+    let (added, retained): (Vec<_>, Vec<_>) = rows
+        .into_iter()
+        .partition(|row| r.items.iter().any(|v| row["id"] == v.artifact_id));
+    if reflection_set(&retained) != r.expected_reflection_set {
+        return Err(fail("m2c_stale_reflection_set_preserved"));
+    }
+    Ok((retained, added))
+}
+
+async fn verify_batch_items(
+    path: &Path,
+    added: &[Value],
+    members: &[ArtifactRequest],
+) -> Result<(), MigrationError> {
+    if added.len() != members.len() {
+        return Err(fail("m2c_batch_outcome_unconfirmed"));
+    }
+    for member in members {
+        let Some(row) = added.iter().find(|v| v["id"] == member.artifact_id) else {
+            return Err(fail("m2c_batch_outcome_unconfirmed"));
+        };
+        let refs = [&member.evidence[0].artifact_id];
+        let expected = json!({
+            "id": member.artifact_id, "sourceEntryId": member.source_id,
+            "question": member.text, "sourceEvidenceIds": refs, "status": "suggested",
+            "createdAt": member.occurred_at, "updatedAt": member.occurred_at,
+            "promptProvenance": {
+                "origin": "local_mock", "provider": "mock", "model": null,
+                "harnessVersion": "harness-v1", "promptVersion": "v1",
+                "generatedAt": member.occurred_at, "sourceEntryId": member.source_id, "sourceArtifactIds": refs
+            }
+        });
+        if row["kind"] != "reflection"
+            || row["lifecycleState"] != "active"
+            || row["reviewState"] != "pending"
+            || row["eligibilityState"] != "ineligible"
+            || row["payload"] != expected
+            || reconcile(path, member).await? != Some("alreadyCommitted")
+        {
+            return Err(fail("m2c_batch_outcome_unconfirmed"));
+        }
+    }
+    Ok(())
+}
+
+/// Caller holds the M2-C operation lock from preflight through verified reread.
+/// Replay never creates missing members of a partially visible or stale batch.
+pub(crate) async fn generate_questions(
+    path: &Path,
+    r: &QuestionBatchRequest,
+    rollback: bool,
+) -> Result<Value, MigrationError> {
+    let members = batch_members(r)?;
+    let (retained, already_visible) = batch_snapshot(path, r).await?;
+    if !already_visible.is_empty() {
+        verify_batch_items(path, &already_visible, &members).await?;
+        return Ok(json!({"acknowledgement":"alreadyCommitted","requestId":r.request_id}));
+    }
+
+    reflection_write::execute_direct_fresh(
+        path,
+        R::CreateSuggestedBatch {
+            expected_source_revision_id: r.expected_source_revision_id.clone(),
+            prompts: members.iter().map(suggested_input).collect(),
+        },
+        ReflectionWriteContext {
+            occurred_at: &r.occurred_at,
+            guard_token: &r.request_id,
+            failure_point: if rollback {
+                ReflectionWriteFailurePoint::AfterProjection
+            } else {
+                ReflectionWriteFailurePoint::None
+            },
+        },
+    )
+    .await?;
+
+    let (actual_retained, added) = batch_snapshot(path, r).await?;
+    if actual_retained != retained {
+        return Err(fail("m2c_batch_retained_projection_changed"));
+    }
+    verify_batch_items(path, &added, &members).await?;
+    Ok(json!({"acknowledgement":"committed","requestId":r.request_id}))
 }
 
 async fn exact_dependencies(
@@ -437,33 +771,7 @@ pub(crate) async fn mutate(
                 path,
                 R::CreateSuggested {
                     expected_source_revision_id: r.expected_source_revision_id.clone(),
-                    prompt: SuggestedPromptInput {
-                        id: r.artifact_id.clone(),
-                        source_id: r.source_id.clone(),
-                        question: r.text.clone().unwrap(),
-                        created_at: r.occurred_at.clone(),
-                        evidence: r
-                            .evidence
-                            .iter()
-                            .map(|v| EvidenceRevisionRef {
-                                artifact_id: v.artifact_id.clone(),
-                                revision_id: v.revision_id.clone(),
-                            })
-                            .collect(),
-                        provenance: PromptProvenanceInput {
-                            origin: "local_mock".into(),
-                            provider: "mock".into(),
-                            model: None,
-                            harness_version: "harness-v1".into(),
-                            prompt_version: "v1".into(),
-                            generated_at: r.occurred_at.clone(),
-                            source_artifact_ids: r
-                                .evidence
-                                .iter()
-                                .map(|v| v.artifact_id.clone())
-                                .collect(),
-                        },
-                    },
+                    prompt: suggested_input(r),
                 },
                 rc,
             )
@@ -625,6 +933,38 @@ mod tests {
         let r = request(path, "confirm", "m2c-evidence-001", 2, None).await;
         mutate(path, &r, false).await.unwrap();
     }
+
+    #[cfg(feature = "android-pilot-online")]
+    #[tokio::test]
+    async fn model_trial_is_atomic_verified_and_idempotent() {
+        let (_root, path) = fixture().await;
+        review(&path).await;
+        let binding = request(&path, "question", "m3-model-trial-001", 3, None).await;
+        let make_write = |response| ModelTrialWrite {
+            source_id: SOURCE, source_revision: &binding.expected_source_revision_id,
+            clue_id: &binding.evidence[0].artifact_id, clue_revision: &binding.evidence[0].revision_id,
+            artifact_id: &binding.artifact_id, question: "What felt different in that moment?",
+            generated_at: "2026-10-04T00:00:03.000Z", response,
+            saved_at: "2026-10-04T00:00:04.000Z",
+        };
+        let counts = |sql: &'static str| scalar(&path, sql);
+        let before = snapshot(&path, SOURCE).await.unwrap();
+        let revisions = counts("SELECT COUNT(*) FROM artifact_revisions").await;
+        assert!(save_model_trial(&path, make_write("My answer."), true).await.is_err());
+        assert_eq!(snapshot(&path, SOURCE).await.unwrap(), before);
+        assert_eq!(counts("SELECT COUNT(*) FROM artifact_revisions").await, revisions);
+        save_model_trial(&path, make_write("My answer."), false).await.unwrap();
+        save_model_trial(&path, make_write("My answer."), false).await.unwrap();
+        assert!(save_model_trial(&path, make_write("A different answer."), false).await.is_err());
+        let rows = snapshot(&path, SOURCE).await.unwrap();
+        let saved = rows.as_array().unwrap().iter().find(|v| v["id"] == binding.artifact_id).unwrap();
+        assert_eq!(saved["payload"]["response"], "My answer.");
+        assert_eq!(saved["payload"]["promptProvenance"]["provider"], "gemini");
+        assert_eq!(saved["payload"]["responseProvenance"]["origin"], "user");
+        assert_eq!(counts("SELECT COUNT(*) FROM artifact_revisions").await, revisions + 2);
+        let wrong = ModelTrialWrite { clue_revision: "wrong-revision", ..make_write("My answer.") };
+        assert!(save_model_trial(&path, wrong, false).await.is_err());
+    }
     async fn answered_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
         let (root, path) = fixture().await;
         review(&path).await;
@@ -656,6 +996,224 @@ mod tests {
         c.close().await.unwrap();
         value
     }
+    async fn batch_request(path: &Path, ids: &[&str], second: u8) -> QuestionBatchRequest {
+        let source = super::super::runtime::direct_source_snapshot(path, SOURCE)
+            .await
+            .unwrap()
+            .unwrap();
+        let rows = snapshot(path, SOURCE).await.unwrap();
+        let rows = rows.as_array().unwrap();
+        let items = ids
+            .iter()
+            .zip(
+                rows.iter()
+                    .filter(|row| row["kind"] == "evidence" && row["reviewState"] == "confirmed"),
+            )
+            .map(|(id, row)| QuestionBatchItem {
+                artifact_id: (*id).into(),
+                evidence: EvidenceRef {
+                    artifact_id: row["id"].as_str().unwrap().into(),
+                    revision_id: row["revisionId"].as_str().unwrap().into(),
+                },
+            })
+            .collect();
+        let mut r = QuestionBatchRequest {
+            request_id: String::new(),
+            source_id: SOURCE.into(),
+            expected_source_revision_id: source.revision_id,
+            expected_reflection_set: reflection_set(rows),
+            items,
+            locale: "en".into(),
+            occurred_at: format!("2026-10-04T00:00:{second:02}.000Z"),
+        };
+        r.request_id = question_batch_identity(&r);
+        r
+    }
+
+    async fn review_second(path: &Path) {
+        let r = request(path, "candidate", "m2c-evidence-002", 5, None).await;
+        mutate(path, &r, false).await.unwrap();
+        let r = request(path, "confirm", "m2c-evidence-002", 6, None).await;
+        mutate(path, &r, false).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn batch_create_append_reopen_and_parent_delete() {
+        let (_root, path) = fixture().await;
+        review(&path).await;
+        review_second(&path).await;
+        let first = batch_request(&path, &["m2c-prompt-z", "m2c-prompt-a"], 7).await;
+        assert_eq!(
+            generate_questions(&path, &first, false).await.unwrap()["acknowledgement"],
+            "committed"
+        );
+        let first_manifest = manifest(&path).await;
+        assert_eq!(
+            generate_questions(&path, &first, false).await.unwrap()["acknowledgement"],
+            "alreadyCommitted"
+        );
+        assert_eq!(manifest(&path).await, first_manifest);
+        let first_read = snapshot(&path, SOURCE).await.unwrap();
+        assert_eq!(first_read[2]["id"], "m2c-prompt-a"); // equal createdAt: SQLite id tie-break
+        assert_eq!(first_read[3]["id"], "m2c-prompt-z");
+        let save = request(
+            &path,
+            "answer",
+            "m2c-prompt-z",
+            8,
+            Some("My original answer."),
+        )
+        .await;
+        mutate(&path, &save, false).await.unwrap();
+
+        let append = batch_request(&path, &["m2c-append-z", "m2c-append-a"], 9).await;
+        let before = snapshot(&path, SOURCE).await.unwrap();
+        let before_manifest = manifest(&path).await;
+        assert!(generate_questions(&path, &append, true)
+            .await
+            .unwrap_err()
+            .code
+            .contains("injected"));
+        assert_eq!(manifest(&path).await, before_manifest);
+        assert_eq!(
+            generate_questions(&path, &append, false).await.unwrap()["acknowledgement"],
+            "committed"
+        );
+        let after = snapshot(&path, SOURCE).await.unwrap();
+        let rows = after.as_array().unwrap();
+        assert_eq!(&rows[..4], before.as_array().unwrap());
+        assert_eq!(rows[4]["id"], "m2c-append-a");
+        assert_eq!(rows[5]["id"], "m2c-append-z");
+        assert_eq!(rows[3]["payload"]["response"], "My original answer.");
+        assert_eq!(rows[3]["payload"]["responseProvenance"]["origin"], "user");
+        assert_eq!(
+            rows[3]["payload"]["promptProvenance"]["origin"],
+            "local_mock"
+        );
+
+        let correction = request(
+            &path,
+            "correctResponse",
+            "m2c-prompt-z",
+            10,
+            Some("My corrected answer."),
+        )
+        .await;
+        mutate(&path, &correction, false).await.unwrap();
+        assert_eq!(
+            snapshot(&path, SOURCE).await.unwrap()[3]["payload"]["response"],
+            "My corrected answer."
+        );
+        assert!(generate_questions(&path, &append, false)
+            .await
+            .unwrap_err()
+            .code
+            .contains("stale"));
+        let rev = correction.expected_source_revision_id;
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path,
+            SOURCE,
+            &rev,
+            None,
+            "2026-10-04T00:00:11.000Z",
+            "m2c-fixture-batch-parent-delete-001",
+            false,
+        )
+        .await
+        .unwrap());
+        assert!(super::super::runtime::direct_source_snapshot(&path, SOURCE)
+            .await
+            .unwrap()
+            .is_none());
+        let deleted = snapshot(&path, SOURCE).await.unwrap();
+        assert!(deleted
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["payload"].is_null()));
+        assert!(generate_questions(&path, &append, false)
+            .await
+            .unwrap_err()
+            .code
+            .contains("stale"));
+    }
+
+    #[tokio::test]
+    async fn batch_rejects_stale_skip_changed_evidence_and_partial_visibility() {
+        let (_root, path) = fixture().await;
+        review(&path).await;
+        let first = batch_request(&path, &["m2c-first-prompt"], 3).await;
+        let stale = batch_request(&path, &["m2c-next-prompt"], 7).await;
+        generate_questions(&path, &first, false).await.unwrap();
+        let before_skip = batch_request(&path, &["m2c-after-skip"], 7).await;
+        let skip = request(&path, "skip", "m2c-first-prompt", 4, None).await;
+        mutate(&path, &skip, false).await.unwrap();
+        let baseline = manifest(&path).await;
+        for r in [&stale, &before_skip] {
+            assert_eq!(
+                generate_questions(&path, r, false).await.unwrap_err().code,
+                "m2c_stale_reflection_set_preserved"
+            );
+        }
+        assert_eq!(manifest(&path).await, baseline);
+
+        let before_evidence = batch_request(&path, &["m2c-next-prompt"], 7).await;
+        review_second(&path).await;
+        let baseline = manifest(&path).await;
+        assert_eq!(
+            generate_questions(&path, &before_evidence, false)
+                .await
+                .unwrap_err()
+                .code,
+            "m2c_stale_evidence_preserved"
+        );
+        assert_eq!(manifest(&path).await, baseline);
+
+        let foreign = "m2c-synthetic-foreign";
+        super::super::runtime::create_experience_direct_fresh(
+            &path,
+            foreign,
+            BODY,
+            "2026-10-04T00:00:00.000Z",
+            "m2c-fixture-foreign-source-create-001",
+        )
+        .await
+        .unwrap();
+        let mut foreign_candidate =
+            request(&path, "candidate", "m2c-other-source-id", 1, None).await;
+        foreign_candidate.source_id = foreign.into();
+        foreign_candidate.expected_source_revision_id =
+            super::super::runtime::direct_source_snapshot(&path, foreign)
+                .await
+                .unwrap()
+                .unwrap()
+                .revision_id;
+        foreign_candidate.request_id = request_identity(&foreign_candidate);
+        mutate(&path, &foreign_candidate, false).await.unwrap();
+        let collision =
+            batch_request(&path, &["m2c-must-roll-back", "m2c-other-source-id"], 7).await;
+        let before_collision = manifest(&path).await;
+        // First member is legal, second collides globally. Nothing may commit.
+        let error = generate_questions(&path, &collision, false)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "reflection_identity_conflict");
+        assert_eq!(manifest(&path).await, before_collision);
+
+        let batch = batch_request(&path, &["m2c-part-present", "m2c-part-absent"], 7).await;
+        let members = batch_members(&batch).unwrap();
+        mutate(&path, &members[0], false).await.unwrap();
+        let partial_manifest = manifest(&path).await;
+        assert_eq!(
+            generate_questions(&path, &batch, false)
+                .await
+                .unwrap_err()
+                .code,
+            "m2c_batch_outcome_unconfirmed"
+        );
+        assert_eq!(manifest(&path).await, partial_manifest);
+    }
+
     #[test]
     fn response_correction_identity_matches_typescript_contract() {
         let r = ArtifactRequest {

@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { pilotModel } from "./pilotModel";
 import { describe, expect, it, vi } from "vitest";
 import { AndroidM2CApp, copy, DraftStatus, OperationStatus } from "./AndroidM2CApp";
 import { createId, lifecycleRequest, nextTimestamp, sha256, m2cStore } from "./androidM2CStore";
@@ -12,6 +13,18 @@ const snapshot: Snapshot = {
 };
 
 describe("Android M2-C synthetic lifecycle", () => {
+  it("routes credential operations only to volatile model IPC, never locale or storage", async () => {
+    const previous = invoke.mock.calls.length;
+    invoke.mockResolvedValueOnce(false).mockResolvedValueOnce(undefined).mockResolvedValueOnce(true).mockResolvedValueOnce(undefined);
+    expect(await pilotModel.hasKey()).toBe(false);
+    await pilotModel.setKey("synthetic-mock-key");
+    expect(await pilotModel.hasKey()).toBe(true);
+    await pilotModel.clearKey();
+    expect(invoke.mock.calls.slice(previous)).toEqual([
+      ["pilot_model_has_key"], ["pilot_model_set_key", { key: "synthetic-mock-key" }],
+      ["pilot_model_has_key"], ["pilot_model_clear_key"],
+    ]);
+  });
   it.each([
     ["en", "New moment — not saved", "Changes — not saved", "Moment saved and reopened", "Changes saved and reopened", "Moment deleted; no active text remains"],
     ["zh-TW", "新片刻尚未儲存", "編輯內容尚未儲存", "這個片刻已儲存並重新讀取確認", "修改已儲存並重新讀取確認", "這個片刻已刪除；不再有可開啟的文字"],

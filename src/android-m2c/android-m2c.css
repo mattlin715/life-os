@@ -29,7 +29,8 @@ body { margin: 0; min-width: 0; background: #f4f1e9; }
   width: 100%; min-height: 126px; resize: vertical; border: 1px solid #78877f; border-radius: 14px;
   padding: 12px; color: inherit; background: #fff; font: inherit; line-height: 1.55;
 }
-.android-m2c textarea:focus-visible, .android-m2c button:focus-visible, .android-m2c summary:focus-visible { outline: 3px solid #d38a3f; outline-offset: 2px; }
+.android-m2c textarea:focus-visible, .android-m2c button:focus-visible, .android-m2c summary:focus-visible,
+.android-m2c__reflection-link:focus-visible, #m2c-saved-moment-heading:focus-visible, #m2c-reflection-start:focus-visible { outline: 3px solid #d38a3f; outline-offset: 2px; }
 .android-m2c__state { margin: 12px 0; font-weight: 700; }
 .android-m2c__state--draft { color: #5e625e; }
 .android-m2c__state--saving { color: #7a551d; }
@@ -41,6 +42,36 @@ body { margin: 0; min-width: 0; background: #f4f1e9; }
 .android-m2c__list p, .android-m2c__exact p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .android-m2c__list button { margin-top: 4px; }
 .android-m2c__exact { border-color: #3f765c; }
+#m2c-saved-moment-heading, #m2c-reflection-start { scroll-margin-block-start: 16px; }
+.android-m2c__reflection-link {
+  display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; margin-bottom: 12px;
+  padding: 6px 14px; border: 1px solid currentColor; border-radius: 999px; color: inherit; font-weight: 750;
+}
+.android-m2c__reflection-link--primary, .android-m2c button.android-m2c__reflection-link--primary {
+  display: flex; justify-content: center; width: fit-content;
+  color: #fff; background: #315f49; border-color: #315f49; text-decoration: none;
+}
+.android-m2c__reflection-disclosure > summary { cursor: pointer; scroll-margin-block-start: 16px; }
+.android-m2c__reflection-close-label,
+.android-m2c__reflection-disclosure[open] .android-m2c__reflection-open-label { display: none; }
+.android-m2c__reflection-disclosure[open] .android-m2c__reflection-close-label { display: inline; }
+.android-m2c__reflection-disclosure[open] > summary { color: inherit; background: transparent; border-color: currentColor; }
+.android-m2c__reflection-disclosure > .android-m2c__journey { margin-top: 4px; padding-top: 12px; }
+.android-m2c .android-m2c__journey-primary { color: #fff; background: #315f49; border-color: #315f49; }
+.android-m2c__clue-card { padding: 12px; border: 1px solid currentColor; border-radius: 12px; margin-block: 8px; }
+.android-m2c__clue-card .android-m2c__review-heading { margin-top: 0; margin-bottom: 8px; }
+.android-m2c__clue-card .android-m2c__clue-text { margin-block: 12px; font-size: 1.05rem; line-height: 1.55; }
+.android-m2c__clue-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.android-m2c__settings-entry { float: right; margin-inline-start: 8px; }
+.android-m2c__pilot-settings input[type="password"] { width: 100%; min-height: 44px; padding: 8px; font: inherit; }
+.android-m2c__model-question { margin-block: 12px; }
+.android-m2c__model-question p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.android-m2c__source-update { border-inline-start: 3px solid #78877f; padding-inline-start: 12px; margin-block: 12px; }
+.android-m2c__source-update h3 { font-size: 1rem; margin: 0 0 6px; }
+.android-m2c__source-update p { margin-bottom: 6px; }
+.android-m2c__moment-actions > summary {
+  min-height: 44px; padding-block: 10px; cursor: pointer;
+}
 .android-m2c__details summary { min-height: 44px; display: flex; align-items: center; font-weight: 750; cursor: pointer; }
 .android-m2c__details ul { padding-left: 1.25rem; }
 .android-m2c__details li + li { margin-top: 8px; }
@@ -71,3 +102,9 @@ body { margin: 0; min-width: 0; background: #f4f1e9; }
 
 .android-m2c__journey { margin-top: 24px; padding-top: 20px; border-top: 1px solid #78877f; }
 .android-m2c__scope-note { padding-left: 12px; border-left: 3px solid #78877f; font-size: .9rem; }
+.android-m2c__question-block, .android-m2c__authored-block { margin-block: 12px; padding: 12px; }
+.android-m2c__question-block { border: 1px dashed currentColor; border-radius: 12px; }
+.android-m2c__authored-block { border-inline-start: 3px solid currentColor; }
+.android-m2c__question-block h3, .android-m2c__authored-block h4 { margin: 0 0 8px; }
+.android-m2c__question-block p:last-child, .android-m2c__authored-block p:last-child { margin-bottom: 0; }
+.android-m2c__origin-label { font-weight: 750; font-size: .9rem; }

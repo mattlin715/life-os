@@ -2,6 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ExperienceEntry } from "../types/domain";
 import type { EvidenceCandidate, ReflectionPrompt } from "../types/domain";
 
+export const isAndroidPilot = import.meta.env.VITE_LIFE_OS_ANDROID_PILOT === "1";
+const connected = import.meta.env.VITE_LIFE_OS_ANDROID_PILOT_ONLINE === "1";
+export const m2cApplicationId = connected ? "com.lifeos.review.pilot.model" : isAndroidPilot ? "com.lifeos.review.pilot" : "com.lifeos.review.m2c";
+export const m2cDatabaseFilename = connected ? "android-model-pilot-disposable-v5.db" : isAndroidPilot ? "android-pilot-disposable-v5.db" : "android-m2c-disposable-v5.db";
+
 export type Locale = "en" | "zh-TW" | "ja";
 export type Snapshot = {
   entry: ExperienceEntry;
@@ -20,7 +25,7 @@ export type MutationAck = {
 };
 export type DebugPhase = "beforeCommit" | "afterCommitBeforeAck" | "rollbackAfterProjection";
 export interface M2CStore {
-  status(): Promise<{ state: "ready"; applicationId: "com.lifeos.review.m2c"; schemaVersion: 5; syntheticOnly: true }>;
+  status(): Promise<{ state: "ready"; applicationId: typeof m2cApplicationId; schemaVersion: 5; syntheticOnly: true }>;
   create(id: string, text: string): Promise<void>;
   list(): Promise<ExperienceEntry[]>;
   get(id: string): Promise<Snapshot | null>;
@@ -28,6 +33,7 @@ export interface M2CStore {
   readLocale(): Promise<Locale | null>;
   writeLocale(locale: Locale): Promise<void>;
   artifacts(id: string): Promise<ArtifactSnapshot[]>;
+  generateQuestions(request: QuestionBatchRequest, debugPhase?: DebugPhase): Promise<ArtifactAck>;
   artifactMutate(request: ArtifactRequest, debugPhase?: DebugPhase): Promise<ArtifactAck>;
 }
 
@@ -40,6 +46,7 @@ export const m2cStore: M2CStore = {
   readLocale: () => invoke("m2c_get_locale_preference"),
   writeLocale: (locale) => invoke("m2c_set_locale_preference", { locale }),
   artifacts: (id) => invoke("m2c_artifact_snapshot", { id }),
+  generateQuestions: (request, debugPhase) => invoke("m2c_generate_questions", { request, debugPhase }),
   artifactMutate: (request, debugPhase) => invoke("m2c_mutate_artifact", { request, debugPhase }),
 };
 
@@ -70,6 +77,33 @@ export type ArtifactSnapshot = {
   payload: EvidenceCandidate | ReflectionPrompt | null;
 };
 export type EvidenceRef = Readonly<{ artifactId: string; revisionId: string }>;
+export type QuestionBatchRequest = Readonly<{
+  requestId: string; sourceId: string; expectedSourceRevisionId: string; expectedReflectionSet: string;
+  items: readonly Readonly<{ artifactId: string; evidence: EvidenceRef }>[];
+  locale: Locale; occurredAt: string;
+}>;
+
+// Order is the native snapshot order, not JS locale/UTF-16 sort. Skip can
+// change status without changing the revision ID; bind both.
+export function reflectionSet(rows: readonly ArtifactSnapshot[]): string {
+  return JSON.stringify(rows.filter((row) => row.kind === "reflection").map((row) => [
+    row.id, row.revisionId, row.reviewState, row.lifecycleState, row.eligibilityState,
+    (row.payload as ReflectionPrompt | null)?.status ?? null,
+  ]));
+}
+
+export async function questionBatchRequest(source: Snapshot, rows: readonly ArtifactSnapshot[],
+  evidence: readonly EvidenceRef[], locale: Locale, occurredAt: string): Promise<QuestionBatchRequest> {
+  const expectedReflectionSet = reflectionSet(rows);
+  const items = Object.freeze(evidence.map((edge) => Object.freeze({
+    artifactId: createId(), evidence: Object.freeze({ ...edge }),
+  })));
+  const tuple = ["life-os/m2c-question-batch-v1", source.entry.id, source.revisionId, expectedReflectionSet,
+    items.map(({ artifactId, evidence }) => [artifactId, evidence.artifactId, evidence.revisionId]), locale, occurredAt];
+  return Object.freeze({ requestId: "m2c_" + await sha256(JSON.stringify(tuple)), sourceId: source.entry.id,
+    expectedSourceRevisionId: source.revisionId, expectedReflectionSet, items, locale, occurredAt });
+}
+
 export type ArtifactRequest = Readonly<{
   requestId: string; operation: "candidate" | "correct" | "confirm" | "reject" | "question" | "answer" | "correctResponse" | "skip";
   sourceId: string; expectedSourceRevisionId: string; artifactId: string; expectedArtifactRevisionId: string | null;

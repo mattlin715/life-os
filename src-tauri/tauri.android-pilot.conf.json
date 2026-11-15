@@ -1,0 +1,20 @@
+{
+  "productName": "Life OS Synthetic Pilot",
+  "identifier": "com.lifeos.review.pilot",
+  "build": {
+    "devUrl": null,
+    "beforeDevCommand": null,
+    "beforeBuildCommand": null,
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        "android-m2c"
+      ]
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

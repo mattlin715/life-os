@@ -13,6 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 default = ["desktop-schema-v5"]
 desktop-schema-v5 = []
 founder-schema-v5 = []
+android-pilot = []
+android-pilot-online = ["android-pilot", "dep:reqwest"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -32,6 +34,7 @@ sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 time = { version = "0.3", features = ["formatting", "macros", "parsing"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

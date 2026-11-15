@@ -1,0 +1,16 @@
+{
+  "productName": "Life OS Model Pilot",
+  "identifier": "com.lifeos.review.pilot.model",
+  "build": {
+    "devUrl": null,
+    "beforeDevCommand": null,
+    "beforeBuildCommand": null,
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "capabilities": ["android-m2c"]
+    }
+  },
+  "bundle": { "active": false }
+}

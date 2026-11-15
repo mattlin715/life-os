@@ -1,8 +1,8 @@
 ---
-status: Independent R1 bounded browser and diff accepted; local closeout authorized; Android not reviewed
-version: 0.9
+status: First/append R1 source slice; new Android review pending
+version: "0.10"
 owner: LIN MENGLUNG
-last_updated: 2026/10/25
+last_updated: 2026/11/07
 depends:
   - docs/Reflection.md
   - docs/appendix/Harness.md
@@ -17,6 +17,30 @@ referenced_by:
 # Android M2-C — Offline synthetic daily Reflection
 
 
+
+## Explicit first/append Reflection R1 — implementation slice
+
+Founder approved the source/host slice from `869a25e` (`核定第一切片`). The
+historical M2-C identity, storage path, mock copy, and direct-fresh schema-v5
+boundary stay unchanged. No Android package, device result, or distribution
+authorization follows from this work.
+
+The first explicit action creates suggestions; a later explicit action appends
+the whole local mock batch, without replacing prior questions, answers,
+provenance, or unsaved drafts. The mock still emits at most one prompt per
+eligible confirmed same-source Evidence, with the existing three-item cap.
+Answer/skip clears only its own draft. Drafts are UI-session only, never context,
+and not promised to survive process exit. No automatic generation or retry.
+
+The frozen request binds the source revision, exact Reflection set (including
+skip status), ordered Evidence revisions, and new artifact IDs. The existing
+Android operation lock spans preflight, canonical direct `CreateSuggestedBatch`
+transaction, and verified SQLite reread. Read order is SQLite `created_at,id`,
+not generated order. Success requires all current projections and dependencies;
+an exact already-visible batch can be reconciled, never completed piecemeal.
+Stale source/Evidence/Reflection state is refused. A failed or unconfirmed
+response keeps the draft; an explicit reload can discard it with a warning.
+Existing response correction and parent deletion policy are unchanged.
 
 ## Independent saved-response correction R1 — host-only candidate
 
@@ -233,6 +257,84 @@ changes. English, Traditional Chinese and Japanese share the same hierarchy.
 These operations apply ADR-0007/0011/0012, Evidence boundary04, Reflection
 boundary05 and canonical v5 architecture12/13. Older migration-only factual
 descriptions do not override the separately authorized direct-origin slice.
+
+## Connected Model Pilot R1 — explicitly scoped M3 extension
+
+Founder decision `ANDROID-M3-GEMINI-LOCAL-SAVE-R1` Option A authorizes
+source and mock verification, not packaging or sending live traffic.
+The connected synthetic variant uses `com.lifeos.review.pilot.model`,
+its own app-private schema-v5 database, receipt and preference filenames.
+It does not import or open the offline Pilot store. Offline M2-C and
+`com.lifeos.review.pilot` keep their own identity and provenance boundary.
+
+Language settings retain the existing preference. The model adapter accepts
+only one exact adopted clue with explicit per-request preview/confirmation;
+local IDs bind the revision but are not sent. The user-supplied Gemini key
+is held in native memory only. The native Gemini transport uses a pinned
+HTTPS endpoint and model without retry, redirect, or context history. Trial
+questions and drafts are not persisted automatically.
+
+Explicit **Save my response** writes the question and response in one
+canonical direct-v5 transaction with separate Gemini prompt provenance and
+user response provenance, bound to the current source and Evidence
+revisions. The receipt of a model result is held in memory; Save uses that
+result without network access. Skip does not persist either item. No schema
+migration, desktop change, or new provider policy is introduced. ADR-0012
+remains unchanged; this is synthetic M3 source/mock authority only.
+
+### Model Pilot 3100 checkpoint and R2 plan
+
+3100 was separately built and locally signed for the Founder. Windows
+verification confirmed `com.lifeos.review.pilot.model`, versionCode 3100, and
+identical non-signature payload entries before and after signing. Signed APK
+SHA-256: `734814165BC828E89F85FE8C3E388E6789BAD316705749491050D925C83BF69B`.
+The Founder later reported receiving a real model question and saving a reply
+on Zenfone 10. This is reported use of that path, not complete device
+acceptance or release approval.
+The trial exposed three gaps: required demo-clue setup, an edited clue replacing
+the original in the model input, and no model feedback after a saved answer.
+
+**R2 status: plan agreed; implementation on hold until the Founder explicitly
+authorizes starting.** This is one end-to-end connected Android slice, not a
+sequence of separately packaged UI tweaks:
+
+1. **Record a moment → Ask one question.** Do not require a demo clue in the
+   connected main flow. Use the current saved original as the source. An
+   optional focus is a verbatim excerpt of that revision, not free text that
+   replaces it. Preserve existing edited clues; do not use them alone as
+   connected question input. Keep the offline demo available, but not as a
+   competing connected primary action or an undisclosed fallback.
+2. **Answer → Save locally.** Preserve existing question/answer provenance and
+   verified atomic save semantics. Saving does not contact the provider.
+   After a verified save, make **See another angle / 看看另一個角度** the next
+   primary action rather than asking for another answer by default.
+3. **See another angle.** Return a neutral observation grounded in the supplied
+   words, at most one tentative interpretation, and what remains uncertain.
+   The model may identify something worth noticing, but must not prescribe an
+   action, diagnose, or claim a recurring pattern from one event. If the
+   context is insufficient, say so. Feedback is session-only in this slice;
+   it does not become Evidence, a persisted Pattern, or a prerequisite to stop.
+
+**Transmission plan:** before either request, preview the destination and
+exact outgoing material and require explicit confirmation for that request.
+Question generation may send the current original and its optional exact focus;
+feedback may send that same moment's current original, model question, and
+verified saved user answer. Neither request sends other moments, history,
+unsaved drafts, or local IDs. Bind each request to the reviewed local revisions;
+an edit, deletion, or stale response must not silently change what is sent or
+attach a result to a different revision. Keep the Founder-only fictional data
+boundary, offline application and storage, and desktop behavior unchanged.
+When implementation is authorized, review the expanded M3 payload, consent,
+and canonical source-linkage approach before changing code. This plan does not
+amend any accepted ADR or authorize packaging, installation, or a live request.
+
+**One device review after host checks, one APK:** on Zenfone 10, use a fictional
+moment with enough context and verify a grounded question without demo-clue
+setup, an atomic local save, then a grounded angle without another mandatory
+question. Try the unrelated-clue regression and a second sparse fictional
+moment; confirm no source replacement, no invented interpretation, and no
+send when consent is cancelled. Reopen to verify the question and answer
+persist while the feedback does not. Do not infer crash durability.
 
 ## Reuse and persistence boundary
 

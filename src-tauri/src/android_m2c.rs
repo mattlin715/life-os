@@ -1,6 +1,6 @@
 //! Synthetic-only M2-C lifecycle. Existing direct initializer and canonical
 //! Experience writer remain authoritative; acknowledgements contain no text.
-use crate::android_m2a::with_m2c_storage;
+use crate::android_m2a::{with_m2c_storage, M2C_APPLICATION_ID, M2C_DB, M2C_LOCALE_PREF, M2C_RECEIPT};
 use crate::schema_v5_migration::runtime;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -203,9 +203,9 @@ fn mutate_at(
 pub(crate) fn m2c_storage_status(app: AppHandle) -> Result<serde_json::Value, String> {
     with_m2c_storage(&app, |_| {
         Ok(serde_json::json!({
-            "state":"ready", "schemaVersion":5, "applicationId":"com.lifeos.review.m2c",
-            "databaseFilename":"android-m2c-disposable-v5.db",
-            "receiptFilename":"android-m2c-direct-fresh-v5.receipt.json",
+            "state":"ready", "schemaVersion":5, "applicationId":M2C_APPLICATION_ID,
+            "databaseFilename":M2C_DB,
+            "receiptFilename":M2C_RECEIPT,
             "initializationOrigin":"directFreshV5", "syntheticOnly":true,
             "supportedOperations":["createExperience","listExperiences","getExperience","updateExperience","deleteExperience"],
             "unsupportedOperations":["provider","history","Pattern","importExport","backupRestore","migrationRecovery","sync"]
@@ -288,7 +288,7 @@ pub(crate) fn m2c_mutate_experience(
 #[tauri::command]
 pub(crate) fn m2c_get_locale_preference(app: AppHandle) -> Result<Option<String>, String> {
     with_m2c_storage(&app, |path| {
-        let preference = path.with_file_name("android-m2c-locale.pref");
+        let preference = path.with_file_name(M2C_LOCALE_PREF);
         if !preference.exists() {
             return Ok(None);
         }
@@ -307,7 +307,7 @@ pub(crate) fn m2c_set_locale_preference(app: AppHandle, locale: String) -> Resul
     }
     with_m2c_storage(&app, |path| {
         use std::io::Write;
-        let mut file = fs::File::create(path.with_file_name("android-m2c-locale.pref"))
+        let mut file = fs::File::create(path.with_file_name(M2C_LOCALE_PREF))
             .map_err(|_| "m2c_locale_write_failed")?;
         file.write_all(locale.as_bytes())
             .map_err(|_| "m2c_locale_write_failed")?;
@@ -337,10 +337,44 @@ pub(crate) fn m2c_mutate_artifact(
     request: crate::schema_v5_migration::android_reflection::ArtifactRequest,
     debug_phase: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    // Retain the historical one-item probe only in synthetic debug binaries.
+    if request.operation == "question" && !cfg!(debug_assertions) {
+        return Err("m2c_legacy_question_probe_refused".into());
+    }
+    with_artifact_mutation(&app, debug_phase.as_deref(), |path, rollback| {
+        tauri::async_runtime::block_on(crate::schema_v5_migration::android_reflection::mutate(
+            path, &request, rollback,
+        ))
+    })
+}
+
+#[tauri::command]
+pub(crate) fn m2c_generate_questions(
+    app: AppHandle,
+    request: crate::schema_v5_migration::android_reflection::QuestionBatchRequest,
+    debug_phase: Option<String>,
+) -> Result<serde_json::Value, String> {
+    with_artifact_mutation(&app, debug_phase.as_deref(), |path, rollback| {
+        tauri::async_runtime::block_on(
+            crate::schema_v5_migration::android_reflection::generate_questions(
+                path, &request, rollback,
+            ),
+        )
+    })
+}
+
+fn with_artifact_mutation(
+    app: &AppHandle,
+    debug_phase: Option<&str>,
+    operation: impl FnOnce(
+        &Path,
+        bool,
+    ) -> Result<serde_json::Value, crate::schema_v5_migration::MigrationError>,
+) -> Result<serde_json::Value, String> {
     if debug_phase.is_some() && !cfg!(debug_assertions) {
         return Err("m2c_debug_unavailable".into());
     }
-    if debug_phase.as_deref().is_some_and(|v| {
+    if debug_phase.is_some_and(|v| {
         !matches!(
             v,
             "beforeCommit" | "afterCommitBeforeAck" | "rollbackAfterProjection"
@@ -348,15 +382,10 @@ pub(crate) fn m2c_mutate_artifact(
     }) {
         return Err("m2c_debug_phase_invalid".into());
     }
-    with_m2c_storage(&app, |path| {
-        hold(path, debug_phase.as_deref(), "beforeCommit")?;
+    with_m2c_storage(app, |path| {
+        hold(path, debug_phase, "beforeCommit")?;
         let outcome =
-            tauri::async_runtime::block_on(crate::schema_v5_migration::android_reflection::mutate(
-                path,
-                &request,
-                debug_phase.as_deref() == Some("rollbackAfterProjection"),
-            ))
-            .map_err(|error| {
+            operation(path, debug_phase == Some("rollbackAfterProjection")).map_err(|error| {
                 if error.code.contains("stale") {
                     "m2c_stale_revision_preserved".to_string()
                 } else if error.code.contains("request_identity") {
@@ -365,7 +394,7 @@ pub(crate) fn m2c_mutate_artifact(
                     "m2c_artifact_outcome_unconfirmed_preserved".into()
                 }
             })?;
-        hold(path, debug_phase.as_deref(), "afterCommitBeforeAck")?;
+        hold(path, debug_phase, "afterCommitBeforeAck")?;
         Ok(outcome)
     })
 }

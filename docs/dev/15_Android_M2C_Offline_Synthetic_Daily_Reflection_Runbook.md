@@ -1,8 +1,8 @@
 ---
-status: Independent R1 bounded browser and diff accepted; local closeout authorized; Android not reviewed
-version: 0.9
+status: First/append R1 source slice; new Android review pending
+version: "0.10"
 owner: LIN MENGLUNG
-last_updated: 2026/10/25
+last_updated: 2026/11/07
 depends:
   - docs/architecture/24_Android_M2C_Offline_Synthetic_Daily_Reflection.md
 referenced_by:
@@ -12,6 +12,203 @@ referenced_by:
 # Android M2-C review runbook
 
 
+
+## Independent Windows ARM64 pilot candidate (synthetic, unsigned)
+
+The Founder authorized applying the independent no-symlink packaging proof to
+one Life OS synthetic candidate. Build from the verified first/append source,
+using the opt-in Rust `android-pilot` feature and Vite `android-pilot` mode.
+The source overlay selects `com.lifeos.review.pilot`; both the runtime guard
+and the fresh-v5 DB/receipt filenames bind to that scope. Historical M2-C and
+production IDs remain separate. The pilot has no debug hooks, provider transport,
+real-data or migration authority.
+
+The standalone JDK/SDK/NDK/Gradle/Rust toolchain may be reused; app source,
+Android project, dependency extraction, build target, and candidate outputs are
+separate. Direct Cargo ARM64 compilation hands an ordinary, hash-verified .so
+to Gradle; the old emulator runner is not part of this path. Candidate evidence
+is static only: exact packaged library, JNI exports, ARM64, ELF/ZIP alignment,
+merged manifest, permissions and backup rules. No signature, installation,
+device operation, or physical-device result follows. M2-D/036 remains stopped.
+
+### Pilot 3001 startup correction
+
+The Founder installed 3000 on Zenfone 10; its WebView showed
+`ERR_UNKNOWN_URL_SCHEME` before rendering Life OS. The effective Cargo
+overlay used a Windows drive path for `frontendDist`, which Tauri parsed as
+an external URL. The APK JSON alone did not expose this mismatch.
+
+For 3001, build Vite in pilot mode into the ignored repository-root
+`dist/` and keep the Cargo overlay at `frontendDist: "../dist"`, relative
+to the Tauri config. Do not turn on a dev server or network permissions.
+Inspect the actual APK library for the frontend asset keys and exact
+embedded HTML/JS/CSS content and reject the old host launch URL. Use 3000
+as a failing control. Keep `com.lifeos.review.pilot` and bump only
+`versionCode` to 3001; signing and in-place phone update remain separate.
+No successful Android startup or data retention is implied by these checks.
+
+### Pilot 3001 follow-up — save handoff and content ownership
+
+On Zenfone 10 the Founder reached the UI and saved a moment in 3001, but
+had to scroll past the list to find Reflection. The question and original
+also looked too similar. This follow-up changes the UI only: successful
+create and exact ID/body readback reveal and focus the saved moment once,
+without navigating on an unverified outcome. **Start reflection** is visible
+at the top of the open moment and jumps to the existing review controls;
+neither action generates a candidate or a question. Labels and structural
+borders separate the user's original, local demo questions (no AI call),
+and the user's own response. Unverified origin is not labelled as a known
+demo or user answer. Storage, requests, provenance and ADR-0012 stay unchanged.
+
+Source/host scope only. After separately authorized packaging and update,
+verify on Zenfone 10 with synthetic data: from a long list with the keyboard
+open, save a new moment; check that the correct heading and Start reflection
+appear without manual scrolling. Tap the shortcut and verify it does not
+generate anything. Explicitly reveal the demo, then answer it: distinguish
+origin labels in both light and dark themes, including after reopening.
+No Android runtime result is claimed for this follow-up.
+
+### Pilot 3002 feedback — simplify the just-saved moment
+
+The Founder reported seeing **Start reflection** on Zenfone 10, but did not
+know to choose it: editing help and the edit, delete, close and revision
+controls competed with it. The long-list and keyboard-open conditions were
+not confirmed by that report.
+
+After exact create/readback, the new moment's card now presents its saved
+heading and original text, followed by one prominent **Start reflection**
+action. Edit, delete, close and version history are under a closed **More
+actions** disclosure. Editing help appears in the editor. The shortcut still
+only navigates to the unchanged Reflection section; saving and navigating
+do not generate an artifact. Ordinary reopening is not treated as a new
+save. Delete still requires explicit confirmation.
+
+Source/host scope only. After separate packaging and installation approval,
+save a synthetic moment on the phone and check whether it is clear where to
+tap next without reading any help. Check that **More actions** starts closed
+and that the edit hint appears only after entering the editor.
+
+### Pilot 3003 feedback — one next action for saved and reopened moments
+
+The Founder recognized **Start reflection** on Zenfone 10, but a short
+moment was blocked by an explanation below the fold. Opening an existing
+moment from the list also brought the secondary controls back into view.
+
+Both successful creation and an exact list read bring the moment into view
+with the same primary action and a closed **More actions** disclosure. The
+same local context check used by Reflection chooses that action: when the
+saved original needs context, the card explains why and offers **Add context
+to this moment** instead of a link to a blocked step. It opens the existing
+editor with the original text. Cancel leaves the saved content untouched;
+the next action is recalculated from the verified saved revision, not the
+draft. There is no change to the gate, artifact generation or storage.
+
+Source/host scope only. After separate packaging and update approval, try a
+short and a contextual synthetic moment, both after saving and when reopened
+from the list. Verify the reason and next action are together without a swipe,
+the disclosure starts closed, and **Start reflection** appears after an explicit
+save with enough context. No runtime acceptance is claimed for this change.
+
+### Pilot 3004 feedback — open the clue review
+
+On Zenfone 10 with 3004, **Start reflection** looked like a no-op when the
+target was already on screen. The extra disclosure and duplicated original
+made it hard to tell what to do next or which text the actions affected.
+
+- **Start reflection** expands the clue review in the same card, without
+  creating or accepting a clue. **Create a demo clue from my original** is
+  the first action for a moment with no active clue.
+- The pending demo clue shows its exact text and explains that the actions
+  affect only this clue, not the original. **Use this clue for reflection**
+  is primary. Editing or rejecting targets the clue only. Its visible state
+  replaces the generic success message; failures and uncertain results
+  remain visible.
+- Once a clue is used, **Show a demo question** is the primary next action
+  when there are no active questions. Collapsing the review itself does not
+  discard session drafts. No gate, storage, or provider changes.
+
+Source/host scope only; non-Pilot M2-C keeps its existing presentation.
+Zenfone acceptance for this follow-up is pending a separately approved build:
+save or reopen a contextual synthetic moment, tap **Start reflection** while
+the card is already visible, and check that the next action and the target
+of each clue action are clear without expanding additional details.
+
+### Pilot 3005 feedback — reference the original once
+
+Founder installed 3005 on Zenfone 10 and found the clue card clearer, but
+the repeated text made **Edit this clue** look like editing the original.
+For the Pilot follow-up, the card refers to the original above when its
+content is the exact local quote (or exactly the original body). This also
+applies after adoption. **Reflect on this original** adopts the existing
+clue; **Use only an excerpt** opens an empty field and saves through the
+existing pending clue correction, still requiring review before adoption.
+Distinct clue text remains available in full. No changes to source editing,
+storage, provenance, provider behavior, or non-Pilot M2-C presentation.
+Device verification of this follow-up is pending a separately approved build.
+
+### Pilot 3006 feedback — keep the active clue visible
+
+Founder reported that the heading **Demo clue** and a collapsed adopted view
+made it unclear whether Reflection would use the initial quote or their edit.
+Keep the current clue in the same card before and after adoption, using
+**Reflection clue you edited** when the saved text differs from the original
+candidate. **Use this text** adopts that exact revision. On success change
+the card status to **Adopted**, leave the text visible, and offer the existing
+demo question action. When the clue is the full original, show only a stable
+reference to the original above. The optional details retain provenance and
+explain that adoption is not independent verification. No changes to the
+original Experience, storage, request handlers, or non-Pilot presentation.
+Host evidence only; device confirmation needs a separately approved build.
+
+### Pilot 3007 feedback — one notice after editing the original
+
+The Founder reported that editing an original after answering several questions
+showed one identical source-change warning per invalidated artifact. In Pilot
+Reflection, replace these warnings with one **Original updated** notice.
+Count only invalidated Reflection questions; if only clues were invalidated,
+say so without showing a question count. Do not show old question/answer
+text or count active questions or rejected clues. The existing next action
+remains available when eligible; nothing is regenerated automatically.
+The older notice is informational when the user has already started new work.
+No change to invalidation, retention, providers, or non-Pilot presentation.
+Host evidence only; device confirmation needs a separately approved build.
+
+### M3 Model Pilot R1 — independent connected variant (source/mock only)
+
+The connected build must pair the explicit Vite mode and Rust feature
+`android-pilot-online`, the online Tauri overlay, and the online-only Android
+manifest overlay. For the independent Gradle route, apply the overlay only in
+that build's **release** source set with namespace/application ID
+`com.lifeos.review.pilot.model`. Keep the launcher activity in that namespace
+and the no-backup/extraction resources; use a distinct visible app label.
+Check the final merged manifest for INTERNET only in the connected build,
+HTTPS/no cleartext, non-debuggable, the matching app ID and exclusions.
+The existing offline build recipe does not apply the release overlay.
+
+With a separately approved build and live device test, enter the key only on
+the phone. Check the exact destination and fictional clue, cancel once, then
+explicitly send and receive one Gemini question. Save the question and answer
+locally; reopen and verify both labels and that saving caused no network call.
+Also verify Skip, key clear/restart, Back/settings and draft retention, late
+reply rejection, and unchanged offline Pilot data. Android keyboard and OS
+clipboard behavior are device-specific; the app does not manage the clipboard.
+
+## First/append R1 — source/host scope only
+
+Do not run the historical emulator/package procedures for this slice. The
+selected first physical target is the Founder-reported Zenfone 10 on Android 15.
+Pixel 7 is deferred. Host tests do not establish device, OEM, or ARM64 behavior.
+No package/identity/signing/install or real-data authority was granted.
+
+After separate approval and candidate binding, use only synthetic data. Verify:
+first question → type a draft → explicit append and inspect the original draft
+→ save an answer → normal relaunch/readback → edit then cancel → edit then save
+→ relaunch and confirm the updated answer with both authorship sources → cancel
+source deletion → confirm it → relaunch and verify no related content returns.
+Observe keyboard and visible controls, system Back/gesture, background/lock and
+resume. Stop on unexpected state; do not clear an old install or assume a
+failed UI acknowledgment means no commit. Normal relaunch is not crash or
+power-loss evidence; the local mock does not test AI question quality.
 
 ## Independent R1 Founder review — no new Android run
 

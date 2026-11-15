@@ -480,19 +480,62 @@ pub(crate) async fn prepare_m2b_fixture(root: PathBuf) -> Result<PathBuf, String
     Ok(paths.live)
 }
 
+pub(crate) const M2C_APPLICATION_ID: &str = if cfg!(feature = "android-pilot-online") {
+    "com.lifeos.review.pilot.model"
+} else if cfg!(feature = "android-pilot") {
+    "com.lifeos.review.pilot"
+} else {
+    "com.lifeos.review.m2c"
+};
+pub(crate) const M2C_DB: &str = if cfg!(feature = "android-pilot-online") {
+    "android-model-pilot-disposable-v5.db"
+} else if cfg!(feature = "android-pilot") {
+    "android-pilot-disposable-v5.db"
+} else {
+    "android-m2c-disposable-v5.db"
+};
+pub(crate) const M2C_PENDING_DB: &str = if cfg!(feature = "android-pilot-online") {
+    ".android-model-pilot-fresh-v5.pending.db"
+} else if cfg!(feature = "android-pilot") {
+    ".android-pilot-fresh-v5.pending.db"
+} else {
+    ".android-m2c-fresh-v5.pending.db"
+};
+pub(crate) const M2C_RECEIPT: &str = if cfg!(feature = "android-pilot-online") {
+    "android-model-pilot-direct-fresh-v5.receipt.json"
+} else if cfg!(feature = "android-pilot") {
+    "android-pilot-direct-fresh-v5.receipt.json"
+} else {
+    "android-m2c-direct-fresh-v5.receipt.json"
+};
+pub(crate) const M2C_PENDING_RECEIPT: &str = if cfg!(feature = "android-pilot-online") {
+    ".android-model-pilot-direct-fresh-v5.pending.receipt.json"
+} else if cfg!(feature = "android-pilot") {
+    ".android-pilot-direct-fresh-v5.pending.receipt.json"
+} else {
+    ".android-m2c-direct-fresh-v5.pending.receipt.json"
+};
+pub(crate) const M2C_LOCALE_PREF: &str = if cfg!(feature = "android-pilot-online") {
+    "android-model-pilot-locale.pref"
+} else if cfg!(feature = "android-pilot") {
+    "android-pilot-locale.pref"
+} else {
+    "android-m2c-locale.pref"
+};
+
 fn m2c_paths_at(root: PathBuf) -> StoragePaths {
     StoragePaths {
-        application_id: "com.lifeos.review.m2c",
-        live: root.join("android-m2c-disposable-v5.db"),
-        pending: root.join(".android-m2c-fresh-v5.pending.db"),
-        receipt: root.join("android-m2c-direct-fresh-v5.receipt.json"),
-        pending_receipt: root.join(".android-m2c-direct-fresh-v5.pending.receipt.json"),
+        application_id: M2C_APPLICATION_ID,
+        live: root.join(M2C_DB),
+        pending: root.join(M2C_PENDING_DB),
+        receipt: root.join(M2C_RECEIPT),
+        pending_receipt: root.join(M2C_PENDING_RECEIPT),
         root,
     }
 }
 
 pub(crate) fn with_m2c_storage<T>(app: &AppHandle, operation: impl FnOnce(&Path) -> Result<T,String>) -> Result<T,String> {
-    if app.config().identifier != "com.lifeos.review.m2c" {return Err("m2c_application_identity_refused".into())}
+    if app.config().identifier != M2C_APPLICATION_ID {return Err("m2c_application_identity_refused".into())}
     let _lock=OPERATION_LOCK.lock().map_err(|_| "m2c_operation_lock_poisoned")?;
     let root=app.path().app_data_dir().map_err(|_| "m2c_app_private_path_failed")?;
     let paths=m2c_paths_at(root);
@@ -500,6 +543,15 @@ pub(crate) fn with_m2c_storage<T>(app: &AppHandle, operation: impl FnOnce(&Path)
     tauri::async_runtime::block_on(crate::schema_v5_migration::android_reflection::verify_scope(&paths.live))
         .map_err(|_| "m2c_unsupported_dependency_preserved")?;
     operation(&paths.live)
+}
+
+#[cfg(all(test, feature = "android-pilot", not(feature = "android-pilot-online")))]
+#[test]
+fn pilot_uses_isolated_storage_identity_and_filenames() {
+    let paths = m2c_paths_at(PathBuf::from("synthetic"));
+    assert_eq!(paths.application_id, "com.lifeos.review.pilot");
+    assert_eq!(paths.live, PathBuf::from("synthetic").join("android-pilot-disposable-v5.db"));
+    assert_eq!(paths.receipt, PathBuf::from("synthetic").join("android-pilot-direct-fresh-v5.receipt.json"));
 }
 
 #[cfg(test)]

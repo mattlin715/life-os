@@ -4,7 +4,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
   define: {
-    "import.meta.env.VITE_LIFE_OS_ANDROID_M2C": JSON.stringify(mode === "android-m2c" ? "1" : "0"),
+    "import.meta.env.VITE_LIFE_OS_ANDROID_M2C": JSON.stringify(mode === "android-m2c" || mode === "android-pilot" || mode === "android-pilot-online" ? "1" : "0"),
+    "import.meta.env.VITE_LIFE_OS_ANDROID_PILOT": JSON.stringify(mode === "android-pilot" || mode === "android-pilot-online" ? "1" : "0"),
+    "import.meta.env.VITE_LIFE_OS_ANDROID_PILOT_ONLINE": JSON.stringify(mode === "android-pilot-online" ? "1" : "0"),
     "import.meta.env.VITE_LIFE_OS_ANDROID_M2C_DEBUG_HOOKS": JSON.stringify(mode === "android-m2c" ? "1" : "0"),
     "import.meta.env.VITE_LIFE_OS_ANDROID_M2B": JSON.stringify(mode === "android-m2b" ? "1" : "0"),
     "import.meta.env.VITE_LIFE_OS_ANDROID_M2B_DEBUG_HOOKS": JSON.stringify(mode === "android-m2b" ? "1" : "0"),

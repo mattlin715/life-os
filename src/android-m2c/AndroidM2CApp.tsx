@@ -1,9 +1,13 @@
 import { ReflectionJourney } from "./ReflectionJourney";
 import { journeyCopy } from "./journeyCopy";
-import { useEffect, useRef, useState } from "react";
-import { createId, lifecycleRequest, m2cStore } from "./androidM2CStore";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createId, isAndroidPilot, lifecycleRequest, m2cApplicationId, m2cDatabaseFilename, m2cStore } from "./androidM2CStore";
 import type { DebugPhase, LifecycleRequest, Locale, M2CStore, Snapshot } from "./androidM2CStore";
 import type { ExperienceEntry } from "../types/domain";
+import { decideContextGate } from "../ai/harness/gateDecision";
+import { PilotSettings } from "./PilotModelPanels";
+import { connectedPilot, pilotModel } from "./pilotModel";
+import { pilotCopy } from "./pilotModelCopy";
 
 export const copy = {
   en: {
@@ -64,12 +68,41 @@ export function DraftStatus({ kind, visible, c }: { kind: "new" | "edit"; visibl
   return visible ? <p role="status" data-testid={`m2c-${kind}-unsaved`}>{kind === "new" ? c.unsaved : c.editUnsaved}</p> : null;
 }
 
-export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
+export function MomentActions({ compact, label, children }: { compact: boolean; label: string; children: ReactNode }) {
+  return compact ? <details className="android-m2c__moment-actions" data-testid="m2c-moment-actions">
+    <summary>{label}</summary>
+    {children}
+  </details> : <>{children}</>;
+}
+
+export function ReflectionDisclosure({ label, collapseLabel, onVisibility, children }: { label: string; collapseLabel: string; onVisibility?: (open: boolean) => void; children: ReactNode }) {
+  return <details className="android-m2c__reflection-disclosure" data-testid="m2c-reflection-disclosure" onToggle={(event) => {
+    const disclosure = event.currentTarget;
+    if (event.target !== disclosure) return;
+    onVisibility?.(disclosure.open);
+    if (disclosure.open) {
+      disclosure.firstElementChild?.scrollIntoView({ block: "start", behavior: "instant" });
+    }
+  }}>
+    <summary className="android-m2c__reflection-link android-m2c__reflection-link--primary">
+      <span className="android-m2c__reflection-open-label">{label}</span>
+      <span className="android-m2c__reflection-close-label">{collapseLabel}</span>
+    </summary>
+    {children}
+  </details>;
+}
+
+export function AndroidM2CApp({ store = m2cStore, pilot = isAndroidPilot }: {
+  store?: M2CStore; pilot?: boolean;
+}) {
+  const model = connectedPilot ? pilotModel : undefined;
   const [locale, setLocale] = useState<Locale>("en");
   const [localeState, setLocaleState] = useState("loading");
   const [storage, setStorage] = useState("loading");
   const [entries, setEntries] = useState<ExperienceEntry[]>([]);
   const [selected, setSelected] = useState<Snapshot | null>(null);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  const [listOpenSequence, setListOpenSequence] = useState(0);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
@@ -79,24 +112,64 @@ export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
   const [createRequest, setCreateRequest] = useState<{ id: string; text: string } | null>(null);
   const [debugPhase, setDebugPhase] = useState<DebugPhase | undefined>();
   const busy = useRef(false);
+  const savedMomentHeading = useRef<HTMLHeadingElement>(null);
+  const revealMoment = useRef<string | null>(null);
   const [artifactLocked, setArtifactLocked] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [hasModelKey, setHasModelKey] = useState(false);
+  const [openReflectionRevision, setOpenReflectionRevision] = useState<string | null>(null);
   const c = { ...copy[locale], ...journeyCopy[locale].source };
   useEffect(() => {
     let active = true;
     void (async () => {
       try {
-        const stored = await store.readLocale(); await store.status(); const loaded = await store.list();
+        const stored = await store.readLocale(); const status = await store.status();
+        if (pilot && (status.applicationId !== m2cApplicationId || !status.syntheticOnly || status.schemaVersion !== 5)) {
+          throw new Error("android_pilot_storage_scope_mismatch");
+        }
+        const loaded = await store.list();
         if (active) { setLocale(stored === "zh-TW" || stored === "ja" ? stored : "en"); setEntries(loaded); setStorage("ready"); setLocaleState("saved"); }
       } catch { if (active) { setStorage("blocked"); setLocaleState("failed"); } }
     })();
     return () => { active = false; };
-  }, [store]);
+  }, [store, pilot]);
   useEffect(() => { document.documentElement.lang = locale === "zh-TW" ? "zh-Hant" : locale; }, [locale]);
+  useEffect(() => {
+    if (!selected || revealMoment.current !== selected.entry.id) return;
+    revealMoment.current = null;
+    savedMomentHeading.current?.focus({ preventScroll: true });
+    savedMomentHeading.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [selected, listOpenSequence]);
+  useEffect(() => {
+    if (!pilot) return;
+    const back = () => setSettings(window.history.state?.lifeOsPilotSettings === true);
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, [pilot]);
+  const openSettings = () => {
+    if (!settings) {
+      window.history.pushState({ lifeOsPilotSettings: true }, "");
+      setSettings(true);
+    }
+  };
+  const closeSettings = () => {
+    setSettings(false);
+    if (window.history.state?.lifeOsPilotSettings) window.history.back();
+  };
 
-  const open = async (id: string) => {
+  const open = async (id: string, fromList = false) => {
     if (busy.current) return;
     busy.current = true;
-    try { const actual = await store.get(id); setSelected(actual); setEditing(false); setEditText(""); setConfirming(false); setRequest(null); setState("draft"); }
+    setJustCreatedId(null);
+    try {
+      const actual = await store.get(id);
+      if (fromList && actual) {
+        if (actual.entry.id !== id) throw new Error("unverified");
+        revealMoment.current = id;
+        setListOpenSequence((sequence) => sequence + 1);
+      }
+      setSelected(actual); setEditing(false); setEditText(""); setConfirming(false); setRequest(null); setState("draft");
+    }
     catch { setSelected(null); setState("failed"); }
     finally { busy.current = false; }
   };
@@ -107,7 +180,9 @@ export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
     setCreateRequest(frozen);
     try {
       await store.create(frozen.id, frozen.text); const actual = await store.get(frozen.id); const loaded = await store.list();
-      if (!actual || actual.entry.body !== frozen.text) throw new Error("unverified");
+      if (!actual || actual.entry.id !== frozen.id || actual.entry.body !== frozen.text) throw new Error("unverified");
+      revealMoment.current = frozen.id;
+      setJustCreatedId(frozen.id);
       setSelected(actual); setEntries(loaded); setDraft(""); setCreateRequest(null); setState("saved");
     } catch { setState("failed"); }
     finally { busy.current = false; }
@@ -128,6 +203,7 @@ export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
           || actual.predecessorRevisionId !== frozen.expectedRevisionId || actual.entry.updatedAt !== frozen.occurredAt) {
         setSelected(null); setEditText(""); setEditing(false); setEntries(loaded); setRequest(null); setState("conflict"); return;
       }
+      if (frozen.operation === "update" && actual?.entry.id === frozen.id) revealMoment.current = frozen.id;
       setSelected(actual); setEntries(loaded); setEditText(""); setEditing(false); setRequest(null); setDebugPhase(undefined);
       setState(frozen.operation === "delete" ? "deleted" : "saved");
     } catch (error) {
@@ -141,15 +217,27 @@ export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
 
   if (storage !== "ready") return <main className="android-m2c android-m2c--center" data-runtime="android-m2c-disposable" data-storage-state={storage}><p>{storage === "blocked" ? c.blocked : c.loading}</p></main>;
   const locked = artifactLocked || state === "saving" || request !== null || createRequest !== null;
+  const viewingMoment = !editing && !confirming;
+  const justCreated = selected !== null && selected.entry.id === justCreatedId && selected.revisionNumber === 1;
+  const needsContext = selected !== null && !decideContextGate(selected.entry.body, []).allowObservation;
+  const startEdit = () => {
+    if (busy.current || locked || !selected || !viewingMoment) return;
+    setEditText(selected.entry.body); setEditing(true); setState("draft");
+  };
+  const journey = journeyCopy[locale];
+  const settingsCopy = pilotCopy[locale];
+  const languages = <nav className="android-m2c__languages" aria-label={pilot ? settingsCopy.language : "Language"}>
+    {(["en", "zh-TW", "ja"] as Locale[]).map((lang) => <button key={lang} data-locale={lang} aria-pressed={locale === lang} disabled={locked || localeState === "saving"} onClick={() => {
+      setLocale(lang); setLocaleState("saving"); void store.writeLocale(lang).then(() => setLocaleState("saved")).catch(() => setLocaleState("failed"));
+    }}>{lang === "en" ? "English" : lang === "ja" ? "日本語" : "繁體中文"}</button>)}
+  </nav>;
   return <main className="android-m2c" data-runtime="android-m2c-disposable" data-storage-state="ready" data-save-state={state} data-locale-preference-state={localeState}>
-    <div className="android-m2c__shell">
-      <nav className="android-m2c__languages" aria-label="Language">
-        {(["en", "zh-TW", "ja"] as Locale[]).map((lang) => <button key={lang} data-locale={lang} aria-pressed={locale === lang} disabled={locked || localeState === "saving"} onClick={() => {
-          setLocale(lang); setLocaleState("saving"); void store.writeLocale(lang).then(() => setLocaleState("saved")).catch(() => setLocaleState("failed"));
-        }}>{lang === "en" ? "English" : lang === "ja" ? "日本語" : "繁體中文"}</button>)}
-      </nav>
-      {localeState === "failed" ? <p role="status">{c.localeError}</p> : null}
-      <header><p className="android-m2c__eyebrow">Android M2-C · Life OS</p><h1>{c.title}</h1><p>{c.summary}</p><p className="android-m2c__badge">{c.badge}</p></header>
+    {pilot && settings ? <div className="android-m2c__shell"><PilotSettings locale={locale} model={model} close={closeSettings} languages={languages} onKeyChanged={setHasModelKey} /></div> : null}
+    {localeState === "failed" ? <p role="status">{c.localeError}</p> : null}
+    <div className="android-m2c__shell" hidden={pilot && settings} data-testid="pilot-main">
+      {!pilot ? languages : null}
+      <header>{pilot ? <button type="button" className="android-m2c__settings-entry" data-testid="pilot-settings-open" onClick={openSettings}>⚙ {settingsCopy.settings}</button> : null}
+        <p className="android-m2c__eyebrow">{pilot ? model ? "Life OS · Model Pilot" : "Life OS · Synthetic Pilot" : "Android M2-C · Life OS"}</p><h1>{c.title}</h1><p>{c.summary}</p><p className="android-m2c__badge">{model ? settingsCopy.connected : c.badge}</p></header>
       <OperationStatus state={state} c={c} revisionNumber={selected?.revisionNumber} />
       {state === "failed" && (request || createRequest) ? <>
         <button data-testid="m2c-retry" onClick={() => void (request ? mutate(request.operation === "delete", true) : save(true))}>{c.retry}</button>
@@ -172,16 +260,32 @@ export function AndroidM2CApp({ store = m2cStore }: { store?: M2CStore }) {
         <DraftStatus kind="new" visible={!!draft.trim() && !locked} c={c} />
         <button data-testid="m2c-save" disabled={locked || !draft.trim()} onClick={() => void save()}>{c.save}</button>
       </section>
-      <section className="android-m2c__card"><h2>{c.list}</h2>{entries.length === 0 ? <p>{c.empty}</p> : <ul className="android-m2c__list">{entries.map((entry) => <li key={entry.id} data-experience-id={entry.id}><SourceListText entry={entry} selectedId={selected?.entry.id} locale={locale} /><button data-testid="m2c-open" disabled={locked} onClick={() => void open(entry.id)}>{c.open}</button></li>)}</ul>}</section>
-      {selected ? <section className="android-m2c__card android-m2c__exact" data-testid="m2c-exact"><h2>{c.exact}</h2><p id="m2c-source-hint" data-testid="m2c-source-hint" className="android-m2c__secondary">{c.sourceHint}</p>
-        {editing ? <><label htmlFor="m2c-edit">{c.sourceEditLabel}</label><textarea autoFocus aria-describedby="m2c-source-hint" id="m2c-edit" data-testid="m2c-edit-text" value={editText} disabled={locked} onChange={(e) => { setEditText(e.target.value); setState("draft"); }} /><DraftStatus kind="edit" visible={editText !== selected.entry.body && !locked} c={c} /><button data-testid="m2c-save-changes" disabled={locked || !editText.trim()} onClick={() => void mutate(false)}>{c.changes}</button><button data-testid="m2c-cancel-edit" disabled={locked} onClick={() => { setEditing(false); setEditText(""); }}>{c.cancel}</button></>
-          : <><p id="m2c-source-content" data-testid="m2c-exact-text">{selected.entry.body}</p><button data-testid="m2c-edit" disabled={locked || confirming} onClick={() => { setEditText(selected.entry.body); setEditing(true); setState("draft"); }}>{c.edit}</button><button data-testid="m2c-delete" disabled={locked || confirming} onClick={() => setConfirming(true)}>{c.del}</button></>}
-        {confirming ? <div role="dialog" aria-modal="false" aria-label={c.del}><p>{c.confirm}</p><button data-testid="m2c-confirm-delete" disabled={locked} onClick={() => void mutate(true)}>{c.confirmDelete}</button><button data-testid="m2c-cancel-delete" disabled={locked} onClick={() => setConfirming(false)}>{c.cancel}</button></div> : null}
-        <button disabled={locked} data-testid="m2c-close" onClick={() => { setSelected(null); setEditing(false); setEditText(""); setConfirming(false); }}>{c.close}</button>
-        <details className="android-m2c__secondary-details" data-testid="m2c-revision-details"><summary>{c.revisionDetails}</summary><code data-testid="m2c-revision">revision={selected.revisionNumber} · authoredBy={selected.authorship} · id={selected.revisionId} · predecessor={selected.predecessorRevisionId ?? "none"}</code></details>
-        {!editing && !confirming ? <ReflectionJourney key={selected.revisionId} source={selected} locale={locale} store={store} onLock={setArtifactLocked} onReopen={() => void open(selected.entry.id)} /> : null}
+      <section className="android-m2c__card"><h2>{c.list}</h2>{entries.length === 0 ? <p>{c.empty}</p> : <ul className="android-m2c__list">{entries.map((entry) => <li key={entry.id} data-experience-id={entry.id}><SourceListText entry={entry} selectedId={selected?.entry.id} locale={locale} /><button data-testid="m2c-open" disabled={locked} onClick={() => void open(entry.id, true)}>{c.open}</button></li>)}</ul>}</section>
+      {selected ? <section className="android-m2c__card android-m2c__exact" data-testid="m2c-exact" aria-labelledby="m2c-saved-moment-heading">
+        <h2 id="m2c-saved-moment-heading" ref={savedMomentHeading} tabIndex={-1}>{justCreated && viewingMoment ? journey.momentSaved : journey.yourMoment}</h2>
+        {!editing ? <p id="m2c-source-content" data-testid="m2c-exact-text">{selected.entry.body}</p> : null}
+        {viewingMoment && !locked && needsContext ? <>
+          <p id="m2c-reflection-context" data-testid="m2c-reflection-context">{journey.contextNeeded}</p>
+          <button type="button" data-testid="m2c-add-context" className="android-m2c__reflection-link android-m2c__reflection-link--primary" aria-describedby="m2c-reflection-context" onClick={startEdit}>{journey.addContext}</button>
+        </> : null}
+        {!pilot && viewingMoment && !locked && !needsContext ? <a className="android-m2c__reflection-link android-m2c__reflection-link--primary" href="#m2c-reflection-start">{journey.startReflection}</a> : null}
+        {pilot && viewingMoment && !needsContext ? (
+          <ReflectionDisclosure key={selected.revisionId} label={journey.startReflection} collapseLabel={journey.collapseReflection}
+            onVisibility={(open) => setOpenReflectionRevision(open ? selected.revisionId : null)}>
+            <ReflectionJourney guided source={selected} locale={locale} store={store} onLock={setArtifactLocked} onReopen={() => void open(selected.entry.id)}
+              model={model} hasModelKey={hasModelKey} modelVisible={!settings && openReflectionRevision === selected.revisionId} openModelSettings={openSettings} />
+          </ReflectionDisclosure>
+        ) : null}
+        <MomentActions key={`${selected.entry.id}:${listOpenSequence}`} compact={viewingMoment} label={journey.moreMomentActions}>
+          {editing ? <><p id="m2c-source-hint" data-testid="m2c-source-hint" className="android-m2c__secondary">{c.sourceHint}</p><label htmlFor="m2c-edit">{c.sourceEditLabel}</label><textarea autoFocus aria-describedby="m2c-source-hint" id="m2c-edit" data-testid="m2c-edit-text" value={editText} disabled={locked} onChange={(e) => { setEditText(e.target.value); setState("draft"); }} /><DraftStatus kind="edit" visible={editText !== selected.entry.body && !locked} c={c} /><button data-testid="m2c-save-changes" disabled={locked || !editText.trim()} onClick={() => void mutate(false)}>{c.changes}</button><button data-testid="m2c-cancel-edit" disabled={locked} onClick={() => { setEditing(false); setEditText(""); }}>{c.cancel}</button></>
+            : <><button data-testid="m2c-edit" disabled={locked || confirming} onClick={startEdit}>{c.edit}</button><button data-testid="m2c-delete" disabled={locked || confirming} onClick={() => setConfirming(true)}>{c.del}</button></>}
+          {confirming ? <div role="dialog" aria-modal="false" aria-label={c.del}><p>{c.confirm}</p><button data-testid="m2c-confirm-delete" disabled={locked} onClick={() => void mutate(true)}>{c.confirmDelete}</button><button data-testid="m2c-cancel-delete" disabled={locked} onClick={() => setConfirming(false)}>{c.cancel}</button></div> : null}
+          <button disabled={locked} data-testid="m2c-close" onClick={() => { setSelected(null); setEditing(false); setEditText(""); setConfirming(false); }}>{c.close}</button>
+          <details className="android-m2c__secondary-details" data-testid="m2c-revision-details"><summary>{c.revisionDetails}</summary><code data-testid="m2c-revision">revision={selected.revisionNumber} · authoredBy={selected.authorship} · id={selected.revisionId} · predecessor={selected.predecessorRevisionId ?? "none"}</code></details>
+        </MomentActions>
+        {!pilot && viewingMoment ? <ReflectionJourney key={selected.revisionId} source={selected} locale={locale} store={store} onLock={setArtifactLocked} onReopen={() => void open(selected.entry.id)} /> : null}
       </section> : null}
-      <details className="android-m2c__details" data-testid="m2c-build-details"><summary>{c.buildDetails}</summary><p>{journeyCopy[locale].disclosure}</p><p>{journeyCopy[locale].retention}</p><p>{c.retention}</p><p>{c.limits}</p><code>schema=5 · origin=directFreshV5 · file=android-m2c-disposable-v5.db</code></details>
+      <details className="android-m2c__details" data-testid="m2c-build-details"><summary>{c.buildDetails}</summary><p>{model ? settingsCopy.connected : journeyCopy[locale].disclosure}</p><p>{journeyCopy[locale].retention}</p><p>{c.retention}</p><p>{model ? settingsCopy.connectedLimits : c.limits}</p><code>schema=5 · origin=directFreshV5 · file={m2cDatabaseFilename}</code></details>
       {import.meta.env.VITE_LIFE_OS_ANDROID_M2C_DEBUG_HOOKS === "1" ? <details hidden data-debug-only="source"><summary>Disposable debug probes</summary>{(["beforeCommit", "afterCommitBeforeAck", "rollbackAfterProjection"] as DebugPhase[]).map((phase) => <button key={phase} data-debug-phase={phase} disabled={locked} onClick={() => setDebugPhase(phase)}>{phase}</button>)}</details> : null}
     </div>
   </main>;
