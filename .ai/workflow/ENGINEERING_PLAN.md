@@ -89,3 +89,68 @@ Medium: new secret and external transmission surface, isolated from the offline 
 ## Escalation Decision
 
 Pause for package and actual network/device approval; do not claim runtime or production authority.
+
+## R2 Revision Plan
+
+The preceding design records R1. R2 retains the connected identity and
+strict fixed transport. A source-revision-bound question request sends
+the exact original and optional exact excerpt. A separately consented
+feedback request binds exact source and saved Reflection revisions;
+only original, question and saved answer are transmitted.
+
+Only the feature-gated atomic Gemini version-2 answered-pair operation
+can create a canonical record without a uses_evidence edge. It retains
+the exact derived_from_experience edge and answers_prompt lineage; the
+normal Evidence gate remains in place for offline/desktop generation and
+unqualified writes. No DDL, side store, or ADR amendment. Corrections use
+the same compare-and-set writer. Feedback remains renderer session state.
+
+Validate payload and consent, asynchronous invalidation, key lifetime,
+atomic rollback/retry/readback, response correction, and source
+replacement/deletion with host fixtures. No APK or live request.
+
+## R3 UI source cleanup and integrated proposal
+
+Only renderer presentation and regression tests change now. Remove the focus
+entry/preview field, do not send an optional focus from the connected screen,
+and remove the connected legacy renderer branch rather than hiding it in a
+collapsed control. Retain the offline renderer. Genuine earlier saved model
+questions/answers remain readable without generation or adoption controls;
+no artifact/SQLite cleanup. Question and feedback use distinct localized
+origin labels; the current feedback still truthfully states session-only.
+
+Document one R3 implementation proposal for opt-in encrypted credential
+retention, explicit reviewed local feedback save, and same-moment follow-up
+with new preview/consent per request. Specify source revisions, provenance,
+correction/deletion and upgrade continuity before implementing new storage.
+Do not add a new schema or silently reuse Pattern or generic JSON sidecars.
+
+Tests: all three locales, original-only preview, no connected mock actions,
+earlier Gemini readback, distinct origin labels, plus existing frontend/
+Android contracts. Do not build, sign, install, send, or promote Git. Canonical
+verification remains independently required; do not weaken its preflight.
+
+## R3 authorized continuity: exact feasibility findings
+
+Founder authorizes items 1,5,6 sources and host tests; no packaging. A native-only
+Tauri mobile bridge will manage opt-in Android Keystore AES-GCM wrapping into
+an AtomicFile under noBackupFilesDir. There is no renderer credential getter,
+plaintext persistence, SQLite secret or APK key. Session-only default and
+clear/forget write a durable disabled marker before destroying the wrapping
+key, so cleanup failure cannot silently restore an old credential.
+
+Schema v5 artifact_heads restricts kinds to evidence/reflection/pattern/
+recovery_turn/historical_question; roles and relationship types are similarly
+closed. Pattern creation requires confirmed Evidence; the R2 source-only
+question intentionally has none. Durable independent feedback and parent-
+feedback-bound supplements cannot be represented without a typed extension.
+Do not masquerade them as Evidence/Reflection or widen accepted Pattern rules.
+Draft the exact next-schema/lifecycle ADR for separate Founder review as the
+approved proposal requires. Keep angle results session-only and supplementation
+unimplemented until that checkpoint. Credential work can proceed independently
+without modifying SQLite, so no interim APK is required.
+
+Host: pure Java injected-backend crypto/lifecycle tests (not real Keystore),
+Java compile of the Android bridge against pinned APIs, TypeScript/frontend
+state tests, and focused native tests/static mobile registration. Actual Android
+Keystore, secret update continuity and secure storage cannot be proven on host.

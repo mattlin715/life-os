@@ -20,3 +20,17 @@ Status: ready
 - Current owner: orchestrator
 - Current phase: intake
 - Created at: 2026-11-14T17:26:26.627Z
+
+## Current checkpoint — 2026-11-18 JST
+
+The initial scope/phase fields above describe R1 intake, not the current state.
+R2 3101 was separately packaged/signed and Founder-reported installed/used.
+R3 UI cleanup and remembered-key source/host checks are retained; durable
+feedback and supplement turns are not implemented. Current control state:
+human_decision_required, resume engineering_planning, open
+ANDROID-M3-GEMINI-R3-TYPED-MODEL-SCHEMA. ADR-0013 is Proposed, not accepted.
+
+Founder requested closeout while considering the draft. Read SPRINT_REPORT.md
+for the source/host/package boundaries, exact evidence and continuation steps.
+No new development, package, device action, credential access, commit or push.
+Do not archive/reset the active workflow or infer approval from this closeout.

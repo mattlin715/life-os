@@ -93,3 +93,42 @@ Implement the bounded opt-in vertical slice without changing canonical policy.
 ## Review Status
 
 approved_with_conditions
+
+## R2 Revision Review
+
+The earlier sections describe R1. The Founder reported that the 3100 path
+made a demo clue mandatory, let an edited clue replace the original, and
+offered no meaningful next step after answering. The documented R2 plan
+supersedes that interaction for the separate connected Pilot only.
+Explicit Founder start: **同意開始**.
+
+The current saved original becomes the grounding source; focus may only
+be a verbatim excerpt. A verified local save keeps model and user
+authorship distinct and does not send anything. A separate affirmative
+consent can request one neutral reflection grounded in that exact original
+and saved pair, with uncertainty and no diagnosis, prescription, identity
+claim, longitudinal inference, or persistence of feedback. User can stop
+after saving. Same-moment only, fictional content only; no broad packet,
+secret persistence, connected fallback, desktop or offline change.
+Package/device/live provider remain separate Founder decisions.
+
+## 3101 Founder feedback and R3 boundary (2026-11-18 JST)
+
+The Founder reports successful Zenfone 10 update with old moments retained,
+direct model question, verified local answer, and a useful second angle.
+The Founder also explicitly reports the three cancellation, mobile
+lifecycle/draft/stale-reply, and disposable source-deletion checks OK.
+These are bounded direct reports, not independent telemetry, crash proof,
+a completed canonical check, or invited-user acceptance.
+
+Explicit source-only UI requests: remove optional focus; remove connected
+local-demo and repeated demo-question controls; distinguish Gemini question
+and feedback. Preserve offline mode and previously saved records. Do not
+replace removal with an identical secondary generation path.
+
+Integrate remembered credentials, explicitly reviewed feedback persistence
+and same-moment user supplements into one R3 proposal for Founder approval.
+Do not implement broader credential, retention or provider-input authority
+under the earlier session-only R2 permission. Time-range cross-moment
+Pattern reflection is recorded for later discussion under ADR-0010,
+not implemented, activated, scheduled, or granted historical consent.

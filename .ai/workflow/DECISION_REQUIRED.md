@@ -1,120 +1,80 @@
 # Decision Required
 
-Status: resolved
+Status: open
 - Sprint ID: android-pilot-byo-gemini-r1
 - Artifact schema: 1.0
 - Authoring role: orchestrator
-- Created at: 2026-11-15 JST
-- Updated at: 2026-11-15 JST
+- Updated at: 2026-11-18 JST
 
 ## Decision ID
 
-ANDROID-M3-GEMINI-LOCAL-SAVE-R1
-
-## Sprint ID
-
-android-pilot-byo-gemini-r1
+ANDROID-M3-GEMINI-R3-TYPED-MODEL-SCHEMA
 
 ## Decision Summary
 
-The Founder replaced the session-only trial requirement with explicit local
-save of the Gemini question and user response together. Save must not call Gemini.
+R3 user-flow items 1,5,6 were approved for sources/host tests. Item 1 is
+implemented and host-tested; items 5 and 6 require the now-concrete schema
+decision described in proposed ADR-0013. Do not mistake this for another
+request to approve the same flow, or a completed R3 implementation.
 
-## Why Automation Stopped
+## Concrete Blocker
 
-ADR-0012 reserves Android provider, credential and network authority for M3.
-The current offline M2-C provenance allowlist refuses provider-generated rows.
-The canonical writer separately creates a suggestion and saves an answer;
-two separate commits could leave an unanswered remote question after failure.
-The earlier implementation plan still authorizes a session-only trial, not a
-new durable Android provider provenance boundary.
+Current v5 kinds, provenance/dependency roles and exact schema/version checks
+cannot express independent feedback and supplement chains. Patterns require
+Evidence; Reflection cannot be repurposed as arbitrary dialog. Neither a
+fake artifact nor JSON sidecar is an acceptable shortcut.
 
-## Relevant Constitution Clauses
+## Proposed Decision
 
-We Build Mirrors, Not Oracles; Human Before AI; Evidence Before Conclusion;
-Privacy Before Profit.
-
-## Relevant Primary Definitions
-
-Reflection, Memory, Privacy, AI, and Product Harness. Explicit local save is
-distinct from permission to transmit a clue.
-
-## Relevant ADRs
-
-ADR-0012 M3 authority boundary; ADR-0007 requires local provenance; ADR-0011
-requires canonical append-only lifecycle. No ADR status change is proposed.
-
-## Available Options
-
-A. Authorize a bounded M3 connected synthetic Pilot with its own app-private
-identity/store while retaining the offline Pilot. Use a single canonical,
-verified transaction for explicit save with AI prompt provenance and user
-response provenance.
-
-B. Keep the same package/store and explicitly design verified compatibility of
-both modes before admitting remote provenance. No implementation until the
-offline reader behavior and rollback/update path are approved.
-
-## Benefits
-
-A preserves the current offline trust and data path. B could preserve access to
-earlier moments in the same installation after compatibility is designed.
-
-## Risks
-
-A requires a separate installation and newly created synthetic trials. B can
-make an older or offline build refuse to open the shared store after an AI save.
-Both require atomic write/error reconciliation and exact revision binding.
-
-## Reversibility
-
-A leaves the offline app untouched. B requires an agreed compatibility plan;
-never delete or reinterpret existing records as a downgrade recovery method.
-
-## Data And Privacy Impact
-
-Local save only after explicit action. The question and answer bind to the
-exact source and adopted clue; prompt uses Gemini/provider/model provenance;
-the answer is user-authored. Only the selected synthetic clue would ever be
-sent to Gemini; saving sends nothing. No secret, draft, history or real data.
-
-## Orchestrator Recommendation
-
-A. Review an isolated M3 layout and canonical atomic save with mocked provider
-only. Keep build, signing, install and actual outbound tests separately gated.
+Approve or revise ADR-0013's isolated Model Pilot v6 design: retain same app
+identity/store and old question/answer data; add normalized typed model-turn
+revisions, content, provenance, dependencies, lifecycle and separate upgrade
+receipt. Correcting or deleting sources/answers/turns invalidates dependents;
+parent deletion purges content. Preserve v5 history, require exact pre/post
+upgrade verification, and refuse unsafe automatic downgrade. Then complete
+the exact DDL/upgrade engineering artifact before enabling migration code.
+Offline/desktop remain v5.
 
 ## Default Safe Action
 
-Keep current offline Pilot and unfinished connected source intact; do not
-enable a network package or relax the offline provenance allowlist.
+Leave installed 3101 and all user content unchanged; keep feedback ephemeral.
+Do not build a credential-only APK, add storage bypasses, accept an ADR
+automatically, execute a migration or ask for secrets.
 
-## Blocked Files Or Phases
+## Available Options
 
-Connected Pilot identity and store scope; durable provider provenance;
-paired local save and its canonical verification; no pack/sign/install or live calls.
+A. Accept the proposed Model Pilot v6 design and proceed with its exact
+schema/upgrade plan under the already approved source/host scope.
+
+B. Revise the storage/upgrade boundary before implementing feedback save
+and supplements. Existing credential/UI source work remains preserved.
+
+## Out of Scope
+
+APK/sign/install, actual API, real journals, cross-moment Pattern feature,
+migration execution on a profile, destructive recovery, signing-secret
+access, commit/push. Canonical local pnpm failure is not waived.
 
 ## Exact Founder Response Needed
 
-Approve A (standalone synthetic M3 identity/store and atomic save) or choose
-the shared-store compatibility design B.
+Accept or revise the concrete typed model-turn/schema-v6 design in
+`docs/adr/ADR-0013-proposed-model-pilot-feedback-and-supplement-lifecycle.md`.
 
 ## Resolution Status
 
-resolved
+open
 
 ## Exact Founder Response
 
-走A
+Not recorded.
 
 ## Selected Option And Authorized Scope
 
-- Selected option: A
-- Authorized scope: Isolated synthetic M3 identity and store, canonical paired local save, source and mock tests only; no package, signing, installation or outbound test.
+Not recorded.
 
 ## Decided At And Evidence Reference
 
-- Decided at: 2026-11-14T17:35:01.140Z
-- Evidence reference: direct-founder-chat:ANDROID-M3-GEMINI-LOCAL-SAVE-R1
+Not recorded.
 
 ## Resume Phase
 

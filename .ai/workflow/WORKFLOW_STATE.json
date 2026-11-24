@@ -1,51 +1,46 @@
 {
   "schema_version": "1.1",
-  "state_revision": 18,
-  "last_event_id": "android-pilot-byo-gemini-r1:0018",
-  "last_event_hash": "3bc3dfc102b7500630a12af868474e18920f35a49be4fbba86f21c821f31725a",
+  "state_revision": 56,
+  "last_event_id": "android-pilot-byo-gemini-r1:0056",
+  "last_event_hash": "0c61f25a776dffcaf14b590f60423c9a742552efe7d17edc52672fc77516e88f",
   "sprint_id": "android-pilot-byo-gemini-r1",
   "mission_title": "Android Pilot settings and one Gemini question",
-  "status": "validation",
-  "current_phase": "validation",
+  "status": "human_decision_required",
+  "current_phase": "human_decision_required",
   "current_role": "orchestrator",
-  "review_cycle": 0,
+  "review_cycle": 2,
   "max_review_cycles": 3,
-  "human_approval_required": false,
-  "blocking_reason": null,
-  "blocked_phase": null,
-  "resume_phase": null,
-  "active_decision_ids": [],
-  "decision_resolution": {
-    "status": "resolved",
-    "exact_founder_response": "走A",
-    "selected_option": "A",
-    "authorized_scope": "Isolated synthetic M3 identity and store, canonical paired local save, source and mock tests only; no package, signing, installation or outbound test.",
-    "decided_at": "2026-11-14T17:35:01.140Z",
-    "evidence_reference": "direct-founder-chat:ANDROID-M3-GEMINI-LOCAL-SAVE-R1"
-  },
+  "human_approval_required": true,
+  "blocking_reason": "Item 1 source and bounded host tests complete; items 5/6 unimplemented because exact v5 cannot honestly represent typed feedback/supplement lineage. Proposed ADR-0013 needs Founder schema/upgrade review; no bypass or interim package.",
+  "blocked_phase": "implementation",
+  "resume_phase": "engineering_planning",
+  "active_decision_ids": [
+    "ANDROID-M3-GEMINI-R3-TYPED-MODEL-SCHEMA"
+  ],
+  "decision_resolution": null,
   "last_completed_phase": "implementation",
   "next_action": null,
   "base_branch": "develop",
   "working_branch": "codex/android-pilot-arm64-r1",
-  "repository_head": "869a25e217cb1297bd0569964b2b69b56fe9650d",
-  "working_tree_digest": "b54912ff45f6e1a87339a154bcac8aff0ac25107446e22ee32ff51914d631379",
+  "repository_head": "26130b9106f9efe52496ca5de659879ddc85d3e8",
+  "working_tree_digest": "8b1b18aef869fda10066f7d9d93ec00b52c16dab309d692938a07ef244630aec",
   "artifacts": {
     "current_mission": "ready",
     "product_review": "approved_with_conditions",
     "engineering_plan": "approved",
-    "engineering_report": "completed_with_follow_up",
+    "engineering_report": "human_decision_required",
     "theory_alignment_review": "pending",
-    "decision_required": "resolved",
-    "sprint_report": "pending"
+    "decision_required": "open",
+    "sprint_report": "human_decision_required"
   },
   "verification": {
     "repository_verify": {
       "status": "failed",
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
       "exit_code": 1,
-      "completed_at": "2026-11-14T17:53:55.994Z",
-      "repository_head": "869a25e217cb1297bd0569964b2b69b56fe9650d",
-      "working_tree_digest": "b54912ff45f6e1a87339a154bcac8aff0ac25107446e22ee32ff51914d631379"
+      "completed_at": "2026-11-17T17:01:26.738Z",
+      "repository_head": "26130b9106f9efe52496ca5de659879ddc85d3e8",
+      "working_tree_digest": "d22833455a4a88e9305100857a0754bec1534049465ab20cfbcb5658d2c1fac4"
     },
     "manual_ui": {
       "status": "not_run",
@@ -55,5 +50,5 @@
     }
   },
   "created_at": "2026-11-14T17:26:26.627Z",
-  "updated_at": "2026-11-14T17:53:55.995Z"
+  "updated_at": "2026-11-18T14:21:29.771Z"
 }
