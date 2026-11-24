@@ -10,7 +10,9 @@ import { CandidateScopeNote } from "./ReflectionJourney";
 import { candidateGenerationLabel, isRejectedCandidate, RejectedCandidateHistory } from "./ReflectionJourney";
 import { copy as sourceCopy } from "./AndroidM2CApp";
 import { AndroidM2CApp, MomentActions, ReflectionDisclosure, SourceListText } from "./AndroidM2CApp";
-import { PilotSettings } from "./PilotModelPanels";
+import { PilotModelFeedback, PilotModelQuestion, PilotSettings } from "./PilotModelPanels";
+import { pilotCopy } from "./pilotModelCopy";
+import type { ModelPort } from "./pilotModel";
 import { m2cApplicationId } from "./androidM2CStore";
 import type { EvidenceCandidate } from "../types/domain";
 const source: Snapshot = { entry: { id: "m2c-source-synthetic", body: "Today I felt unsure and paused before replying. This is my account, not independent proof.", createdAt: "2026-10-04T00:00:00.000Z", updatedAt: "2026-10-04T00:00:00.000Z", userEditable: true }, revisionId: "v5sr_exact-source", revisionNumber: 1, predecessorRevisionId: null, authorship: "user" };
@@ -392,7 +394,7 @@ const savedPrompt = (): ArtifactSnapshot => ({ id: "m2c-response-synthetic", kin
     promptProvenance: { origin: "local_mock", provider: "mock", model: null, sourceEntryId: source.entry.id, sourceArtifactIds: [row.id] },
     responseProvenance: { origin: "user", sourceEntryId: source.entry.id, sourceArtifactIds: ["m2c-response-synthetic"] },
   } });
-async function component(locale: "en" | "zh-TW" | "ja" = "en", initial = [row, savedPrompt()], guided = false) {
+async function component(locale: "en" | "zh-TW" | "ja" = "en", initial = [row, savedPrompt()], guided = false, model?: ModelPort) {
   hooks.cursor = 0; hooks.values = []; hooks.effects = []; hooks.deps = [];
   let rows = structuredClone(initial);
   const store = { artifacts: vi.fn(async () => structuredClone(rows)), get: vi.fn(async () => structuredClone(source)),
@@ -408,7 +410,7 @@ async function component(locale: "en" | "zh-TW" | "ja" = "en", initial = [row, s
   const onLock = vi.fn(), onReopen = vi.fn();
   const render = () => {
     hooks.cursor = 0; hooks.active = true;
-    try { tree = ReflectionJourney({ source, locale, store: store as unknown as M2CStore, onLock, onReopen, guided }); }
+    try { tree = ReflectionJourney({ source, locale, store: store as unknown as M2CStore, onLock, onReopen, guided, model, hasModelKey: true, modelVisible: true, openModelSettings: model ? vi.fn() : undefined }); }
     finally { hooks.active = false; }
     hooks.effects.splice(0).forEach((effect) => effect());
   };
@@ -417,7 +419,7 @@ async function component(locale: "en" | "zh-TW" | "ja" = "en", initial = [row, s
   const click = (id: string) => { const e = get(id); expect(e.props.disabled, id + " disabled").not.toBe(true); e.props.onClick(); render(); };
   const change = (text: string) => { get("m2c-response-correction").props.onChange({ target: { value: text } }); render(); };
   render(); await tick(); render();
-  return { store, get, find, click, change, render, onLock, onReopen, all: (id: string) => elements(tree).filter((e) => e.props["data-testid"] === id), setRows: (v: ArtifactSnapshot[]) => { rows = v; } };
+  return { store, get, find, click, change, render, onLock, onReopen, findType: (type: unknown) => elements(tree).find((e) => (e as unknown as { type: unknown }).type === type), all: (id: string) => elements(tree).filter((e) => e.props["data-testid"] === id), setRows: (v: ArtifactSnapshot[]) => { rows = v; } };
 }
 describe("Pilot Android guided clue review", () => {
   it.each(["en", "zh-TW", "ja"] as const)("groups superseded questions once without counting clues or resurfacing old answers in %s", async (locale) => {
@@ -623,7 +625,7 @@ describe("Pilot Android prompt and response ownership", () => {
         model: "gemini-3.1-flash-lite", promptVersion: "android-gemini-reflection-v1" },
     } }], true);
     const html = renderToStaticMarkup(ui.get("m2c-journey") as unknown as React.ReactElement);
-    expect(html).toContain('data-testid="m2c-question-origin">Gemini 生成');
+    expect(html).toContain('data-testid="m2c-question-origin">Gemini 提問');
     expect(html).toContain('<h4>由你撰寫</h4>');
     expect(html).toContain("Persisted original question?");
     expect(html).toContain("My saved words.");
@@ -848,5 +850,202 @@ describe("saved-response correction R1 actual component handlers", () => {
       artifactRequest(source, "correctResponse", "en", target, "other text", refs, time),
     ]); for (const v of variants) expect(v.requestId).not.toBe(r.requestId);
     expect(reflectionPacket(source, [row, target], "en").packet.answeredReflectionResponses).toEqual([]);
+  });
+});
+
+describe("Connected R2 main path", () => {
+  const model: ModelPort = {
+    hasKey: async () => true, setKey: async () => {}, clearKey: async () => {},
+    ask: vi.fn(), save: vi.fn(), feedback: vi.fn(),
+  };
+  const answered = () => {
+    const saved = savedPrompt();
+    const prompt = saved.payload as import("../types/domain").ReflectionPrompt;
+    return { ...saved, payload: { ...prompt, sourceEvidenceIds: [],
+      promptProvenance: { ...prompt.promptProvenance, origin: "ai", provider: "gemini",
+        model: "gemini-3.1-flash-lite", promptVersion: "android-gemini-reflection-v2" },
+    } } satisfies ArtifactSnapshot;
+  };
+  it("offers the exact original without demo setup and does not use an unrelated edited clue", async () => {
+    for (const existing of [[], [{ ...row, payload: { ...row.payload!, text: "Unrelated earlier clue." } } as ArtifactSnapshot]]) {
+      const ui = await component("zh-TW", existing, true, model);
+      const ask = ui.findType(PilotModelQuestion);
+      expect(ask?.props.input).toEqual({ sourceId: source.entry.id, sourceRevisionId: source.revisionId, original: source.entry.body, locale: "zh-TW" });
+      expect(ui.findType(PilotModelFeedback)).toBeUndefined();
+      expect(ui.find("pilot-local-secondary")).toBeUndefined();
+      expect(ui.find("m2c-generate-candidate")).toBeUndefined();
+      expect(ui.find("m2c-generate-question")).toBeUndefined();
+      expect(model.ask).not.toHaveBeenCalled();
+      expect(ui.store.artifactMutate).not.toHaveBeenCalled();
+    }
+  });
+  it("switches to feedback only after readback verifies exactly the saved pair, with no network call", async () => {
+    const ui = await component("zh-TW", [], true, model);
+    const { readBack } = ui.findType(PilotModelQuestion)!.props;
+    const saved = answered();
+    const attempt = { ticket: saved.id, question: saved.payload.question, answer: saved.payload.response };
+    await expect(readBack(attempt)).rejects.toBe("save_unconfirmed");
+    expect(ui.findType(PilotModelFeedback)).toBeUndefined();
+    ui.setRows([saved]); await readBack(attempt); ui.render();
+    const next = ui.findType(PilotModelFeedback);
+    expect(next?.props.input).toEqual({ sourceId: source.entry.id, sourceRevisionId: source.revisionId, original: source.entry.body, locale: "zh-TW",
+      reflectionId: saved.id, reflectionRevisionId: saved.revisionId, question: attempt.question, answer: attempt.answer });
+    expect(next?.props.focusOnMount).toBe(true);
+    expect(ui.findType(PilotModelQuestion)).toBeUndefined();
+    expect(model.feedback).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "zh-TW", "ja"] as const)("removes connected demo actions without discarding earlier saved model pairs in %s", async (locale) => {
+    const current = answered();
+    const previous: ArtifactSnapshot = { ...savedPrompt(), payload: { ...(savedPrompt().payload as import("../types/domain").ReflectionPrompt),
+      promptProvenance: { ...current.payload.promptProvenance, promptVersion: "android-gemini-reflection-v1" },
+    } };
+    current.id = "current-model-pair";
+    current.payload.id = current.id;
+    const invalid: ArtifactSnapshot = { ...previous, id: "invalidated-model", lifecycleState: "invalidated", eligibilityState: "ineligible" };
+    const foreign: ArtifactSnapshot = { ...previous, id: "foreign-model", payload: { ...previous.payload!, id: "foreign-model", sourceEntryId: "other-moment" } };
+    const demo = savedPrompt(); demo.id = "old-demo";
+    const initial = [row, demo, previous, invalid, foreign, current];
+    const before = structuredClone(initial);
+    const ui = await component(locale, initial, true, model);
+    const history = ui.get("pilot-saved-model-pairs");
+    expect(elements(history).filter((e) => e.props["data-artifact-id"]).map((e) => e.props["data-artifact-id"])).toEqual([previous.id]);
+    const html = renderToStaticMarkup(history as unknown as React.ReactElement);
+    expect(html).toContain(pilotCopy[locale].questionOrigin);
+    expect(html).toContain(pilotCopy[locale].answer);
+    expect(html).toContain("Persisted original question?");
+    expect(html).toContain("My saved words.");
+    for (const id of ["pilot-local-secondary", "m2c-generate-candidate", "m2c-generate-question", "m2c-confirm", "m2c-correct"]) {
+      expect(ui.find(id)).toBeUndefined();
+    }
+    expect(ui.store.artifactMutate).not.toHaveBeenCalled();
+    expect(ui.store.generateQuestions).not.toHaveBeenCalled();
+    expect(initial).toEqual(before);
+  });
+});
+
+describe("R3 connected question and feedback presentation", () => {
+  const model: ModelPort = { hasKey: async () => true, setKey: vi.fn(), clearKey: vi.fn(), ask: vi.fn(), save: vi.fn(), feedback: vi.fn() };
+  // Inspect the real handlers with process-local hook state, not a persistence fixture.
+  function question(locale: "en" | "zh-TW" | "ja") {
+    hooks.cursor = 0; hooks.values = []; hooks.effects = []; hooks.deps = [];
+    const props = { locale, model, hasKey: true, input: { sourceId: source.entry.id, sourceRevisionId: source.revisionId,
+      original: source.entry.body, locale, focus: "Ignored obsolete excerpt." }, visible: true, disabled: false,
+      openSettings: vi.fn(), readBack: vi.fn() };
+    return () => {
+      hooks.cursor = 0; hooks.active = true;
+      try { return PilotModelQuestion(props); }
+      finally { hooks.active = false; }
+    };
+  }
+  it.each(["en", "zh-TW", "ja"] as const)("has one question action, no excerpt editor, and original-only preview in %s", (locale) => {
+    const render = question(locale);
+    const first = render();
+    expect(renderToStaticMarkup(first)).not.toContain("pilot-focus");
+    const buttons = elements(first).filter((e) => (e as unknown as { type: unknown }).type === "button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].props.children).toBe(pilotCopy[locale].ask);
+    buttons[0].props.onClick();
+    const preview = renderToStaticMarkup(render());
+    expect(preview).toContain(source.entry.body);
+    expect(preview).not.toContain("Ignored obsolete excerpt.");
+    expect(preview).not.toContain("pilot-focus");
+    expect(model.ask).not.toHaveBeenCalled();
+  });
+  it.each(["en", "zh-TW", "ja"] as const)("distinguishes a question from feedback without pretending feedback was saved in %s", (locale) => {
+    const render = question(locale);
+    render();
+    hooks.values[0] = { step: "result", ticket: "local", question: "What stood out?", answer: "Draft." };
+    const questionHtml = renderToStaticMarkup(render());
+    expect(questionHtml).toContain(pilotCopy[locale].questionOrigin);
+    expect(questionHtml).not.toContain(pilotCopy[locale].feedbackOrigin);
+    hooks.cursor = 0; hooks.values = [{ step: "result", result: {
+      observation: "The writer paused.", interpretation: "", uncertainty: "The reason is unclear.", basisQuote: "paused",
+    } }]; hooks.effects = []; hooks.deps = []; hooks.active = true;
+    let tree: ReturnType<typeof PilotModelFeedback>;
+    try {
+      tree = PilotModelFeedback({ locale, model, hasKey: true, visible: true, disabled: false, focusOnMount: false, openSettings: vi.fn(),
+        input: { sourceId: source.entry.id, sourceRevisionId: source.revisionId, original: source.entry.body, locale,
+          reflectionId: "pair", reflectionRevisionId: "pair-rev", question: "What stood out?", answer: "Saved." } });
+    } finally { hooks.active = false; }
+    const feedbackHtml = renderToStaticMarkup(tree);
+    expect(feedbackHtml).toContain(pilotCopy[locale].feedbackOrigin);
+    expect(feedbackHtml).toContain(pilotCopy[locale].sessionFeedback);
+    expect(feedbackHtml).not.toContain(pilotCopy[locale].questionOrigin);
+  });
+});
+
+describe("R3 opt-in remembered credential settings", () => {
+  async function settings(locale: "en" | "zh-TW" | "ja" = "zh-TW", status: { ready: boolean; remembered: boolean } | string = { ready: false, remembered: false }) {
+    hooks.cursor = 0; hooks.values = []; hooks.effects = []; hooks.deps = [];
+    const model = { hasKey: vi.fn(async () => false), keyStatus: vi.fn(async () => { if (typeof status === "string") throw status; return status; }),
+      setKey: vi.fn(async (_key: string, _remember?: boolean) => {}), clearKey: vi.fn(async () => {}) };
+    const onKeyChanged = vi.fn();
+    let tree: ReturnType<typeof PilotSettings>;
+    const render = () => {
+      hooks.cursor = 0; hooks.active = true;
+      try { tree = PilotSettings({ locale, model: model as unknown as ModelPort, close: vi.fn(), languages: null, onKeyChanged }); }
+      finally { hooks.active = false; }
+      hooks.effects.splice(0).forEach((effect) => effect());
+    };
+    const get = (id: string) => elements(tree).find((e) => e.props["data-testid"] === id)!;
+    const button = (label: string) => elements(tree).find((e) => e.props.children === label && typeof e.props.onClick === "function")!;
+    const enter = () => {
+      const field = get("pilot-api-key");
+      field.ref!.current = { value: "synthetic-test-key-never-transmit" };
+      field.props.onChange({ currentTarget: field.ref!.current }); render();
+    };
+    render(); await tick(); render();
+    return { model, onKeyChanged, render, get, button, enter, html: () => renderToStaticMarkup(tree) };
+  }
+
+  it.each(["en", "zh-TW", "ja"] as const)("defaults to session-only, then sends an explicit remember choice in %s", async (locale) => {
+    const ui = await settings(locale), c = pilotCopy[locale];
+    expect(ui.get("pilot-remember-key").props.checked).toBe(false);
+    expect(ui.model.hasKey).not.toHaveBeenCalled();
+    ui.enter(); ui.button(c.useKey).props.onClick(); await tick(); ui.render();
+    expect(ui.model.setKey.mock.calls).toEqual([["synthetic-test-key-never-transmit", false]]);
+    expect((ui.get("pilot-api-key").ref!.current as { value: string }).value).toBe("");
+    expect(ui.html()).toContain(c.keySet);
+    expect(ui.html()).not.toContain(c.keyRemembered);
+    ui.get("pilot-remember-key").props.onChange({ currentTarget: { checked: true } }); ui.render();
+    ui.enter(); ui.button(c.saveKey).props.onClick(); await tick(); ui.render();
+    expect(ui.model.setKey.mock.calls[1]).toEqual(["synthetic-test-key-never-transmit", true]);
+    expect(ui.html()).toContain(c.keyRemembered);
+    expect(ui.html()).not.toContain("synthetic-test-key-never-transmit");
+    ui.button(c.clear).props.onClick(); await tick(); ui.render();
+    expect(ui.model.clearKey).toHaveBeenCalledTimes(1);
+    expect(ui.get("pilot-remember-key").props.checked).toBe(false);
+    expect(ui.onKeyChanged).toHaveBeenLastCalledWith(false);
+  });
+
+  it("does not claim a saved key on persistence failure and allows forgetting an unreadable credential", async () => {
+    const ui = await settings(), c = pilotCopy["zh-TW"];
+    ui.get("pilot-remember-key").props.onChange({ currentTarget: { checked: true } }); ui.render();
+    ui.model.setKey.mockRejectedValueOnce("credential_unavailable");
+    ui.enter(); ui.button(c.saveKey).props.onClick(); await tick(); ui.render();
+    expect(ui.html()).not.toContain(c.keyRemembered);
+    expect(ui.html()).not.toContain("synthetic-test-key-never-transmit");
+    expect(ui.onKeyChanged).toHaveBeenLastCalledWith(false);
+    expect(ui.button(c.clear).props.disabled).toBe(false);
+    ui.button(c.clear).props.onClick(); await tick(); ui.render();
+    expect(ui.model.clearKey).toHaveBeenCalledTimes(1);
+  });
+  it("restores only status in settings and never fills the password field", async () => {
+    const ui = await settings("en", { ready: true, remembered: true });
+    expect(ui.get("pilot-remember-key").props.checked).toBe(true);
+    expect(ui.html()).toContain(pilotCopy.en.keyRemembered);
+    expect(ui.get("pilot-api-key").props.value).toBeUndefined();
+    expect(ui.model.setKey).not.toHaveBeenCalled();
+    expect(ui.onKeyChanged).toHaveBeenLastCalledWith(true);
+  });
+  it("can forget an unreadable credential without asking for the missing key", async () => {
+    const ui = await settings("en", "credential_unavailable");
+    expect(ui.html()).not.toContain(pilotCopy.en.keyRemembered);
+    expect(ui.onKeyChanged).toHaveBeenLastCalledWith(false);
+    expect(ui.button(pilotCopy.en.clear).props.disabled).toBe(false);
+    ui.button(pilotCopy.en.clear).props.onClick(); await tick(); ui.render();
+    expect(ui.model.clearKey).toHaveBeenCalledTimes(1);
+    expect(ui.model.setKey).not.toHaveBeenCalled();
   });
 });

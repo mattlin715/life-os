@@ -8,8 +8,8 @@ import type { ArtifactProvenance, EvidenceCandidate, ReflectionPrompt } from "..
 import { artifactRequest, nextTimestamp, questionBatchRequest, reflectionSet } from "./androidM2CStore";
 import type { ArtifactRequest, ArtifactSnapshot, DebugPhase, EvidenceRef, Locale, M2CStore, QuestionBatchRequest, Snapshot } from "./androidM2CStore";
 import { journeyCopy } from "./journeyCopy";
-import { PilotModelQuestion } from "./PilotModelPanels";
-import { connectedPilot, type ModelPort, type ModelPreview } from "./pilotModel";
+import { PilotModelFeedback, PilotModelQuestion } from "./PilotModelPanels";
+import { connectedPilot, modelSourcePrompt, type ModelPort } from "./pilotModel";
 import { pilotCopy } from "./pilotModelCopy";
 
 // Hide a duplicate only when the persisted candidate is exactly the canonical
@@ -39,8 +39,8 @@ export function CandidateScopeNote({ locale }: { locale: Locale }) {
 function QuestionOrigin({ provenance, locale }: { provenance?: ArtifactProvenance; locale: Locale }) {
   const c = journeyCopy[locale];
   const local = provenance?.origin === "local_mock" && provenance.provider === "mock" && provenance.model === null;
-  const gemini = provenance?.origin === "ai" && provenance.provider === "gemini" && provenance.promptVersion === "android-gemini-reflection-v1";
-  return <p className="android-m2c__origin-label" data-testid="m2c-question-origin">{local ? c.demoQuestion : gemini ? pilotCopy[locale].generated : c.unknownOrigin}</p>;
+  const gemini = provenance?.origin === "ai" && provenance.provider === "gemini" && (provenance.promptVersion === "android-gemini-reflection-v1" || provenance.promptVersion === modelSourcePrompt);
+  return <p className="android-m2c__origin-label" data-testid="m2c-question-origin">{local ? c.demoQuestion : gemini ? pilotCopy[locale].questionOrigin : c.unknownOrigin}</p>;
 }
 
 export function ArtifactDetails({ provenance, response, edited, note, locale, testId }: {
@@ -48,7 +48,7 @@ export function ArtifactDetails({ provenance, response, edited, note, locale, te
 }) {
   const c = journeyCopy[locale];
   const origin = (p?: ArtifactProvenance) => p?.origin === "local_mock" ? c.localOrigin : p?.origin === "user" ? c.userOrigin
-    : p?.origin === "ai" && p.provider === "gemini" && p.promptVersion === "android-gemini-reflection-v1" ? pilotCopy[locale].generated : c.unknownOrigin;
+    : p?.origin === "ai" && p.provider === "gemini" && (p.promptVersion === "android-gemini-reflection-v1" || p.promptVersion === modelSourcePrompt) ? pilotCopy[locale].questionOrigin : c.unknownOrigin;
   return <details className="android-m2c__secondary-details" data-testid={testId}>
     <summary>{c.details}</summary>
     <p>{origin(provenance)}</p>
@@ -124,7 +124,9 @@ export function canCorrectResponse(row: ArtifactSnapshot, source: Snapshot, rows
     && row.reviewState === "not_applicable" && !!row.revisionId && prompt?.status === "answered"
     && prompt.id === row.id && prompt.sourceEntryId === source.entry.id
     && prompt.responseProvenance?.origin === "user" && !!prompt.response?.trim()
-    && prompt.sourceEvidenceIds.length === 1 && evidence.some((v) => v.id === prompt.sourceEvidenceIds[0]);
+    && ((prompt.sourceEvidenceIds.length === 1 && evidence.some((v) => v.id === prompt.sourceEvidenceIds[0]))
+      || (connectedPilot && prompt.sourceEvidenceIds.length === 0 && prompt.promptProvenance?.origin === "ai"
+        && prompt.promptProvenance.provider === "gemini" && prompt.promptProvenance.promptVersion === modelSourcePrompt));
 }
 
 export function reflectionPacket(source: Snapshot, rows: ArtifactSnapshot[], locale: Locale) {
@@ -299,35 +301,47 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen, gui
     // Inspection is not reconciliation, success, a new request, or draft discard.
   };
   const hasQuestions = rows.some((row) => row.kind === "reflection" && row.lifecycleState === "active");
-  const modelPreviews: ModelPreview[] = model ? evidence.map((row) => ({
-    sourceId: source.entry.id, sourceRevisionId: source.revisionId,
-    clueId: row.id, clueRevisionId: row.revisionId!, text: (row.payload as EvidenceCandidate).text, locale,
-  })) : [];
-  return <section data-testid="m2c-journey" data-artifact-state={state} className="android-m2c__journey">
-    <h2 id="m2c-reflection-start" tabIndex={-1}>{guided && !hasQuestions ? c.clueReview : c.title}</h2>
-    {guided && state === "loading" ? <p role="status">{c.loadingReflection}</p> : null}
-    {state === "working" || (state === "saved" && (!guided || !savedClueOperation.current)) || state === "failed" || state === "conflict" ? <p role="status" data-testid="m2c-artifact-feedback">{state === "working" ? c.working : state === "saved" ? c.saved : state === "conflict" ? c.conflict : c.failed}</p> : null}
-    {(state === "failed" || (state === "conflict" && frozen && !("items" in frozen))) && frozen ? <button data-testid="m2c-artifact-reconcile" disabled={busy.current} onClick={() => void execute(frozen)}>{c.retry}</button> : null}
-    {(state === "failed" || state === "conflict") && responseCorrection ? <button data-testid="m2c-inspect-response" disabled={busy.current} onClick={() => void inspectCurrent()}>{c.inspectResponse}</button> : null}
-    {state === "failed" || state === "conflict" ? <button data-testid="m2c-artifact-reopen" disabled={busy.current} onClick={() => { onLock(false); setFrozen(null); setResponses({}); setCorrection(null); setResponseCorrection(null); setInspected(null); onReopen(); }}>{responseCorrection ? c.discardResponseDraft : Object.values(responses).some((draft) => draft.trim()) ? c.discardDrafts : c.reopen}</button> : null}
-    {inspected ? <aside data-testid="m2c-inspected-response"><h3>{c.currentSavedState}</h3>
-      {inspected.source ? <div className="android-m2c__authored-block"><h4>{c.yourMoment}</h4><p>{inspected.source.entry.body}</p></div> : <p>{c.sourceUnavailable}</p>}
-      {inspected.rows.filter((v) => v.id === responseCorrection?.target.id).map((v) => {
-        const p = v.payload as ReflectionPrompt | null;
-        return <div key={v.id}>
-          {p?.question ? <div className="android-m2c__question-block"><QuestionOrigin provenance={p.promptProvenance} locale={locale} /><p>{p.question}</p></div> : null}
-          {p?.response != null ? <div className="android-m2c__authored-block"><h4>{p.responseProvenance?.origin === "user" ? c.response : c.unknownOrigin}</h4><p>{p.response}</p></div> : <p>{c.sourceUnavailable}</p>}
-          <details className="android-m2c__secondary-details"><summary>{c.technical}</summary><pre>{JSON.stringify({ revisionId: v.revisionId, lifecycleState: v.lifecycleState, eligibilityState: v.eligibilityState })}</pre></details>
-        </div>;
-      })}
-    </aside> : null}
-    {guided ? supersededReflectionNotice(rows, locale) : null}
+  const connected = !!model && !!openModelSettings && guided;
+  const isModelPair = (row: ArtifactSnapshot) => {
+    const prompt = row.payload as ReflectionPrompt | null;
+    return row.kind === "reflection" && row.lifecycleState === "active" && row.eligibilityState === "eligible" &&
+      row.reviewState === "not_applicable" && row.revisionId && prompt?.status === "answered" &&
+      prompt.sourceEntryId === source.entry.id && prompt.sourceEvidenceIds.length === 0 && !!prompt.response &&
+      prompt.promptProvenance?.origin === "ai" && prompt.promptProvenance.provider === "gemini" &&
+      prompt.promptProvenance.promptVersion === modelSourcePrompt && prompt.responseProvenance?.origin === "user";
+  };
+  const justSavedModel = useRef<string | null>(null);
+  const modelPair = connected ? [...rows].reverse().find(isModelPair) : undefined;
+  const modelAnswer = modelPair?.payload as ReflectionPrompt | undefined;
+  const modelInput = { sourceId: source.entry.id, sourceRevisionId: source.revisionId, original: source.entry.body, locale };
+  const modelReady = state !== "loading" && state !== "failed" && state !== "conflict" && state !== "working";
+  // Removing demo controls must not remove or strand genuine saved model pairs.
+  const earlierModelPairs = connected ? rows.filter((row) => {
+    const prompt = row.payload as ReflectionPrompt | null;
+    return row.id !== modelPair?.id && row.kind === "reflection" && row.revisionId &&
+      row.lifecycleState === "active" && row.reviewState === "not_applicable" && row.eligibilityState === "eligible" &&
+      prompt?.id === row.id && prompt.sourceEntryId === source.entry.id && prompt.status === "answered" && !!prompt.response &&
+      prompt.promptProvenance?.origin === "ai" && prompt.promptProvenance.provider === "gemini" &&
+      (prompt.promptProvenance.promptVersion === "android-gemini-reflection-v1" || prompt.promptProvenance.promptVersion === modelSourcePrompt) &&
+      prompt.responseProvenance?.origin === "user";
+  }) : [];
+  function responseControls(row: ArtifactSnapshot, prompt: ReflectionPrompt) {
+    return (responseCorrection?.target.id === row.id ? <>
+              <label htmlFor={`correct-response-${row.id}`}>{c.editResponseLabel}</label>
+              <textarea autoFocus id={`correct-response-${row.id}`} data-testid="m2c-response-correction" readOnly={locked} value={responseCorrection.text} onChange={(e) => { if (!locked) setResponseCorrection({ ...responseCorrection, text: e.target.value }); }} />
+              <p data-testid="m2c-response-unsaved">{c.draft}</p>
+              <button data-testid="m2c-save-response-correction" disabled={locked || !responseCorrection.text.trim() || responseCorrection.text.trim() === prompt.response?.trim()} onClick={() => void submit("correctResponse", responseCorrection.target, responseCorrection.text)}>{c.saveResponseCorrection}</button>
+              <button data-testid="m2c-cancel-response-correction" disabled={locked} onClick={() => { setResponseCorrection(null); setState("idle"); onLock(false); }}>{c.cancel}</button>
+            </> : canCorrectResponse(row, source, rows) ? <button data-testid="m2c-edit-response" disabled={otherLocked} onClick={() => { if (busy.current || otherLocked) return; setResponseCorrection({ target: row, text: prompt.response! }); setState("idle"); onLock(true); }}>{c.editResponse}</button> : null);
+  }
+  function renderExisting() {
+    return <>
     <RejectedCandidateHistory rows={rows} locale={locale} />
     {(!guided || (state !== "loading" && state !== "failed" && state !== "conflict")) && rows.every((v) => v.kind !== "evidence" || v.lifecycleState !== "active") ? <>
       {!gate.allowObservation ? <p>{c.sparse}</p> : null}
       <button className={guided ? "android-m2c__journey-primary" : undefined} data-testid="m2c-generate-candidate" disabled={otherLocked || !gate.allowObservation} onClick={() => void submit("candidate", null)}>{guided ? c.createDemoClue : candidateGenerationLabel(rows, locale)}</button>
     </> : null}
-    {rows.map((row) => {
+    {rows.filter((row) => !connected || row.id !== modelPair?.id).map((row) => {
       const active = row.lifecycleState === "active";
       if (isRejectedCandidate(row)) return null;
       if (guided && isSupersededReflection(row)) return null;
@@ -373,35 +387,73 @@ export function ReflectionJourney({ source, locale, store, onLock, onReopen, gui
             {responses[row.id]?.trim() ? <p data-testid="m2c-response-unsaved">{c.draft}</p> : null}
             <button data-testid="m2c-save-response" disabled={otherLocked || !responses[row.id]?.trim()} onClick={() => void submit("answer", row, responses[row.id])}>{c.saveAnswer}</button>
             <button data-testid="m2c-skip" disabled={otherLocked} onClick={() => void submit("skip", row)}>{c.skip}</button>
-          </> : prompt.status === "answered" ? <><h4>{prompt.responseProvenance?.origin === "user" ? (prompt.promptProvenance?.promptVersion === "android-gemini-reflection-v1" ? pilotCopy[locale].answer : c.response) : c.unknownOrigin}</h4><p data-testid="m2c-saved-response">{prompt.response}</p>
-            {responseCorrection?.target.id === row.id ? <>
-              <label htmlFor={`correct-response-${row.id}`}>{c.editResponseLabel}</label>
-              <textarea autoFocus id={`correct-response-${row.id}`} data-testid="m2c-response-correction" readOnly={locked} value={responseCorrection.text} onChange={(e) => { if (!locked) setResponseCorrection({ ...responseCorrection, text: e.target.value }); }} />
-              <p data-testid="m2c-response-unsaved">{c.draft}</p>
-              <button data-testid="m2c-save-response-correction" disabled={locked || !responseCorrection.text.trim() || responseCorrection.text.trim() === prompt.response?.trim()} onClick={() => void submit("correctResponse", responseCorrection.target, responseCorrection.text)}>{c.saveResponseCorrection}</button>
-              <button data-testid="m2c-cancel-response-correction" disabled={locked} onClick={() => { setResponseCorrection(null); setState("idle"); onLock(false); }}>{c.cancel}</button>
-            </> : canCorrectResponse(row, source, rows) ? <button data-testid="m2c-edit-response" disabled={otherLocked} onClick={() => { if (busy.current || otherLocked) return; setResponseCorrection({ target: row, text: prompt.response! }); setState("idle"); onLock(true); }}>{c.editResponse}</button> : null}
+          </> : prompt.status === "answered" ? <><h4>{prompt.responseProvenance?.origin === "user" ? ((prompt.promptProvenance?.promptVersion === "android-gemini-reflection-v1" || prompt.promptProvenance?.promptVersion === modelSourcePrompt) ? pilotCopy[locale].answer : c.response) : c.unknownOrigin}</h4><p data-testid="m2c-saved-response">{prompt.response}</p>
+            {responseControls(row, prompt)}
           </> : <p data-testid="m2c-skipped">{c.skipped}</p>}
         </div>
         <ArtifactDetails provenance={prompt.promptProvenance} response={prompt.responseProvenance} locale={locale} testId="m2c-reflection-provenance" />
       </article>;
     })}
-    {connectedPilot && model && openModelSettings && gate.allowReflection ? <PilotModelQuestion locale={locale} model={model} hasKey={hasModelKey}
-      previews={modelPreviews} visible={modelVisible} disabled={otherLocked} openSettings={openModelSettings}
-      readBack={async ({ ticket, question, answer }) => {
-        const current = await store.get(source.entry.id);
-        const actual = await store.artifacts(source.entry.id);
-        if (current?.revisionId !== source.revisionId) throw "stale_clue";
-        if (!actual.some((row) => {
-          const prompt = row.payload as ReflectionPrompt | null;
-          return row.id === ticket && row.kind === "reflection" && row.lifecycleState === "active" &&
-            prompt?.status === "answered" && prompt.question === question && prompt.response === answer.trim() &&
-            prompt.promptProvenance?.origin === "ai" && prompt.promptProvenance.provider === "gemini" &&
-            prompt.responseProvenance?.origin === "user";
-        })) throw "save_unconfirmed";
-        if (mounted.current) setRows(actual);
-      }} /> : null}
     {evidence.length > 0 ? <button className={guided && !model && !hasQuestions ? "android-m2c__journey-primary" : undefined} data-testid="m2c-generate-question" disabled={otherLocked || !localQuestion(source, rows, locale)} onClick={() => void generate()}>{hasQuestions ? c.addQuestion : c.ask}</button> : null}
+    </>;
+  }
+  return <section data-testid="m2c-journey" data-artifact-state={state} className="android-m2c__journey">
+    <h2 id="m2c-reflection-start" tabIndex={-1}>{guided && !connected && !hasQuestions ? c.clueReview : c.title}</h2>
+    {guided && state === "loading" ? <p role="status">{c.loadingReflection}</p> : null}
+    {state === "working" || (state === "saved" && (!guided || !savedClueOperation.current)) || state === "failed" || state === "conflict" ? <p role="status" data-testid="m2c-artifact-feedback">{state === "working" ? c.working : state === "saved" ? c.saved : state === "conflict" ? c.conflict : c.failed}</p> : null}
+    {(state === "failed" || (state === "conflict" && frozen && !("items" in frozen))) && frozen ? <button data-testid="m2c-artifact-reconcile" disabled={busy.current} onClick={() => void execute(frozen)}>{c.retry}</button> : null}
+    {(state === "failed" || state === "conflict") && responseCorrection ? <button data-testid="m2c-inspect-response" disabled={busy.current} onClick={() => void inspectCurrent()}>{c.inspectResponse}</button> : null}
+    {state === "failed" || state === "conflict" ? <button data-testid="m2c-artifact-reopen" disabled={busy.current} onClick={() => { onLock(false); setFrozen(null); setResponses({}); setCorrection(null); setResponseCorrection(null); setInspected(null); onReopen(); }}>{responseCorrection ? c.discardResponseDraft : Object.values(responses).some((draft) => draft.trim()) ? c.discardDrafts : c.reopen}</button> : null}
+    {inspected ? <aside data-testid="m2c-inspected-response"><h3>{c.currentSavedState}</h3>
+      {inspected.source ? <div className="android-m2c__authored-block"><h4>{c.yourMoment}</h4><p>{inspected.source.entry.body}</p></div> : <p>{c.sourceUnavailable}</p>}
+      {inspected.rows.filter((v) => v.id === responseCorrection?.target.id).map((v) => {
+        const p = v.payload as ReflectionPrompt | null;
+        return <div key={v.id}>
+          {p?.question ? <div className="android-m2c__question-block"><QuestionOrigin provenance={p.promptProvenance} locale={locale} /><p>{p.question}</p></div> : null}
+          {p?.response != null ? <div className="android-m2c__authored-block"><h4>{p.responseProvenance?.origin === "user" ? c.response : c.unknownOrigin}</h4><p>{p.response}</p></div> : <p>{c.sourceUnavailable}</p>}
+          <details className="android-m2c__secondary-details"><summary>{c.technical}</summary><pre>{JSON.stringify({ revisionId: v.revisionId, lifecycleState: v.lifecycleState, eligibilityState: v.eligibilityState })}</pre></details>
+        </div>;
+      })}
+    </aside> : null}
+    {guided ? supersededReflectionNotice(rows, locale) : null}
+    {connected && gate.allowReflection ? (
+      modelPair?.revisionId && modelAnswer?.response ? <>
+        <div className="android-m2c__question-block">
+          <QuestionOrigin provenance={modelAnswer.promptProvenance} locale={locale} /><p>{modelAnswer.question}</p>
+        </div>
+        <div className="android-m2c__authored-block"><h4>{pilotCopy[locale].answer}</h4><p className="android-m2c__clue-text" data-testid="m2c-saved-response">{modelAnswer.response}</p></div>
+        <PilotModelFeedback key={JSON.stringify([source.revisionId, modelPair.id, modelPair.revisionId])}
+          locale={locale} model={model} visible={modelVisible} hasKey={hasModelKey} disabled={otherLocked || !modelReady}
+          focusOnMount={justSavedModel.current === modelPair.id}
+          openSettings={openModelSettings} input={{ ...modelInput, reflectionId: modelPair.id, reflectionRevisionId: modelPair.revisionId,
+            question: modelAnswer.question, answer: modelAnswer.response }} />
+        <details className="android-m2c__secondary-details"><summary>{pilotCopy[locale].responseOptions}</summary>
+          {responseControls(modelPair, modelAnswer)}
+        </details>
+      </> : state !== "loading" ? <PilotModelQuestion key={source.revisionId} locale={locale} model={model} hasKey={hasModelKey}
+        input={modelInput} visible={modelVisible} disabled={otherLocked || !modelReady} openSettings={openModelSettings}
+        readBack={async ({ ticket, question, answer }) => {
+          const current = await store.get(source.entry.id);
+          const actual = await store.artifacts(source.entry.id);
+          if (current?.revisionId !== source.revisionId) throw "stale_clue";
+          if (!actual.some((row) => {
+            const item = row.payload as ReflectionPrompt | null;
+            return row.id === ticket && isModelPair(row) && item?.question === question && item.response === answer.trim();
+          })) throw "save_unconfirmed";
+          if (mounted.current) { justSavedModel.current = ticket; setRows(actual); }
+        }} /> : null
+    ) : null}
+    {connected ? earlierModelPairs.length ? <section data-testid="pilot-saved-model-pairs">
+      <h3>{pilotCopy[locale].savedQuestions}</h3>
+      {earlierModelPairs.map((row) => {
+        const prompt = row.payload as ReflectionPrompt;
+        return <article key={row.id} data-artifact-id={row.id}>
+          <div className="android-m2c__question-block"><QuestionOrigin provenance={prompt.promptProvenance} locale={locale} /><p>{prompt.question}</p></div>
+          <div className="android-m2c__authored-block"><h4>{pilotCopy[locale].answer}</h4><p className="android-m2c__clue-text">{prompt.response}</p></div>
+          {responseControls(row, prompt)}
+        </article>;
+      })}
+    </section> : null : renderExisting()}
     {import.meta.env.VITE_LIFE_OS_ANDROID_M2C_DEBUG_HOOKS === "1" ? <details hidden data-debug-only="artifact"><summary>Disposable artifact debug probes</summary>{(["beforeCommit", "afterCommitBeforeAck", "rollbackAfterProjection"] as DebugPhase[]).map((phase) => <button key={phase} data-artifact-debug-phase={phase} disabled={otherLocked} onClick={() => setDebugPhase(phase)}>{phase}</button>)}</details> : null}
   </section>;
 }

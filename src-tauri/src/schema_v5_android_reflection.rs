@@ -113,6 +113,8 @@ fn validate(r: &ArtifactRequest) -> Result<(), MigrationError> {
         "correct" if r.text.is_some() && r.evidence.is_empty() => (),
         "confirm" | "reject" if r.text.is_none() && r.evidence.is_empty() => (),
         "question" if r.text.is_some() && r.evidence.len() == 1 => (),
+        #[cfg(feature = "android-pilot-online")]
+        "correctResponse" if r.text.is_some() && r.evidence.is_empty() => (),
         "answer" | "correctResponse" if r.text.is_some() && r.evidence.len() == 1 => (),
         "skip" if r.text.is_none() && r.evidence.len() == 1 => (),
         _ => return Err(fail("m2c_operation_shape_refused")),
@@ -124,6 +126,8 @@ fn validate(r: &ArtifactRequest) -> Result<(), MigrationError> {
 pub(crate) const MODEL_TRIAL_MODEL: &str = "gemini-3.1-flash-lite";
 #[cfg(feature = "android-pilot-online")]
 const MODEL_TRIAL_PROMPT: &str = "android-gemini-reflection-v1";
+#[cfg(feature = "android-pilot-online")]
+pub(crate) const MODEL_SOURCE_PROMPT: &str = "android-gemini-reflection-v2";
 
 /// Refuse unknown/cross-source dependency graphs before any mutation. This is
 /// scope admission, not a substitute for canonical projection verification.
@@ -184,7 +188,7 @@ pub(crate) async fn verify_scope(path: &Path) -> Result<(), MigrationError> {
             #[cfg(feature = "android-pilot-online")]
             Some("ai")
                 if p["provider"] == "gemini" && p["model"] == MODEL_TRIAL_MODEL
-                    && p["harnessVersion"] == "harness-v1" && p["promptVersion"] == MODEL_TRIAL_PROMPT =>
+                    && p["harnessVersion"] == "harness-v1" && matches!(p["promptVersion"].as_str(), Some(MODEL_TRIAL_PROMPT | MODEL_SOURCE_PROMPT)) =>
             {
                 ()
             }
@@ -221,8 +225,7 @@ pub(crate) async fn snapshot(path: &Path, source_id: &str) -> Result<Value, Migr
 pub(crate) struct ModelTrialWrite<'a> {
     pub source_id: &'a str,
     pub source_revision: &'a str,
-    pub clue_id: &'a str,
-    pub clue_revision: &'a str,
+    pub clue: Option<(&'a str, &'a str)>,
     pub artifact_id: &'a str,
     pub question: &'a str,
     pub generated_at: &'a str,
@@ -237,22 +240,24 @@ pub(crate) async fn save_model_trial(path: &Path, write: ModelTrialWrite<'_>, ro
     let current = super::runtime::direct_source_snapshot(path, write.source_id).await?
         .ok_or_else(|| fail("m2c_stale_source_preserved"))?;
     if current.revision_id != write.source_revision ||
-        !rows.iter().any(|v| v["id"] == write.clue_id && v["revisionId"] == write.clue_revision
+        write.clue.is_some_and(|(id, revision)| !rows.iter().any(|v| v["id"] == id && v["revisionId"] == revision
             && v["kind"] == "evidence" && v["reviewState"] == "confirmed"
-            && v["lifecycleState"] == "active" && v["eligibilityState"] == "eligible") {
+            && v["lifecycleState"] == "active" && v["eligibilityState"] == "eligible")) {
         return Err(fail("m2c_stale_revision_preserved"));
     }
     // A retry must match the original pair, never a different answer or a
     // response edited later. Check the writer's role-qualified projection.
+    let refs: Vec<&str> = write.clue.iter().map(|(id, _)| *id).collect();
+    let prompt_version = if write.clue.is_some() { MODEL_TRIAL_PROMPT } else { MODEL_SOURCE_PROMPT };
     let exact_answer = |v: &Value| {
         let p = &v["payload"];
         v["id"] == write.artifact_id && v["kind"] == "reflection" && v["lifecycleState"] == "active"
             && v["reviewState"] == "not_applicable" && v["eligibilityState"] == "eligible"
             && p["status"] == "answered" && p["question"] == write.question && p["response"] == write.response
-            && p["sourceEvidenceIds"] == json!([write.clue_id])
+            && p["sourceEvidenceIds"] == json!(refs)
             && p["promptProvenance"]["origin"] == "ai" && p["promptProvenance"]["provider"] == "gemini"
             && p["promptProvenance"]["model"] == MODEL_TRIAL_MODEL
-            && p["promptProvenance"]["promptVersion"] == MODEL_TRIAL_PROMPT
+            && p["promptProvenance"]["promptVersion"] == prompt_version
             && p["promptProvenance"]["generatedAt"] == write.generated_at
             && p["responseProvenance"]["origin"] == "user"
     };
@@ -262,11 +267,11 @@ pub(crate) async fn save_model_trial(path: &Path, write: ModelTrialWrite<'_>, ro
     let prompt = SuggestedPromptInput {
         id: write.artifact_id.into(), source_id: write.source_id.into(),
         question: write.question.into(), created_at: write.generated_at.into(),
-        evidence: vec![EvidenceRevisionRef { artifact_id: write.clue_id.into(), revision_id: write.clue_revision.into() }],
+        evidence: write.clue.into_iter().map(|(id, revision)| EvidenceRevisionRef { artifact_id: id.into(), revision_id: revision.into() }).collect(),
         provenance: PromptProvenanceInput {
             origin: "ai".into(), provider: "gemini".into(), model: Some(MODEL_TRIAL_MODEL.into()),
-            harness_version: "harness-v1".into(), prompt_version: MODEL_TRIAL_PROMPT.into(),
-            generated_at: write.generated_at.into(), source_artifact_ids: vec![write.clue_id.into()],
+            harness_version: "harness-v1".into(), prompt_version: prompt_version.into(),
+            generated_at: write.generated_at.into(), source_artifact_ids: refs.iter().map(|value| (*value).to_owned()).collect(),
         },
     };
     let guard = format!("m3-model-save-{}", sha256_hex(write.artifact_id.as_bytes()));
@@ -942,7 +947,7 @@ mod tests {
         let binding = request(&path, "question", "m3-model-trial-001", 3, None).await;
         let make_write = |response| ModelTrialWrite {
             source_id: SOURCE, source_revision: &binding.expected_source_revision_id,
-            clue_id: &binding.evidence[0].artifact_id, clue_revision: &binding.evidence[0].revision_id,
+            clue: Some((&binding.evidence[0].artifact_id, &binding.evidence[0].revision_id)),
             artifact_id: &binding.artifact_id, question: "What felt different in that moment?",
             generated_at: "2026-10-04T00:00:03.000Z", response,
             saved_at: "2026-10-04T00:00:04.000Z",
@@ -962,9 +967,54 @@ mod tests {
         assert_eq!(saved["payload"]["promptProvenance"]["provider"], "gemini");
         assert_eq!(saved["payload"]["responseProvenance"]["origin"], "user");
         assert_eq!(counts("SELECT COUNT(*) FROM artifact_revisions").await, revisions + 2);
-        let wrong = ModelTrialWrite { clue_revision: "wrong-revision", ..make_write("My answer.") };
+        let wrong = ModelTrialWrite { clue: Some((&binding.evidence[0].artifact_id, "wrong-revision")), ..make_write("My answer.") };
         assert!(save_model_trial(&path, wrong, false).await.is_err());
     }
+    #[cfg(feature = "android-pilot-online")]
+    #[tokio::test]
+    async fn model_trial_source_only_survives_reread_and_correction_then_invalidates_and_deletes() {
+        let (_root, path) = fixture().await;
+        let source = super::super::runtime::direct_source_snapshot(&path, SOURCE).await.unwrap().unwrap();
+        let id = "m3-model-source-only-001";
+        let input = || ModelTrialWrite {
+            source_id: SOURCE, source_revision: &source.revision_id, clue: None, artifact_id: id,
+            question: "What did you notice?", generated_at: "2026-10-04T00:00:01.000Z",
+            response: "I felt relief.", saved_at: "2026-10-04T00:00:02.000Z",
+        };
+        assert!(save_model_trial(&path, input(), true).await.is_err());
+        assert!(snapshot(&path, SOURCE).await.unwrap().as_array().unwrap().is_empty());
+        save_model_trial(&path, input(), false).await.unwrap();
+        save_model_trial(&path, input(), false).await.unwrap();
+        let rows = snapshot(&path, SOURCE).await.unwrap();
+        let pair = &rows[0];
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert_eq!(pair["payload"]["response"], "I felt relief.");
+        assert_eq!(pair["payload"]["sourceEvidenceIds"], json!([]));
+        assert_eq!(pair["payload"]["promptProvenance"]["promptVersion"], MODEL_SOURCE_PROMPT);
+        assert_eq!(pair["payload"]["responseProvenance"]["origin"], "user");
+        assert_eq!(scalar(&path, "SELECT COUNT(*) FROM artifact_dependencies WHERE relationship_type='derived_from_experience'").await, 2);
+        assert_eq!(scalar(&path, "SELECT COUNT(*) FROM artifact_dependencies WHERE relationship_type='uses_evidence'").await, 0);
+        let mut r = request(&path, "correctResponse", id, 3, Some("I felt surprised.")).await;
+        r.evidence.clear();
+        r.request_id = request_identity(&r);
+        assert_eq!(mutate(&path, &r, false).await.unwrap()["acknowledgement"], "committed");
+        assert_eq!(snapshot(&path, SOURCE).await.unwrap()[0]["payload"]["response"], "I felt surprised.");
+        assert!(save_model_trial(&path, input(), false).await.is_err());
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path, SOURCE, &source.revision_id, Some("The revised synthetic moment."),
+            "2026-10-04T00:00:04.000Z", "m3-source-only-correction-guard-000001", false
+        ).await.unwrap());
+        assert_eq!(snapshot(&path, SOURCE).await.unwrap()[0]["lifecycleState"], "invalidated");
+        assert!(save_model_trial(&path, input(), false).await.is_err());
+        let revised = super::super::runtime::direct_source_snapshot(&path, SOURCE).await.unwrap().unwrap();
+        assert!(super::super::runtime::mutate_experience_direct_fresh(
+            &path, SOURCE, &revised.revision_id, None,
+            "2026-10-04T00:00:05.000Z", "m3-source-only-delete-guard-000001", false
+        ).await.unwrap());
+        assert_eq!(scalar(&path, "SELECT COUNT(*) FROM persisted_artifacts").await, 0);
+        assert_eq!(scalar(&path, "SELECT COUNT(*) FROM artifact_revision_content").await, 0);
+    }
+
     async fn answered_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
         let (root, path) = fixture().await;
         review(&path).await;

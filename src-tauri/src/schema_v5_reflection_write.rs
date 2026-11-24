@@ -312,14 +312,28 @@ fn normalize_evidence(
         .collect())
 }
 
+fn is_source_only_model_prompt(provenance: &Value) -> bool {
+    cfg!(feature = "android-pilot-online")
+        && provenance["origin"] == "ai"
+        && provenance["provider"] == "gemini"
+        && provenance["model"] == "gemini-3.1-flash-lite"
+        && provenance["harnessVersion"] == "harness-v1"
+        && provenance["promptVersion"] == "android-gemini-reflection-v2"
+}
+
 fn validate_prompt(
     prompt: &SuggestedPromptInput,
+    source_only: bool,
 ) -> Result<Vec<EvidenceRevisionRef>, MigrationError> {
     validate_identifier(&prompt.id, "artifact_id")?;
     validate_identifier(&prompt.source_id, "source_id")?;
     validate_text(&prompt.question, "question")?;
     validate_timestamp(&prompt.created_at, "created_at")?;
-    let evidence = normalize_evidence(&prompt.evidence)?;
+    let evidence = if source_only && prompt.evidence.is_empty() {
+        Vec::new()
+    } else {
+        normalize_evidence(&prompt.evidence)?
+    };
     if !matches!(prompt.provenance.origin.as_str(), "ai" | "local_mock") {
         return Err(write_error("reflection_prompt_origin_invalid"));
     }
@@ -906,6 +920,9 @@ async fn revision_evidence(
     .fetch_all(&mut *connection)
     .await
     .map_err(|error| migration_error("reflection_dependency_read_failed", error))?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
     normalize_evidence(
         &rows
             .into_iter()
@@ -997,7 +1014,11 @@ async fn ensure_expected_evidence(
     current: &CurrentReflection,
     expected: &[EvidenceRevisionRef],
 ) -> Result<Vec<EvidenceRevisionRef>, MigrationError> {
-    let expected = validate_current_evidence(connection, &current.source_id, expected).await?;
+    let expected = if expected.is_empty() && is_source_only_model_prompt(&current.prompt_provenance) {
+        Vec::new()
+    } else {
+        validate_current_evidence(connection, &current.source_id, expected).await?
+    };
     let recorded =
         revision_evidence(connection, &current.artifact_id, &current.revision_id).await?;
     if expected != recorded {
@@ -1676,10 +1697,13 @@ async fn create_suggested(
     expected_source_revision_id: &str,
     prompt: SuggestedPromptInput,
     context: &ReflectionWriteContext<'_>,
+    source_only: bool,
 ) -> Result<(String, String), MigrationError> {
-    let evidence = validate_prompt(&prompt)?;
+    let evidence = validate_prompt(&prompt, source_only)?;
     exact_current_source(connection, &prompt.source_id, expected_source_revision_id).await?;
-    validate_current_evidence(connection, &prompt.source_id, &evidence).await?;
+    if !source_only {
+        validate_current_evidence(connection, &prompt.source_id, &evidence).await?;
+    }
     let conflict: i64 = sqlx::query_scalar(
         "SELECT (SELECT COUNT(*) FROM artifact_heads WHERE id = ?) + \
                 (SELECT COUNT(*) FROM persisted_artifacts WHERE id = ?)",
@@ -2430,14 +2454,26 @@ async fn apply_command(
 ) -> Result<(String, String, Vec<String>, Vec<String>), MigrationError> {
     match command {
         #[cfg(feature = "android-pilot-online")]
-        ReflectionWriteCommand::CreateAnsweredModelTrial { expected_source_revision_id, prompt, response } => {
+        ReflectionWriteCommand::CreateAnsweredModelTrial {
+            expected_source_revision_id,
+            prompt,
+            response,
+        } => {
             validate_text(&response, "response")?;
-            if context.occurred_at <= prompt.created_at.as_str() || prompt.evidence.len() != 1 {
+            // Only this atomic branch may create a source-only prompt.
+            let source_only = is_source_only_model_prompt(&prompt_provenance_value(
+                &prompt.source_id, &prompt.provenance,
+            ));
+            let expected_evidence_count = if source_only { 0 } else { 1 };
+            if context.occurred_at <= prompt.created_at.as_str()
+                || prompt.evidence.len() != expected_evidence_count
+            {
                 return Err(write_error("reflection_trial_binding_invalid"));
             }
             let source_id = prompt.source_id.clone();
             let evidence = prompt.evidence.clone();
-            let (artifact_id, prompt_revision) = create_suggested(connection, &expected_source_revision_id, prompt, context).await?;
+            let (artifact_id, prompt_revision) =
+                create_suggested(connection, &expected_source_revision_id, prompt, context, source_only).await?;
             let (artifact_id, revision_id) = save_response(connection, &source_id, &artifact_id,
                 &expected_source_revision_id, &prompt_revision, &evidence, &response, context).await?;
             Ok((artifact_id, revision_id, Vec::new(), Vec::new()))
@@ -2445,7 +2481,7 @@ async fn apply_command(
         ReflectionWriteCommand::CreateSuggested {
             expected_source_revision_id,
             prompt,
-        } => create_suggested(connection, &expected_source_revision_id, prompt, context)
+        } => create_suggested(connection, &expected_source_revision_id, prompt, context, false)
             .await
             .map(|(artifact_id, revision_id)| (artifact_id, revision_id, Vec::new(), Vec::new())),
         ReflectionWriteCommand::CreateSuggestedBatch {
@@ -2458,7 +2494,7 @@ async fn apply_command(
             let mut last = None;
             for prompt in prompts {
                 last = Some(
-                    create_suggested(connection, &expected_source_revision_id, prompt, context)
+                    create_suggested(connection, &expected_source_revision_id, prompt, context, false)
                         .await?,
                 );
             }
@@ -2983,8 +3019,18 @@ async fn verify_reflection_projection(
             .and_then(Value::as_array)
             .map(|items| items.len() as i64)
             .ok_or_else(|| recovery_error("reflection_evidence_ids_missing"))?;
-        if evidence_dependencies == 0 || evidence_dependencies != represented {
+        let source_only = is_source_only_model_prompt(&prompt_provenance);
+        if evidence_dependencies != represented || ((represented == 0) != source_only)
+            || (source_only && expected_status != "answered") {
             return Err(recovery_error("reflection_evidence_dependencies_mismatch"));
+        }
+        if source_only {
+            let stray: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM artifact_dependencies WHERE dependent_artifact_id = ? AND relationship_type = 'uses_evidence'")
+                .bind(&artifact_id).fetch_one(&mut *connection).await
+                .map_err(|error| migration_error("reflection_evidence_dependencies_unreadable", error))?;
+            if stray != 0 {
+                return Err(recovery_error("reflection_evidence_dependencies_mismatch"));
+            }
         }
     }
     let projection_count: i64 = sqlx::query_scalar(

@@ -117,8 +117,21 @@ export function AndroidM2CApp({ store = m2cStore, pilot = isAndroidPilot }: {
   const [artifactLocked, setArtifactLocked] = useState(false);
   const [settings, setSettings] = useState(false);
   const [hasModelKey, setHasModelKey] = useState(false);
+  const keyStatusVersion = useRef(0);
+  const keyStatusChanged = useRef((ready: boolean) => { keyStatusVersion.current++; setHasModelKey(ready); });
   const [openReflectionRevision, setOpenReflectionRevision] = useState<string | null>(null);
   const c = { ...copy[locale], ...journeyCopy[locale].source };
+  useEffect(() => {
+    if (!model) return;
+    let active = true;
+    const version = keyStatusVersion.current;
+    void model.hasKey().then((ready) => {
+      if (active && version === keyStatusVersion.current) setHasModelKey(ready);
+    }).catch(() => {
+      if (active && version === keyStatusVersion.current) setHasModelKey(false);
+    });
+    return () => { active = false; };
+  }, [model]);
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -232,7 +245,7 @@ export function AndroidM2CApp({ store = m2cStore, pilot = isAndroidPilot }: {
     }}>{lang === "en" ? "English" : lang === "ja" ? "日本語" : "繁體中文"}</button>)}
   </nav>;
   return <main className="android-m2c" data-runtime="android-m2c-disposable" data-storage-state="ready" data-save-state={state} data-locale-preference-state={localeState}>
-    {pilot && settings ? <div className="android-m2c__shell"><PilotSettings locale={locale} model={model} close={closeSettings} languages={languages} onKeyChanged={setHasModelKey} /></div> : null}
+    {pilot && settings ? <div className="android-m2c__shell"><PilotSettings locale={locale} model={model} close={closeSettings} languages={languages} onKeyChanged={keyStatusChanged.current} /></div> : null}
     {localeState === "failed" ? <p role="status">{c.localeError}</p> : null}
     <div className="android-m2c__shell" hidden={pilot && settings} data-testid="pilot-main">
       {!pilot ? languages : null}

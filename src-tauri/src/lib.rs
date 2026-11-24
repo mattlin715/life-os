@@ -12,6 +12,11 @@ mod android_m2b;
 mod android_m2c;
 #[cfg(all(any(target_os = "android", test), feature = "android-pilot-online"))]
 mod android_pilot_model;
+#[cfg(all(any(target_os = "android", test), feature = "android-pilot-online"))]
+mod android_pilot_credentials;
+#[cfg(all(test, feature = "android-pilot-online"))]
+#[path = "../build_support/pilot_credentials_inputs.rs"]
+mod pilot_credentials_inputs;
 #[allow(dead_code)]
 mod filesystem_safety;
 #[cfg(all(
@@ -52,7 +57,8 @@ compile_error!("The Android pilot must be built without debug assertions.");
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(feature = "android-pilot-online")]
-    let builder = builder.manage(android_pilot_model::ModelSession::default());
+    let builder = builder.manage(android_pilot_model::ModelSession::default())
+        .plugin(android_pilot_credentials::init());
     builder
         .invoke_handler(tauri::generate_handler![
             #[cfg(not(feature = "android-pilot"))]
@@ -94,11 +100,15 @@ pub fn run() {
             #[cfg(feature = "android-pilot-online")]
             android_pilot_model::pilot_model_has_key,
             #[cfg(feature = "android-pilot-online")]
+            android_pilot_model::pilot_model_key_status,
+            #[cfg(feature = "android-pilot-online")]
             android_pilot_model::pilot_model_set_key,
             #[cfg(feature = "android-pilot-online")]
             android_pilot_model::pilot_model_clear_key,
             #[cfg(feature = "android-pilot-online")]
             android_pilot_model::pilot_model_ask,
+            #[cfg(feature = "android-pilot-online")]
+            android_pilot_model::pilot_model_feedback,
             #[cfg(feature = "android-pilot-online")]
             android_pilot_model::pilot_model_save,
         ])

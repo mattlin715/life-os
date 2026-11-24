@@ -13,7 +13,7 @@ const snapshot: Snapshot = {
 };
 
 describe("Android M2-C synthetic lifecycle", () => {
-  it("routes credential operations only to volatile model IPC, never locale or storage", async () => {
+  it("defaults credential IPC to session-only, never locale or journal storage", async () => {
     const previous = invoke.mock.calls.length;
     invoke.mockResolvedValueOnce(false).mockResolvedValueOnce(undefined).mockResolvedValueOnce(true).mockResolvedValueOnce(undefined);
     expect(await pilotModel.hasKey()).toBe(false);
@@ -21,8 +21,17 @@ describe("Android M2-C synthetic lifecycle", () => {
     expect(await pilotModel.hasKey()).toBe(true);
     await pilotModel.clearKey();
     expect(invoke.mock.calls.slice(previous)).toEqual([
-      ["pilot_model_has_key"], ["pilot_model_set_key", { key: "synthetic-mock-key" }],
+      ["pilot_model_has_key"], ["pilot_model_set_key", { key: "synthetic-mock-key", remember: false }],
       ["pilot_model_has_key"], ["pilot_model_clear_key"],
+    ]);
+  });
+  it("sends persistence only by explicit choice and receives status without a credential getter", async () => {
+    const previous = invoke.mock.calls.length;
+    invoke.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ready: true, remembered: true });
+    await pilotModel.setKey("synthetic-mock-key", true);
+    expect(await pilotModel.keyStatus!()).toEqual({ ready: true, remembered: true });
+    expect(invoke.mock.calls.slice(previous)).toEqual([
+      ["pilot_model_set_key", { key: "synthetic-mock-key", remember: true }], ["pilot_model_key_status"],
     ]);
   });
   it.each([

@@ -43,8 +43,8 @@ test("first/append uses a frozen batch through the Android-only locked canonical
   assert.match(adapter,/ORDER BY h\.created_at,h\.id/);
 });
 
-test("existing canonical command bodies stay byte-identical outside the opt-in M3 command",()=>{
-  for(const [kind,hash] of [["evidence","a91999686be17067cad6aef35e1308e4fb2005266644ab39a7ffda2ca3708409"],["reflection","8778897dc568c17895fe9eb31ae57c02f6a4db8c645659832a68f8d639ac1b42"]]){
+test("canonical R2 source-linkage policy stays pinned outside the isolated M3 dispatch",()=>{
+  for(const [kind,hash] of [["evidence","a91999686be17067cad6aef35e1308e4fb2005266644ab39a7ffda2ca3708409"],["reflection","340360238d461959afc145795b1fd3cdeb7c09e5749c02d8ed3e6392b6e3ec7c"]]){
     let policy=read(`src-tauri/src/schema_v5_${kind}_write.rs`).split("async fn prepare_write(")[0];
     if(kind==="reflection"){
       for(const marker of ["CreateAnsweredModelTrial {\n","ReflectionWriteCommand::CreateAnsweredModelTrial {"]){
@@ -100,10 +100,10 @@ test("Founder UI correction keeps source/policy exact and technical probes outsi
 });
 
 // Saved-response R1 and first/append R1 extend only the authorized M2-C handlers; historical native assertions stay pinned.
-test("UX001 plus authorized R1 rendered mutation and input handlers",async()=>{
+test("UX001 and authorized R2 rendered mutation and input handlers",async()=>{
   const ts=(await import("typescript")).default;
   // Pilot starts the existing clue correction with an empty draft for a verbatim quote; no change to save or confirmation handlers.
-  for(const [path,expected] of [["src/android-m2c/AndroidM2CApp.tsx","d2ccc9d3fa398cc23fdf0193ce7aa682d45bda3fe78a4b414ea1e63825a87b18"],["src/android-m2c/ReflectionJourney.tsx","d02d77e59288ce6066dbf4ba047841175edd19cfb962b379eae4101df08bb6fd"]]){
+  for(const [path,expected] of [["src/android-m2c/AndroidM2CApp.tsx","d2ccc9d3fa398cc23fdf0193ce7aa682d45bda3fe78a4b414ea1e63825a87b18"],["src/android-m2c/ReflectionJourney.tsx","bc1d26ca9cde216fbc414b0a7d22cfc7e0c3b074073aaa1d9c93172b6c78136f"]]){
     const code=read(path),file=ts.createSourceFile("ui.tsx",code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),values=[];
     const walk=n=>{if(ts.isJsxAttribute(n)&&["onClick","onChange"].includes(n.name.getText(file)))values.push(n.getText(file));ts.forEachChild(n,walk)};walk(file);
     assert.equal(createHash("sha256").update(JSON.stringify(values)).digest("hex"),expected,path);
@@ -111,9 +111,10 @@ test("UX001 plus authorized R1 rendered mutation and input handlers",async()=>{
 });
 test("UX001 preserves accepted behavior-bearing blocks and protected contracts",()=>{
   // Pilot's visible clue state replaces generic success; canonical reread and protected write contracts stay pinned.
-  const blocks=[["src/android-m2c/AndroidM2CApp.tsx","export function AndroidM2CApp","  if (storage !== \"ready\")","d680e4e50dd15ca77f6b20c29c68f0b26da5d82eadb6c99a9d26e7fc6cc3083b"],["src/android-m2c/ReflectionJourney.tsx","export function currentEvidence","  return <section data-testid=\"m2c-journey\"","0336c4dd0340c2492c42adcdf2422d5940dc5ad08bf5bd6966084271ed8e778c"]];
+  // R3 adds readback-only historical model presentation; mutation handlers stay pinned above.
+  const blocks=[["src/android-m2c/AndroidM2CApp.tsx","export function AndroidM2CApp","  if (storage !== \"ready\")","8def1e937883c2e6a11668616d4b7fde0c5364743fcfc883be15627971ea49ae"],["src/android-m2c/ReflectionJourney.tsx","export function currentEvidence","  return <section data-testid=\"m2c-journey\"","37d92d9dd85cec6df7bd602d2b8c5601009796339bc8f8ff2bec6100dc817c07"]];
   for(const [p,start,end,expected] of blocks){const code=read(p);assert.equal(createHash("sha256").update(code.slice(code.indexOf(start),code.indexOf(end))).digest("hex"),expected,p);}
-  for(const [p,expected] of [["src/android-m2c/androidM2CStore.ts","5c3e56b7c68d24b30988a26569da888489fa281fd4d4d5fbf3f48d66a785957e"],["src/ai/providers/placeholderProvider.ts","17f27a8dd71ad70a8c74f03dcd9a83824852dd70a317d1a3cf8cf99cefafda53"],["src/ai/harness/contextPacket.ts","bea4eab27ea715e42165f71ad8d953dee28695e9b888c03f9a3ccedb180e75c0"],["src/ai/harness/gateDecision.ts","68a72ff9d810c587188b66652835b3ee80c094c118e75f2f3824040096daaa56"],["src/ai/harness/reflectionResponse.ts","ea19c1d36933abca4528bf2a907ec6e8d6a2751d59b8de7bf87dd49f6b91f519"],["src/types/domain.ts","44a365a37e18212a57d578a1b36c39f22055bea873aeb76afb2640243e7fc784"],["src-tauri/src/android_m2c.rs","3da34a0aa4553cc1af47baf29e82da70b335eb860c9c4e00f5f7753eef62a560"],["src-tauri/src/schema_v5_android_reflection.rs","42f93af733f1086cb6eecaeeec66541928452804f32254b9e86be8703fb2cc0e"],["src-tauri/src/schema_v5_evidence_write.rs","67b8f93164069b46ee63fdbda72c48efc61991242fa9e2199e112ef08edd6593"],["src-tauri/src/schema_v5_reflection_write.rs","b1d78b208a473867b4c99133084e2a24c74da85920fa500987c6f7540e71e48c"],["src-tauri/tauri.android.conf.json","360eabf48c9cc0f5ebd5703d6b9ecf8ea6cbbb81f7473532ba8f480049fd93d4"]])assert.equal(createHash("sha256").update(read(p)).digest("hex"),expected,p);
+  for(const [p,expected] of [["src/android-m2c/androidM2CStore.ts","5c3e56b7c68d24b30988a26569da888489fa281fd4d4d5fbf3f48d66a785957e"],["src/ai/providers/placeholderProvider.ts","17f27a8dd71ad70a8c74f03dcd9a83824852dd70a317d1a3cf8cf99cefafda53"],["src/ai/harness/contextPacket.ts","bea4eab27ea715e42165f71ad8d953dee28695e9b888c03f9a3ccedb180e75c0"],["src/ai/harness/gateDecision.ts","68a72ff9d810c587188b66652835b3ee80c094c118e75f2f3824040096daaa56"],["src/ai/harness/reflectionResponse.ts","ea19c1d36933abca4528bf2a907ec6e8d6a2751d59b8de7bf87dd49f6b91f519"],["src/types/domain.ts","44a365a37e18212a57d578a1b36c39f22055bea873aeb76afb2640243e7fc784"],["src-tauri/src/android_m2c.rs","3da34a0aa4553cc1af47baf29e82da70b335eb860c9c4e00f5f7753eef62a560"],["src-tauri/src/schema_v5_android_reflection.rs","91fb6f37d224f82b94ed5a1fba9d3f1aea093002e6c787c1a89d54de447e6642"],["src-tauri/src/schema_v5_evidence_write.rs","67b8f93164069b46ee63fdbda72c48efc61991242fa9e2199e112ef08edd6593"],["src-tauri/src/schema_v5_reflection_write.rs","e188e83bad51d1c7f46b01b23071cb51947969e81867cd3cd3fee641fdd85fb2"],["src-tauri/tauri.android.conf.json","360eabf48c9cc0f5ebd5703d6b9ecf8ea6cbbb81f7473532ba8f480049fd93d4"]])assert.equal(createHash("sha256").update(read(p)).digest("hex"),expected,p);
   const ui=read("src/android-m2c/AndroidM2CApp.tsx"),journey=read("src/android-m2c/ReflectionJourney.tsx");
   assert.match(ui,/<textarea autoFocus aria-describedby="m2c-source-hint" id="m2c-edit"/);
   assert.match(journey,/<textarea autoFocus aria-describedby="m2c-correction-help" id="m2c-correction"/);
@@ -203,7 +204,7 @@ test("connected Founder Pilot is an explicit isolated HTTPS variant with local-o
   assert.equal(config.identifier,"com.lifeos.review.pilot.model");
   const cargo=read("src-tauri/Cargo.toml"),lib=read("src-tauri/src/lib.rs");
   assert.match(cargo,/android-pilot-online = \["android-pilot", "dep:reqwest"\]/);
-  for(const method of ["has_key","set_key","clear_key","ask","save"]) assert.match(lib,new RegExp('#\\[cfg\\(feature = "android-pilot-online"\\)\\]\\s+android_pilot_model::pilot_model_'+method));
+  for(const method of ["has_key","set_key","clear_key","ask","save","feedback"]) assert.match(lib,new RegExp('#\\[cfg\\(feature = "android-pilot-online"\\)\\]\\s+android_pilot_model::pilot_model_'+method));
   const model=read("src-tauri/src/android_pilot_model.rs");
   assert.match(model,/key: Mutex<Option<HeaderValue>>/);
   assert.match(model,/set_sensitive\(true\)/);
@@ -214,4 +215,85 @@ test("connected Founder Pilot is an explicit isolated HTTPS variant with local-o
   const save=model.split("fn pilot_model_save")[1].split("#[cfg(test)]")[0];
   assert.match(save,/save_model_trial\(/);
   assert.doesNotMatch(save,/reqwest|\.send\(|ENDPOINT|\.post\(/);
+});
+
+test("R2 keeps synthetic consent and the source-only exception bounded to the connected Pilot",()=>{
+  const writer=read("src-tauri/src/schema_v5_reflection_write.rs");
+  const helper=writer.split("fn is_source_only_model_prompt(")[1].split("fn validate_prompt(")[0];
+  assert.match(helper,/cfg!\(feature = "android-pilot-online"\)/);
+  for (const qualifier of ["gemini","gemini-3.1-flash-lite","harness-v1","android-gemini-reflection-v2"]) {
+    assert.ok(helper.includes('"'+qualifier+'"'));
+  }
+  assert.equal((writer.match(/create_suggested\(connection, &expected_source_revision_id, prompt, context, false\)/g)??[]).length,2);
+  assert.match(writer,/source_only && expected_status != "answered"/);
+
+  const model=read("src-tauri/src/android_pilot_model.rs");
+  for (const command of ["ask","feedback"]) {
+    const body=model.split("fn pilot_model_"+command+"(")[1].split("send_body(key.clone(), &body).await?")[0];
+    assert.match(body,/if !request\.synthetic_confirmed/);
+    assert.match(body,/spawn_blocking/);
+    assert.match(body,/session\.sending\.swap\(true/);
+  }
+  assert.match(model,/original\.contains\(quote\)/);
+  const feedback=model.split("fn pilot_model_feedback(")[1].split("fn pilot_model_save(")[0];
+  assert.doesNotMatch(feedback,/save_model_trial|session\.ticket/);
+  const main=read("src/android-m2c/ReflectionJourney.tsx");
+  assert.doesNotMatch(main,/pilot-local-secondary/);
+  assert.match(main,/pilot-saved-model-pairs/);
+  assert.match(main,/: null : renderExisting\(\)\}/);
+  assert.match(main,/if \(!actual.some/);
+  assert.match(main,/throw "save_unconfirmed"/);
+});
+
+test("R3 presentation removes connected demo and focus without altering native persistence",()=>{
+  const panels=read("src/android-m2c/PilotModelPanels.tsx");
+  assert.doesNotMatch(panels,/pilot-focus|c\.focus|validFocus|c\.generated/);
+  assert.match(panels,/controller\.preview\(\{ sourceId: input\.sourceId, sourceRevisionId: input\.sourceRevisionId,\s+original: input\.original, locale: input\.locale \}\)/);
+  assert.match(panels,/c\.questionOrigin/);
+  assert.match(panels,/c\.feedbackOrigin.*c\.sessionFeedback/);
+});
+
+test("R3 credential retention is explicit, native-only and outside ordinary app storage",()=>{
+  const frontend=read("src/android-m2c/pilotModel.ts"),panel=read("src/android-m2c/PilotModelPanels.tsx");
+  assert.match(frontend,/setKey: \(key, remember = false\)/);
+  assert.match(panel,/useState\(false\)/);
+  assert.match(panel,/model\.setKey\(value, remember\)/);
+  assert.match(panel,/setRemembered\(!clear && remember\)/);
+  assert.doesNotMatch(frontend,/loadKey|replaceKey|localStorage|sessionStorage/);
+  const native=read("src-tauri/src/android_pilot_credentials.rs");
+  assert.doesNotMatch(native,/#\[tauri::command\]|println!|log::|\.invoke_handler/);
+  const model=read("src-tauri/src/android_pilot_model.rs");
+  assert.match(model,/remember\.unwrap_or\(false\)/);
+  assert.match(model,/async fn credential_task[\s\S]*spawn_blocking/);
+  assert.match(model,/credential_operation\.lock\(\)/);
+  const java=read("src-tauri/android-pilot-online/java/com/lifeos/pilot/credentials/AndroidCredentialBackend.java");
+  for(const token of ["AndroidKeyStore","AES/GCM/NoPadding","getNoBackupFilesDir()","AtomicFile","wrappingKey(false)","updateAAD(aad)","setRandomizedEncryptionRequired(true)"])assert.ok(java.includes(token));
+  assert.doesNotMatch(java,/SharedPreferences|SQLite|Log\.|System\.out|printStackTrace|EXTERNAL_STORAGE/);
+  const plugin=read("src-tauri/android-pilot-online/java/com/lifeos/pilot/credentials/PilotCredentialsPlugin.java");
+  assert.doesNotMatch(plugin,/invoke\.reject\([^;]*error|Log\.|printStackTrace/);
+});
+
+test("R3 forget commits disabled state before wrapping-key destruction and never manufactures a recovered key",()=>{
+  const store=read("src-tauri/android-pilot-online/java/com/lifeos/pilot/credentials/CredentialStore.java");
+  assert.match(store,/backend\.write\(new byte\[0\]\);\s+backend\.destroy\(\)/);
+  assert.match(store,/blob == null \|\| blob\.length == 0/);
+  const backend=read("src-tauri/android-pilot-online/java/com/lifeos/pilot/credentials/AndroidCredentialBackend.java");
+  assert.match(backend,/if \(!create\) throw new Exception/);
+  assert.match(backend,/file\.finishWrite\(output\)/);
+  assert.match(backend,/file\.failWrite\(output\)/);
+  const lib=read("src-tauri/src/lib.rs");
+  assert.match(lib,/#\[cfg\(all\(any\(target_os = "android", test\), feature = "android-pilot-online"\)\)\]\s+mod android_pilot_credentials/);
+  assert.match(lib,/#\[cfg\(feature = "android-pilot-online"\)\]\s+let builder = builder\.manage\(android_pilot_model::ModelSession::default\(\)\)\s+\.plugin\(android_pilot_credentials::init\(\)\);/);
+});
+
+test("R3 connected native build refuses missing or stale credential Java staging",()=>{
+  const build=read("src-tauri/build.rs"),guard=read("src-tauri/build_support/pilot_credentials_inputs.rs");
+  assert.match(build,/CARGO_CFG_TARGET_OS/);
+  assert.match(build,/CARGO_FEATURE_ANDROID_PILOT_ONLINE/);
+  assert.match(build,/pilot_credentials_inputs::verify/);
+  assert.match(guard,/symlink_metadata/);
+  assert.match(guard,/file_type\(\)\.is_file\(\)/);
+  assert.match(guard,/fs::read\(input\)/);
+  assert.match(guard,/credential_source_missing/);
+  assert.match(guard,/credential_source_differs/);
 });

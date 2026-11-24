@@ -205,7 +205,10 @@ test("accepted M1 Rust entry is preserved and current Android delegates only to 
   assert.match(androidRun, /android_m2a::m2a_get_experience/);
   assert.match(androidRun, /android_m2a::m2a_get_locale_preference/);
   assert.match(androidRun, /android_m2a::m2a_set_locale_preference/);
-  assert.doesNotMatch(androidRun, /plugin\(|provider|reqwest|desktop_runtime/);
+  // Only the separately authorized connected Pilot may attach its native vault.
+  const connectedVault = /#\[cfg\(feature = "android-pilot-online"\)\]\s*let builder = builder\.manage\(android_pilot_model::ModelSession::default\(\)\)\s*\.plugin\(android_pilot_credentials::init\(\)\);/;
+  assert.match(androidRun, connectedVault);
+  assert.doesNotMatch(androidRun.replace(connectedVault, ""), /plugin\(|provider|reqwest|desktop_runtime/);
   assert.match(cargo, /\[target\.'cfg\(not\(target_os = "android"\)\)'\.dependencies\]/);
   assert.match(cargo, /\[target\.'cfg\(target_os = "android"\)'\.dependencies\]/);
 });
