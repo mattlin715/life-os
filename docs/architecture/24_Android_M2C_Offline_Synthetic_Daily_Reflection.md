@@ -1,8 +1,8 @@
 ---
 status: First/append R1 source slice; new Android review pending
-version: "0.10"
+version: "0.12"
 owner: LIN MENGLUNG
-last_updated: 2026/11/07
+last_updated: 2026/11/21
 depends:
   - docs/Reflection.md
   - docs/appendix/Harness.md
@@ -12,11 +12,23 @@ depends:
 referenced_by:
   - docs/00_Index.md
   - docs/dev/15_Android_M2C_Offline_Synthetic_Daily_Reflection_Runbook.md
+  - docs/product/01_Android_Model_Pilot_R3_Proposal.md
 ---
 
 # Android M2-C — Offline synthetic daily Reflection
 
+## Product-direction checkpoint — 2026/11/21
 
+Before continuing Model Pilot R3 planning, read the Founder-agreed
+[Core Experience Contract v0.1](../product/02_Life_OS_Core_Experience_Contract.md)
+and the update at the top of the [R3 proposal](../product/01_Android_Model_Pilot_R3_Proposal.md).
+The next design step is a fictional-data clickable low-fidelity prototype of
+user-owned, revisable understanding, not automatic continuation of feedback
+and supplement persistence. Historical plans, source/host evidence, and device
+claims below retain their original scope; they are not acceptance of this new
+experience. ADR-0013 remains Proposed; existing consent, schema, Phase 4 and
+workflow gates remain unchanged. This checkpoint authorizes no implementation,
+package, provider call, device action or M2-D/036 resume.
 
 ## Explicit first/append Reflection R1 — implementation slice
 
@@ -294,8 +306,8 @@ acceptance or release approval.
 The trial exposed three gaps: required demo-clue setup, an edited clue replacing
 the original in the model input, and no model feedback after a saved answer.
 
-**R2 status: plan agreed; implementation on hold until the Founder explicitly
-authorizes starting.** This is one end-to-end connected Android slice, not a
+**R2 status: Founder authorized source implementation and host checks
+(`同意開始`); packaging and device review are separate.** This is one end-to-end connected Android slice, not a
 sequence of separately packaged UI tweaks:
 
 1. **Record a moment → Ask one question.** Do not require a demo clue in the
@@ -324,9 +336,16 @@ unsaved drafts, or local IDs. Bind each request to the reviewed local revisions;
 an edit, deletion, or stale response must not silently change what is sent or
 attach a result to a different revision. Keep the Founder-only fictional data
 boundary, offline application and storage, and desktop behavior unchanged.
-When implementation is authorized, review the expanded M3 payload, consent,
-and canonical source-linkage approach before changing code. This plan does not
-amend any accepted ADR or authorize packaging, installation, or a live request.
+**R2 implementation boundary:** the connected adapter retains the existing fixed
+Google HTTPS destination, no redirect/retry and session-only API key. Consent is
+separate per request and the app checks the exact previews before sending and
+ignores results when the view or revisions no longer match. No full ContextPacket
+or desktop provider. Saving and correcting the response do not call the model.
+The explicit R2 atomic save writes a Gemini version-2 Reflection with no fabricated
+Evidence row: both immutable revisions point to the exact Experience revision,
+the saved response points to its prompt, and question/user provenance stays
+separate. This does not relax the ordinary Evidence requirement. No migration,
+ADR amendment, package, installation, or live request is authorized here.
 
 **One device review after host checks, one APK:** on Zenfone 10, use a fictional
 moment with enough context and verify a grounded question without demo-clue
@@ -335,6 +354,38 @@ question. Try the unrelated-clue regression and a second sparse fictional
 moment; confirm no source replacement, no invented interpretation, and no
 send when consent is cancelled. Reopen to verify the question and answer
 persist while the feedback does not. Do not infer crash durability.
+
+### 3101 Founder review and R3 follow-up
+
+The Founder reports that 3101 on Zenfone 10 retained earlier moments, offered
+a direct Gemini question, saved and reopened the question/answer, and gave a
+useful second angle. The Founder clarified that only the session-only second
+angle disappeared. Cancellation, mobile draft/lifecycle/stale-result, and
+disposable-source deletion checks were also explicitly reported OK. This is
+scoped direct chat evidence, not independent native diagnostics, crash
+durability, repository-verifier PASS, or invited-trial acceptance.
+
+The subsequent request removes optional focus and connected demo actions,
+and separates question/feedback labels. These are source-only UI changes;
+existing records and the independently buildable offline path are preserved.
+The UI removal supersedes the R2 optional-focus/demo-disclosure presentation;
+it does not change the R2 native contract or authorize new persistence.
+
+The integrated proposal for remembered credentials, durable reviewed feedback
+and same-moment supplements, plus the deferred cross-moment Pattern idea, is
+in `docs/product/01_Android_Model_Pilot_R3_Proposal.md`. The Founder subsequently
+authorized items 1, 5 and 6 for source/host work, not packaging. Opt-in encrypted
+credential source is now implemented via the connected-only native bridge;
+Android Keystore/runtime and update continuity remain unverified. The exact
+source staging guard prevents an old standalone scaffold silently omitting
+the required Java classes. No journal migration was executed or implemented.
+
+Independent feedback and supplement turns cannot honestly use v5's closed
+artifact/dependency vocabulary. Proposed ADR-0013 records the separate Model
+Pilot-v6 schema/lifecycle/upgrade checkpoint; it is not accepted, and feedback
+is still session-only. No
+automatic historical selection, background analysis or ADR change follows
+from recording the idea. No UI-only APK is requested for this cleanup.
 
 ## Reuse and persistence boundary
 

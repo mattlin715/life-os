@@ -1,8 +1,8 @@
 ---
 status: Draft
-version: 1.9
+version: 1.10
 owner: LIN MENGLUNG
-last_updated: 2026/10/04
+last_updated: 2026/11/21
 depends:
   - docs/00_Constitution.md
 referenced_by:
@@ -81,6 +81,13 @@ Lower levels must not override higher levels. When theory and implementation dif
 6. `docs/03_Principles.md`
 
 ### Understand Current Product And Next Work
+
+For the 2026/11/21 product-direction reset, first read
+[Life OS Core Experience Contract v0.1](product/02_Life_OS_Core_Experience_Contract.md).
+It is a Founder-agreed Book One experience/prototype baseline, not a new primary
+definition, an accepted ADR, or implementation authority. It redirects the old
+[Android R3 proposal](product/01_Android_Model_Pilot_R3_Proposal.md) without erasing
+its historical evidence; existing architecture and ADR gates remain in force.
 
 1. `docs/11_MVP.md`
 2. `docs/12_Roadmap.md`

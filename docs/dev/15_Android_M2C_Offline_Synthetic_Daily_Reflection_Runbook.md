@@ -572,3 +572,63 @@ production/real data/provider/network/sync or later slice/Phase4.
 New rejection-UX build/inspect PASS, APK a4054fbf277d8ffe214121751248d15afc065dc6dcd42d7bf44c7f5bbc9002ff; focused84/84 and contracts12/12 PASS. Independently owned run20261004134814 / lifeos_m2c_20261004134814_api36_x86_64 / emulator-5598 / CDP9238 passed34/34 groups (all31 original plus3 additive locale groups). Final fresh/restarted DB/receipt byte-identical, no pending names, counts0|0|0. Native snapshots and screenshots cover3 distinct IDs,2 purged rejected heads,1 new pending candidate, one summary, all6 returned non-content metadata fields, unchanged original and disclosure-only backend invariance in EN/zh-TW/ja. Engineering evidence, not Founder visual acceptance. Canonical is independently required; its actual result and final digest are authoritative only in the final manifest. Fresh manual6/6 not_run.
 
 Authoritative current receipts/final manifest: `.artifacts/android-m2c/rejection-ux/20261004134814/`. Prior Founder0033/6 before Step4 stop, accepted0029/9 and all failure/diagnostic evidence remain historical; no PASS transfer. All47 candidate paths stay unstaged; no acceptance/promotion or later slice. Physical-device/power-loss/OEM/ARM/multi-process/secure-erasure limits unchanged.
+
+
+### Connected R2: original Founder device review checklist
+
+After separately authorized build, signing, and installation, test on Zenfone 10
+with fictional material only. Reopen one saved moment, then use **Ask me one
+question** without opening the local demo. Cancel the preview once; then check
+that it contains the exact original and, if selected, an exact optional excerpt.
+Try an unrelated focus and confirm it cannot be used. A prior edited demo clue
+must not be used alone or silently included.
+
+Answer and save. Expect **See another angle**, not another mandatory question.
+Check that the second preview contains only this original, Gemini question and
+saved answer. Cancel it once, then explicitly confirm. Try an answer with too
+little information: feedback should admit uncertainty rather than fabricate or
+prescribe. Try leaving during a request and check that a late reply cannot
+appear on another moment. Reopen to confirm the question and answer are still
+local, and the angle is not. Changing or deleting the source should not silently
+reattach the old pair. This checks ordinary reopening, not crash durability.
+Do not use real journal data, copy the API key into evidence, or upload diary
+contents, databases, or sensitive screenshots.
+
+### 3101 Founder-reported result and R3 planning
+
+On 2026-11-18 JST, the Founder reported the question/answer stayed after
+reopening; only the session-only angle disappeared. The three additional
+cancellation, phone lifecycle/draft/stale-response and disposable-source
+deletion checks were explicitly reported OK. The earlier feedback was useful
+(`有帶來不同的理解`). These are bounded direct Founder reports; the optional
+focus and insufficient-context cases are not separately established.
+
+Source-only follow-up removes the connected focus/demo controls and makes
+question versus feedback explicit. It does not change the installed 3101
+or the offline build. The next integrated source/package decision is routed
+through `docs/product/01_Android_Model_Pilot_R3_Proposal.md`, not another
+round of separate APKs for each small UI correction. No real-data, historical
+summary, credentials retention, or feedback persistence is enabled by this
+report alone.
+
+### R3 credential source and remaining schema gate
+
+The Founder authorized R3 sources and host tests without a package. The
+connected source now offers opt-in encrypted remembered key, native restore,
+session-only replacement and clear/forget. Before any later standalone build,
+stage all three `android-pilot-online/java` files into the fresh Gradle project;
+the native build guard rejects an incomplete or stale copy. This does not
+authorize running it, changing a previous candidate or touching a device.
+
+Host crypto/lifecycle checks use a synthetic injected backend; Java compilation
+against Android APIs is not Android Keystore proof. Later phone review must
+test opt-in restart and same-signer update continuity, switching to session-only,
+forget, an unreadable credential and no plaintext fallback; do not ask the
+Founder to export, photograph or paste keys. Check backup/transfer exclusions
+statically first; device-transfer validation needs its own explicit scope.
+
+Feedback save and supplements remain unimplemented pending the proposed
+ADR-0013 exact model-turn schema/upgrade checkpoint. Do not show a saved
+feedback state, add temporary JSON persistence or claim the full R3 journey
+works. Keep the one integrated device review after those sources are complete,
+not a package merely for the credential work.
