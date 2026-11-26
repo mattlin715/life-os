@@ -1,0 +1,16 @@
+{
+  "scope": "artifact verification only",
+  "date_taipei": "2026-11-26",
+  "original_archives_and_expanded_bytes": "PASS",
+  "relative_markdown_file_targets": "PASS",
+  "common_credential_signature_scan": "PASS",
+  "secret_scan_limit": "signature checks and bounded content review, not a guarantee of no sensitive information",
+  "prototype_review_this_turn": "static source only; receiving sessions must run actual walkthrough",
+  "repository_product_tests": "not_run",
+  "new_product_implementation": "none",
+  "checker_attempts": [
+    "First verifier attempt failed: excluded nested SHA256SUMS by basename; fixed checker to exclude only root SHA256SUMS. Original source documents unchanged.",
+    "Second full verification is recorded by actual command result.",
+    "Staged-byte check caught Git LF normalization in new generated text; converted only new handoff text to LF and regenerated hashes/ZIP before commit. Original packages and expanded bytes unchanged."
+  ]
+}

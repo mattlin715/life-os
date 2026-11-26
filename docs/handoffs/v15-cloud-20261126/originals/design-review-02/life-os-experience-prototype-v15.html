@@ -1,0 +1,739 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=LXGW+WenKai+TC:wght@400;700&amp;family=Noto+Sans+TC:wght@400;500;600&amp;display=swap">
+<div id="life-os-v15" class="viz-dotted-background">
+  <div class="walk-tools">
+    <label for="v15-story">這次想試哪個故事？</label>
+    <select id="v15-story" class="cursor-interaction">
+      <option value="a">期待被理解，但沒有表達</option>
+      <option value="b">已經表達，但仍被忽視</option>
+      <option value="c">資料不足，暫時不下結論</option>
+      <option value="d">片刻較多：查找與選取（24 個）</option>
+      <option value="e">查找與狀態：24 個片刻／12 份理解</option>
+    </select>
+    <p>第十五版體驗草案 · 虛構故事日期：11/28。AI 回應為示例，不會分析或傳送內容，也不建立通知。請用虛構文字；重新整理會清除本次填寫與設定。</p>
+    <button id="v15-fill" type="button" data-act="fill-example" class="cursor-interaction" hidden>用示例文字試走</button>
+  </div>
+  <section class="phone" aria-label="Life OS 手機體驗">
+    <header><button id="v15-back" type="button" data-act="back" class="quiet cursor-interaction" hidden>上一頁</button><span class="brand">Life OS</span><div class="header-actions"><button id="v15-pause" type="button" data-act="pause" class="quiet cursor-interaction" hidden>先到這裡</button><button id="v15-settings" type="button" data-act="settings" class="quiet gear cursor-interaction" aria-label="設定"><span aria-hidden="true">⚙</span></button></div></header>
+    <section id="v15-map" class="journey-map" aria-label="這次的路線" hidden></section>
+    <div id="v15-notice" hidden><span id="v15-notice-text" role="status" aria-live="polite"></span><button type="button" data-act="dismiss-notice" class="quiet cursor-interaction" aria-label="關閉提示">×</button></div>
+    <main id="v15-screen" aria-live="polite"></main>
+    <nav id="v15-nav" aria-label="主要導覽">
+      <button type="button" data-act="nav-home" class="cursor-interaction">今天</button>
+      <button type="button" data-act="nav-library" class="cursor-interaction">回看</button>
+      <button type="button" data-act="nav-insights" class="cursor-interaction">我的理解</button>
+    </nav>
+  </section>
+</div>
+<style>
+#life-os-v15 { --paper:light-dark(#fafaf8,#212322); --surface:light-dark(#fff,#2b2e2c); --ink:light-dark(#282d2a,#eceee9); --muted-ink:light-dark(#59635b,#b9c1b9); --rule:light-dark(#d5dbd5,#505951); --soft:light-dark(#eef1ec,#333a34); --action:light-dark(#35473b,#d6e2d6); --on-action:light-dark(#fff,#202d24); color:var(--ink); font:16px/1.65 system-ui,-apple-system,"Segoe UI","Microsoft JhengHei",sans-serif; padding:14px 0 20px; }
+#life-os-v15 * { box-sizing:border-box; }
+#life-os-v15 [hidden] { display:none !important; }
+#life-os-v15 .walk-tools { max-width:430px; margin:0 auto 16px; padding:0 12px; display:grid; gap:7px; }
+#life-os-v15 .walk-tools p { font-size:12px; color:var(--muted-ink); }
+#life-os-v15 .walk-tools button { justify-self:start; font-size:13px; }
+#life-os-v15 .phone { max-width:430px; margin:auto; border:1px solid var(--rule); border-radius:24px; background:var(--paper); overflow:clip; }
+#life-os-v15 header { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:15px 22px; min-height:70px; font-weight:600; }
+#life-os-v15 header button { padding:7px 0; font-size:13px; font-weight:400; }
+#life-os-v15 header .brand { margin-right:auto; white-space:nowrap; }
+#life-os-v15 .header-actions { display:flex; align-items:center; gap:8px; }
+#life-os-v15 header .gear { width:44px; min-width:44px; font-size:25px; line-height:1; }
+#life-os-v15 .field-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; }
+#life-os-v15 .field-heading button { padding:8px 6px; font-size:13px; }
+#life-os-v15 .draft-preview { display:grid; gap:10px; border-left:2px solid var(--thread); padding:12px; background:var(--tint); border-radius:0 8px 8px 0; }
+#life-os-v15 .compact-notice { display:flex; align-items:center; gap:8px; background:var(--soft); border-radius:8px; padding:8px 10px; font-size:14px; }
+#life-os-v15 .compact-notice .stack { flex:1; gap:4px; }
+#life-os-v15 .compact-notice .stack button { justify-self:start; padding:5px 0; font-size:13px; }
+#life-os-v15 .compact-notice > button { flex:0 0 44px; padding:6px; font-size:22px; }
+#life-os-v15 .settings-placeholder { padding:16px 0; border-bottom:1px solid var(--rule); display:grid; gap:4px; }
+#life-os-v15 main { padding:20px 22px 24px; display:grid; gap:18px; min-height:340px; align-content:start; }
+#life-os-v15 p,#life-os-v15 h1,#life-os-v15 h2,#life-os-v15 h3 { margin:0; }
+#life-os-v15 h1 { font-size:24px; line-height:1.45; font-weight:600; }
+#life-os-v15 h2 { font-size:18px; line-height:1.5; font-weight:600; }
+#life-os-v15 h3 { font-size:16px; font-weight:600; }
+#life-os-v15 .stack { display:grid; gap:10px; }
+#life-os-v15 .reading-part { display:grid; gap:12px; padding-top:20px; border-top:1px solid var(--rule); }
+#life-os-v15 .reading-part h2 { display:flex; align-items:baseline; gap:9px; }
+#life-os-v15 .reading-part h2 span { font-size:13px; color:var(--muted-ink); font-weight:400; }
+#life-os-v15 .reading-context { display:grid; gap:8px; background:var(--soft); border-radius:9px; padding:12px; }
+#life-os-v15 .record { border-bottom:1px solid var(--rule); padding:12px 0; display:grid; gap:10px; }
+#life-os-v15 .record > button.entry-row { border:0; padding:0; }
+#life-os-v15 .discard-row { display:flex; align-items:start; gap:8px; }
+#life-os-v15 .discard-row > :first-child { flex:1; min-width:0; }
+#life-os-v15 .discard-x { flex:0 0 44px; min-width:44px; padding:7px; font-size:20px; }
+#life-os-v15 [data-act=later-moment] small { display:block; margin-top:5px; font-size:13px; font-weight:400; }
+#life-os-v15 .located { background:var(--soft); border-radius:8px; padding:10px; }
+#life-os-v15 .record-state { font-size:13px; font-weight:500; color:var(--ink); }
+#life-os-v15 .record-body { padding:2px 0 12px 12px; border-left:2px solid var(--rule); display:grid; gap:16px; }
+#life-os-v15 .record-body h3 { font-size:15px; }
+#life-os-v15 .record-body h4 { font-size:14px; font-weight:500; margin:0; }
+#life-os-v15 .section-items { margin-left:10px; padding-left:12px; border-left:1px solid var(--rule); display:grid; gap:16px; min-width:0; }
+#life-os-v15 .section-items > .record:first-child { padding-top:0; }
+#life-os-v15 .section-items .record .entry-row { border-bottom:0; padding-top:4px; }
+#life-os-v15 .section-items .record-body { margin-left:5px; padding-left:10px; border-left-width:1px; }
+#life-os-v15 .section-items .record-body details > .stack { margin-left:0; padding-left:8px; }
+#life-os-v15 .section-items > .stack { gap:2px; }
+#life-os-v15 .section-items > .stack > .entry-row { padding-top:6px; }
+#life-os-v15 .origin-overview > summary { color:var(--ink); }
+#life-os-v15 .origin-overview > summary small { display:block; color:var(--muted-ink); font-size:13px; padding-top:4px; }
+#life-os-v15 .origin-content { display:grid; gap:14px; }
+#life-os-v15 .origin-content h3 { font-size:15px; font-weight:500; }
+#life-os-v15 .origin-content summary { font-size:14px; }
+#life-os-v15 .eyebrow { font-size:12px; color:var(--muted-ink); letter-spacing:.05em; }
+#life-os-v15 .muted { font-size:14px; color:var(--muted-ink); }
+#life-os-v15 .box { background:var(--surface); border:1px solid var(--rule); padding:15px; border-radius:12px; display:grid; gap:12px; }
+#life-os-v15 .reminder-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+#life-os-v15 .reminder-heading button { min-width:44px; padding:7px; font-size:21px; }
+#life-os-v15 .actions { display:flex; flex-wrap:wrap; gap:8px; }
+#life-os-v15 button,#life-os-v15 select,#life-os-v15 textarea,#life-os-v15 input { font:inherit; }
+#life-os-v15 button { background:var(--surface); color:var(--ink); border:1px solid var(--rule); padding:10px 13px; min-height:44px; border-radius:9px; line-height:1.5; overflow-wrap:anywhere; }
+#life-os-v15 button.primary { background:var(--action); color:var(--on-action); border-color:var(--action); }
+#life-os-v15 button.quiet { background:transparent; border-color:transparent; color:var(--muted-ink); }
+#life-os-v15 button:disabled { opacity:.45; cursor:not-allowed; }
+#life-os-v15 button:focus-visible,#life-os-v15 textarea:focus-visible,#life-os-v15 input:focus-visible,#life-os-v15 select:focus-visible,#life-os-v15 summary:focus-visible { outline:3px solid var(--action); outline-offset:3px; }
+#life-os-v15 label { font-size:14px; }
+#life-os-v15 textarea,#life-os-v15 input[type=text],#life-os-v15 select { width:100%; min-width:0; border:1px solid var(--rule); border-radius:8px; padding:10px; background:var(--surface); color:var(--ink); font-size:16px; }
+#life-os-v15 textarea { min-height:118px; line-height:1.7; resize:vertical; }
+#life-os-v15 .check { display:flex; align-items:flex-start; gap:10px; font-size:14px; padding:9px 0; min-height:44px; }
+#life-os-v15 input[type=checkbox] { width:20px; height:20px; margin:3px 0 0; flex:0 0 20px; accent-color:var(--action); }
+#life-os-v15 blockquote { margin:0; border-left:2px solid var(--rule); padding-left:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+#life-os-v15 details { border-top:1px solid var(--rule); padding-top:7px; }
+#life-os-v15 summary { min-height:44px; padding:8px 0; color:var(--muted-ink); }
+#life-os-v15 .entry-row { width:100%; text-align:left; border:0; border-bottom:1px solid var(--rule); border-radius:0; background:transparent; padding:14px 0; display:grid; gap:5px; }
+#life-os-v15 .entry-row .excerpt { color:var(--muted-ink); font-size:14px; }
+#life-os-v15 .entry-row .row-title { display:flex; justify-content:space-between; align-items:center; gap:12px; font-weight:500; }
+#life-os-v15 .entry-row small { font-size:12px; color:var(--muted-ink); }
+#life-os-v15 .entry-row.is-resting { background:var(--rest-surface); border-radius:8px; padding-left:12px; padding-right:12px; margin:6px 0; border-bottom-color:transparent; }
+#life-os-v15 .row-label { display:flex; flex-wrap:wrap; align-items:center; gap:5px 8px; min-width:0; }
+#life-os-v15 .rest-mark { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--rest-rule); border-radius:5px; padding:2px 6px; font-size:12px; font-weight:400; color:var(--ink); white-space:nowrap; }
+#life-os-v15 .rest-mark::before { content:'Ⅱ'; font:400 11px/1 system-ui,sans-serif; }
+#life-os-v15 .list-find > summary { font-size:14px; overflow-wrap:anywhere; }
+#life-os-v15 .list-find-tools { display:grid; gap:4px; min-width:0; }
+#life-os-v15 .list-find-tools > button { justify-self:start; font-size:12px; padding:5px 0; text-decoration:underline; text-underline-offset:3px; }
+#life-os-v15 .list-results { display:grid; min-width:0; }
+#life-os-v15 .list-find input[type=search] { width:100%; min-width:0; font-size:16px; padding:10px; border:1px solid var(--rule); border-radius:8px; color:var(--ink); background:var(--surface); }
+#life-os-v15 .source-fold { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; min-width:0; }
+#life-os-v15 .source-fold > details { grid-column:1 / -1; grid-row:1; min-width:0; border-top:0; padding-top:0; }
+#life-os-v15 .source-fold.has-jump > details > summary { margin-right:52px; overflow-wrap:anywhere; min-height:44px; }
+#life-os-v15 .source-fold > .source-jump { grid-column:2; grid-row:1; align-self:start; display:grid; place-items:center; padding:0; width:44px; height:44px; min-height:44px; font:400 20px/1 system-ui,sans-serif; border:0; border-radius:6px; color:var(--muted-ink); background:transparent; }
+#life-os-v15 .source-jump svg { width:18px; height:18px; }
+#life-os-v15 .source-jump svg + .jump-fallback { display:none; }
+#life-os-v15 .source-jump:focus-visible { color:var(--ink); }
+#life-os-v15 .source-fold > details > .stack { margin:5px 0 10px 8px; padding-left:10px; border-left:1px solid var(--rule); }
+#life-os-v15 .find-tools { min-width:0; }
+#life-os-v15 .find-tools summary { font-size:14px; overflow-wrap:anywhere; }
+#life-os-v15 .find-tools .clear-find { font-size:12px; padding:6px 0; min-height:44px; text-decoration:underline; text-underline-offset:3px; }
+#life-os-v15 .source { border-bottom:1px solid var(--rule); padding:12px 0; display:grid; gap:6px; }
+#life-os-v15 .sharing { display:grid; gap:5px; border-top:1px solid var(--rule); padding-top:12px; }
+#life-os-v15 .sharing p { color:var(--muted-ink); font-size:13px; }
+#life-os-v15 .sharing details { border:0; padding:0; }
+#life-os-v15 #v15-notice:empty { display:none; }
+#life-os-v15 #v15-notice { margin:0 22px 0; background:var(--soft); border-radius:8px; padding:6px 10px; font-size:14px; display:flex; align-items:center; gap:6px; }
+#life-os-v15 #v15-notice-text { flex:1; }
+#life-os-v15 #v15-notice button { flex:0 0 44px; padding:6px; font-size:22px; }
+#life-os-v15 nav { display:grid; grid-template-columns:1fr 1fr 1.2fr; padding:9px; gap:4px; border-top:1px solid var(--rule); background:var(--surface); }
+#life-os-v15 nav button { background:transparent; border:0; font-size:14px; padding:10px 4px; }
+#life-os-v15 nav button[aria-current=page] { background:var(--soft); font-weight:600; }
+#life-os-v15 .journey-map { margin:0 18px 15px; border-bottom:1px solid var(--rule); padding-bottom:14px; }
+#life-os-v15 .journey-map ol { padding:0; margin:0 0 10px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; list-style:none; }
+#life-os-v15 .journey-map li { display:grid; justify-items:center; gap:6px; font-size:12px; color:var(--muted-ink); position:relative; }
+#life-os-v15 .journey-map li:not(:last-child)::after { content:''; position:absolute; width:calc(100% - 30px); height:1px; background:var(--rule); left:calc(50% + 15px); top:12px; }
+#life-os-v15 .journey-map li span:first-child { width:25px; height:25px; display:grid; place-items:center; border-radius:50%; background:var(--soft); }
+#life-os-v15 .journey-map li[aria-current=step] { color:var(--ink); font-weight:600; }
+#life-os-v15 .journey-map li[aria-current=step] span:first-child { background:var(--action); color:var(--on-action); }
+#life-os-v15 .journey-map p { font-size:13px; text-align:center; color:var(--muted-ink); }
+@media(max-width:360px) { #life-os-v15 main { padding:18px 15px; } #life-os-v15 header { padding-inline:15px; } }
+</style>
+<style>
+#life-os-v15 { --paper:light-dark(#faf8f3,#242622); --surface:light-dark(#fffdf8,#2c2f29); --rule:light-dark(#dbd8cb,#53594d); --soft:light-dark(#eeefe6,#353d31); --action:light-dark(#465b49,#d6e3cf); --on-action:light-dark(#fffdf7,#253021); --thread:light-dark(#d3cbbb,#656450); --tint:light-dark(#f2eee5,#30332c); }
+#life-os-v15 details { border-top:0; padding-top:0; min-width:0; }
+#life-os-v15 details > .stack { margin:3px 0 10px 9px; padding:3px 0 7px 12px; border-left:1px solid var(--thread); }
+#life-os-v15 .origin-overview { border-top:1px solid var(--rule); padding-top:9px; }
+#life-os-v15 .origin-content { padding:8px 0; gap:12px; }
+#life-os-v15 .origin-content h3 { color:var(--muted-ink); font-size:13px; letter-spacing:.04em; }
+#life-os-v15 summary { color:var(--ink); }
+#life-os-v15 summary::marker { color:var(--muted-ink); font-size:11px; }
+#life-os-v15 .choice { border-bottom:1px solid var(--rule); padding:10px 0 14px; min-width:0; }
+#life-os-v15 .choice > .choice-body { margin-left:30px; padding-left:11px; border-left:1px solid var(--thread); }
+#life-os-v15 .choice .check { padding:5px 0; }
+#life-os-v15 .choice .check span { min-width:0; overflow-wrap:anywhere; }
+#life-os-v15 .choice small { display:block; font-size:12px; color:var(--muted-ink); padding-top:4px; }
+#life-os-v15 .relation-panel { background:var(--tint); padding:10px 12px; border-radius:12px; }
+#life-os-v15 .relation-panel > .stack { margin-left:6px; padding-left:10px; }
+#life-os-v15 .relation-panel .choice > .choice-body { margin-left:22px; padding-left:8px; }
+#life-os-v15 .range-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+#life-os-v15 input[type=date],#life-os-v15 input[type=number] { width:100%; min-width:0; font:inherit; font-size:16px; border:1px solid var(--rule); border-radius:8px; padding:10px 7px; background:var(--surface); color:var(--ink); }
+#life-os-v15 .range-box { background:var(--tint); border-radius:12px; padding:13px; display:grid; gap:9px; }
+#life-os-v15 .setting-note { font-size:13px; color:var(--muted-ink); }
+#life-os-v15 [role=alert]:empty { display:none; }
+#life-os-v15 [role=alert] { color:light-dark(#8b4134,#f0b9a3); font-size:14px; }
+@media(max-width:360px){#life-os-v15 .range-fields { grid-template-columns:1fr; } #life-os-v15 details > .stack { margin-left:6px; padding-left:9px; } #life-os-v15 .choice > .choice-body { margin-left:26px; padding-left:9px; }}
+</style>
+<style>
+#life-os-v15,#life-os-v15 * { font-family:var(--reading-font,"Huninn"),"Noto Sans TC",sans-serif !important; }
+#life-os-v15 { line-height:1.8; }
+#life-os-v15 .walk-tools { background:var(--paper); border-radius:12px; padding:12px; }
+#life-os-v15 .phone { border-radius:26px; }
+#life-os-v15 h1 { font-size:25px; line-height:1.55; font-weight:500; letter-spacing:.025em; }
+#life-os-v15 h2,#life-os-v15 h3 { font-weight:500; }
+#life-os-v15 textarea { line-height:1.85; padding:14px; border-radius:14px; }
+#life-os-v15 .primary { border-radius:14px; }
+#life-os-v15 fieldset { min-width:0; margin:0; padding:0; border:0; }
+#life-os-v15 legend { padding:0 0 10px; font-size:16px; }
+#life-os-v15 .theme-options { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+#life-os-v15 .theme-option { display:flex; gap:8px; align-items:center; border:1px solid var(--rule); border-radius:12px; padding:10px; min-height:62px; }
+#life-os-v15 input[type=radio] { accent-color:var(--action); width:18px; height:18px; flex:0 0 18px; }
+#life-os-v15 .swatch { width:20px; height:20px; border:1px solid var(--muted-ink); border-radius:50%; flex:0 0 20px; }
+#life-os-v15 .theme-option:has(input:checked) { outline:2px solid var(--action); outline-offset:1px; }
+#life-os-v15 .font-choice { display:grid; gap:5px; border-bottom:1px solid var(--rule); padding:10px 0; }
+#life-os-v15 .font-choice label { display:flex; align-items:center; gap:8px; min-height:44px; }
+#life-os-v15 .font-choice p { font-size:16px; line-height:1.8; padding-left:30px; }
+#life-os-v15 .appearance-sample { display:grid; gap:10px; padding:18px; background:var(--surface); border-radius:16px; border:1px solid var(--rule); }
+#life-os-v15 .bulk-choices { border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); padding:8px 0; display:grid; gap:5px; }
+#life-os-v15 .bulk-choices .check { margin:0; }
+#life-os-v15 .bulk-choices small { display:block; color:var(--muted-ink); font-size:12px; margin-top:4px; }
+#life-os-v15 .choice.is-related-selected { background:var(--soft); border-radius:10px; padding-left:10px; padding-right:10px; }
+#life-os-v15 .relation-tag { display:inline-block; font-size:12px; color:var(--action); }
+#life-os-v15 #v15-show-hidden + span small { display:block; color:var(--muted-ink); font-size:12px; margin-top:4px; }
+#life-os-v15 .list-option { margin:0 0 8px 12px; padding:0 0 9px; border-bottom:1px solid var(--rule); }
+#life-os-v15 .list-option label { display:flex; align-items:center; gap:8px; min-height:44px; font-size:12px; color:var(--muted-ink); }
+#life-os-v15 .list-option input { width:16px; height:16px; flex:0 0 16px; }
+#life-os-v15 .list-option p { font-size:12px; color:var(--muted-ink); padding-left:24px; }
+#life-os-v15 .select-group > summary { color:var(--ink); font-size:16px; font-weight:500; }
+#life-os-v15 .select-group > .stack { border-left:0; margin-left:0; padding-left:0; }
+#life-os-v15 .search-row { display:grid; gap:8px; }
+#life-os-v15 input[type=search] { width:100%; min-width:0; padding:11px; border:1px solid var(--rule); border-radius:10px; color:var(--ink); background:var(--surface); font-size:16px; }
+#life-os-v15 .name-hint { font-size:13px; color:var(--muted-ink); line-height:1.7; }
+#life-os-v15 .time-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+#life-os-v15 input[type=time] { width:100%; min-width:0; padding:10px; border:1px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink); font-size:16px; }
+@media(max-width:360px){#life-os-v15 .theme-options{grid-template-columns:1fr}#life-os-v15 .time-fields{grid-template-columns:1fr}}
+</style>
+<script>
+(()=>{
+  'use strict';
+  const root=document.getElementById('life-os-v15'), screen=root.querySelector('#v15-screen'), picker=root.querySelector('#v15-story');
+  const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const clone=v=>JSON.parse(JSON.stringify(v));
+  const data={
+    a:{moments:[['11/02','又多了一項工作','主管又加了工作。我希望他知道我已經做不完，但最後還是說好。'],['11/09','沒有說出口','同事請我幫忙。我怕拒絕讓他覺得我不好合作，沒有告訴他我現在很忙。'],['11/16','問了優先順序','我問另一位同事，兩件事要先處理哪一件。他願意一起調整，我鬆了一口氣。'],['11/23','有點委屈','我又答應了額外工作，卻覺得沒有人理解我的難處。當時沒有說明工作量。']],observation:'11/02、11/09 與 11/23 都提到有需要，卻沒有說明或拒絕。也許值得看看：沒有說出口時，你正在顧慮什麼？',exception:'也有不一樣的時候：11/16 你表達後得到了協助。這不是每段關係都一樣。',question:'那些沒有說出口的時候，你最擔心說出來之後會發生什麼？',answer:'我怕主管認為我能力不夠。對願意一起討論的同事，我其實比較說得出口。',draft:'我目前覺得，不說出口有一部分是在避免被否定。面對主管時比較明顯，但不一定適用於所有關係。',title:'面對主管時，我不容易說出需求',next:'今天又臨時加了工作。我仍然很緊張，但問了主管要先做哪件。他說先完成客戶的案子，其他可以延後。',revised:'我不是完全無法表達需求。當我把問題說成可以一起決定的取捨時，即使仍然緊張，也比較能開口。這不代表每個人都會如此回應。'},
+    b:{moments:[['11/03','工作又加重了','主管又要求我接新案。我覺得自己的負擔一直沒有被看見。'],['11/10','不被理解','我很委屈。他好像只在乎事情有沒有完成。'],['11/17','仍然做不完','工作排不下了，主管卻說大家都很忙。我不知道還能怎麼辦。'],['11/24','有人願意聽','另一組同事問我需要哪些協助。有人願意了解限制，讓我稍微鬆了一口氣。']],observation:'幾段記錄都提到負擔未被看見。但記錄沒有交代每次怎麼溝通，不能因此認定你沒有表達。',exception:'11/24 有人願意聽。不同關係可能有不同條件，對方怎麼回應也很重要。',question:'你表達自己的限制之後，對方具體怎麼回應？',answer:'我已經說過很多次，也列出工作量。他說大家都很忙，叫我自己想辦法。',draft:'我已經嘗試表達限制。對方沒有回應，不代表我的需求不合理。我想分清楚自己能負責的部分，以及需要協助或界線的部分。',title:'沒被回應，不代表需求不合理',next:'我再次說明工作量。主管說如果做不完，可能影響考績。我感到害怕，也想找可信任的人討論可行的支持。',revised:'我的擔心不完全是猜測。這段工作關係中出現了具體的不利後果訊息；我需要評估支持與安全的溝通方式，而不只是要求自己勇敢。'},
+    c:{moments:[['11/04','今天很悶','不知道為什麼，今天就是有點悶。'],['11/12','一場爭執','和朋友說話有點不愉快，晚點再想。'],['11/20','說完鬆了一口氣','把工作安排跟同事說清楚之後，感覺好多了。']],observation:'幾段都帶著感受，但背景不同，也缺少情境。現在還不足以判斷有沒有共同原因。',exception:'不需要為了得到一個答案，把不同的事勉強連起來。',question:'如果只看其中一個片刻，你現在想補充什麼？也可以先不知道。',answer:'這幾次可能不是同一回事。我還不確定，只想先留下來。',draft:'這幾段感受不一定有共同原因。我暫時不替它們命名，想保留不同的可能。',title:'先保留不同的可能',next:'今天我沒有說出自己的需要，因為當時還沒想清楚，並不是怕對方否定我。',revised:'至少這一次，沒有表達是因為還沒想清楚自己的需要。它不能直接解釋之前的其他片刻。'}
+  };
+  const extraMoments=[['早餐的熱湯','趕著出門，喝到熱湯才發現自己一直很緊繃。'],['路邊的小花','午休散步看到一朵小花，心情放鬆了一點。'],['會議前的緊張','擔心自己的想法說得不夠清楚。'],['同事願意幫忙','提出需要之後，同事比我想像中願意聽。'],['雨中的通勤','車站很擠，回家想安靜一下。'],['睡前的一頁書','今天讀得很少，但留下了一句喜歡的話。'],['午餐的笑聲','和同事聊了工作以外的小事。'],['拒絕臨時邀約','我說今天想休息，朋友也理解。'],['忘了買牛奶','隨手記一下，回家順路買。'],['工作做不完','今天先確認了工作的優先順序。'],['週末散步','沒有目標地走一段路，覺得很自在。'],['收到朋友訊息','朋友問我最近好不好，我想認真回答。'],['把桌子整理好','整理桌面以後，心裡也鬆了一點。'],['想安靜吃飯','今天沒有多說話，先照顧自己的疲倦。'],['一個小小的進展','原本卡住的事情，今天往前了一步。'],['晚上的音樂','喜歡的歌讓我願意慢下來。'],['排隊時的不耐煩','發現自己只是很餓，不一定是別人的問題。'],['說出需要休息','我把疲倦說出來，而不是繼續硬撐。'],['今天的咖啡','這杯咖啡的香味很好，想記住。'],['回家路上的天空','晚霞很漂亮，暫時忘了工作的事情。']];
+  data.d={...data.a,moments:[...data.a.moments,...extraMoments.map((m,i)=>['11/'+String(8+Math.floor(i/2)).padStart(2,'0'),...m])],observation:'這些片刻有工作，也有休息與生活小事。現在先試著找出你想一起看的內容，不急著整理成同一個原因。',exception:'不同的片刻，可以有不同的意義。',question:'這些片刻裡，有哪一段是你現在最想多想一點的？'};
+  data.e=data.d;
+  let scenario=['a','b','c','d','e'].includes(window.openai?.widgetState?.modelContent?.scenario)?window.openai.widgetState.modelContent.scenario:'a';
+  const stores={}; let counter=100;
+  const storyToday='2026-11-28',preferences={frequency:'week',days:30,theme:'sky',font:'huninn'};
+  const palettes={
+    dawn:{name:'晨光杏橙',paper:'#fff9f1',surface:'#ffffff',ink:'#46372e',muted:'#786453',rule:'#ddcdbb',soft:'#ffedda',action:'#a44c25',on:'#ffffff',scheme:'light'},
+    peach:{name:'蜜桃暖白',paper:'#fff5f1',surface:'#fffdfb',ink:'#4f3339',muted:'#7c5b61',rule:'#dfc7c6',soft:'#ffe5e4',action:'#a74555',on:'#ffffff',scheme:'light'},
+    sky:{name:'奶油晴藍',paper:'#fffbf0',surface:'#ffffff',ink:'#33464e',muted:'#596f79',rule:'#c6d6dc',soft:'#e6f3fb',action:'#356d8b',on:'#ffffff',scheme:'light'},
+    white:{name:'柔白',paper:'#ffffff',surface:'#fafafa',ink:'#30353c',muted:'#606773',rule:'#d6d9dd',soft:'#edf2fa',action:'#425d80',on:'#ffffff',scheme:'light'},
+    black:{name:'柔黑 · 夜間',paper:'#191c22',surface:'#252931',ink:'#e4e6eb',muted:'#b1b7c2',rule:'#535b68',soft:'#303b4d',action:'#b2c9e9',on:'#1d2b40',scheme:'dark'},
+    gray:{name:'霧灰',paper:'#e9e8e5',surface:'#f5f4f1',ink:'#383b3f',muted:'#62656b',rule:'#bbbdbf',soft:'#d9dfe5',action:'#4c6075',on:'#ffffff',scheme:'light'}
+  };
+  const fonts={huninn:{name:'柔和圓體',family:'Huninn',description:'Huninn · 親切、柔軟'},noto:{name:'清朗黑體',family:'Noto Sans TC',description:'Noto Sans TC · 清楚、俐落'},wenkai:{name:'手寫書感',family:'LXGW WenKai TC',description:'霞鶩文楷 TC · 有手寫的溫度'}};
+  const fontStates={};
+  function appearance(){return S().page==='appearance'&&S().appearanceDraft?S().appearanceDraft:preferences;}
+  function applyAppearance(){const a=appearance(),p=palettes[a.theme]||palettes.sky,f=fonts[a.font]||fonts.huninn;Object.entries({paper:p.paper,surface:p.surface,ink:p.ink,'muted-ink':p.muted,rule:p.rule,soft:p.soft,action:p.action,'on-action':p.on,thread:p.rule,tint:p.soft,'reading-font':'"'+f.family+'"'}).forEach(([k,v])=>root.style.setProperty('--'+k,v));root.style.setProperty('--rest-surface',p.scheme==='dark'?'#303237':'#eeece7');root.style.setProperty('--rest-rule',p.scheme==='dark'?'#73767f':'#b8b5ae');root.style.colorScheme=p.scheme;root.dataset.theme=a.theme;root.dataset.font=a.font;if(!fontStates[a.font]){fontStates[a.font]='loading';document.fonts.load('16px "'+f.family+'"','留下片刻理解自己的心情').then(faces=>{fontStates[a.font]=faces.length?'ready':'fallback';updateFontStatus();}).catch(()=>{fontStates[a.font]='fallback';updateFontStatus();});}}
+  function updateFontStatus(){const node=root.querySelector('#v15-font-status');if(node){const a=appearance();node.textContent=fontStates[a.font]==='ready'?'字體已載入。':fontStates[a.font]==='fallback'?'字體暫時無法載入，先使用備用字體。':'正在載入字體…';}}
+  function appearancePage(){const a=S().appearanceDraft;return H('色調與字體','找到看起來舒服的樣子')+`<fieldset><legend>色調</legend><div class="theme-options">${Object.entries(palettes).map(([key,p])=>`<label class="theme-option"><input type="radio" name="v15-theme" value="${key}" ${a.theme===key?'checked':''}><span class="swatch" style="background:${p.paper}"></span><span>${p.name}</span></label>`).join('')}</div></fieldset><p class="setting-note">柔黑降低畫面亮度，不代表保證護眼；依環境選擇自己舒服的色調。</p><fieldset><legend>字體</legend>${Object.entries(fonts).map(([key,f])=>`<div class="font-choice"><label><input type="radio" name="v15-font" value="${key}" ${a.font===key?'checked':''}><span>${f.name} · ${f.description}</span></label><p style="--reading-font:'${f.family}'">慢慢理解自己，也是一種前進。</p></div>`).join('')}</fieldset><section class="appearance-sample"><p class="eyebrow">預覽</p><h2>不必急著想清楚。</h2><p>從今天的一個片刻開始，聽聽自己真正的感受。</p><p class="setting-note">11/28 09:18 · 我目前的理解</p></section><p id="v15-font-status" class="setting-note" role="status"></p><p class="setting-note">這裡會載入 Google Fonts 字體；不傳送你寫下的文字。設定只保留於這次試走。</p>`+B('save-appearance','使用這個樣子',true)+B('cancel-appearance','先不改');}
+  function storyStamp(){const minute=9*60+18+S().clock++;return '11/28 '+String(Math.floor(minute/60)%24).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');}
+  const id=prefix=>prefix+(++counter);
+  function fresh(key){
+    const d=data[key],moments=d.moments.map((m,i)=>({id:key+'m'+i,date:m[0]+(i===2?'':i<4?[' 09:18',' 18:42','',' 21:06'][i]:i%2?' 19:36':' 08:24'),iso:'2026-'+m[0].replace('/','-'),title:m[1],text:m[2],skipReview:false}));
+    const source=clone(['d','e'].includes(key)?moments.slice(0,4):moments), full={key:key+'o0',date:'11/28 · 示例',order:2,sources:source,observation:d.observation+'\n'+d.exception,question:d.question,answer:d.answer,response:'這是一種暫時的理解，不必適用於每段關係。',understanding:d.draft,understandingTitle:d.title,keepAi:true,seed:true};
+    const secondSource=clone(moments[key==='b'?3:2]);
+    full.bases=[{id:key+'i1',title:'什麼讓我比較自在地表達？',text:'當對方願意一起討論安排時，我比較說得出口。這是我想繼續留意的條件。'}];
+    const state={page:'home',trail:[],moments,explorations:[],insights:[
+      {id:key+'i0',title:d.title,text:d.draft,assisted:false,origins:[{key:key+'o-earlier',date:'11/15 · 示例',order:0,sources:[clone(moments[0])],answer:'我想先留意當時沒有說出口的需要。',understanding:'我想繼續留意自己的需要。',understandingTitle:'先留意自己的需要',keepAi:false,seed:true},full],versions:[],paused:false,action:'',createdIso:'2026-11-15',updatedIso:'2026-11-28',updated:'示例 · 11/28',sequence:2},
+      {id:key+'i1',title:'什麼讓我比較自在地表達？',text:'當對方願意一起討論安排時，我比較說得出口。這是我想繼續留意的條件。',assisted:false,origins:[{key:key+'o1',date:'11/26 · 示例',order:1,sources:[secondSource],answer:'對方願意聽，也願意一起調整。',understanding:'當對方願意一起討論安排時，我比較說得出口。這是我想繼續留意的條件。',understandingTitle:'什麼讓我比較自在地表達？',keepAi:false,seed:true}],versions:[],paused:false,action:'',createdIso:'2026-11-26',updatedIso:'2026-11-26',updated:'示例 · 11/26',sequence:1}
+    ],entryId:null,entryOriginKey:null,entryReturn:{page:'library'},explorationId:null,insightId:null,insightReturn:{page:'insights'},originFocus:null,renderedRoute:null,momentEdit:null,composer:{title:'',text:'',linked:null},selected:moments.map(m=>m.id),selectedInsights:[],reviewContext:'回看這段日子',reviewPending:false,notice:'',actionDraft:'',actionTargetId:null,undoAction:null,clock:2};
+    if(key==='e'){
+      state.moments.find(m=>m.title==='忘了買牛奶').skipReview=true;
+      state.moments.find(m=>m.title==='回家路上的天空').skipReview=true;
+      state.insights[1].paused=true;
+      const samples=[['休息不必先有理由','我可以先照顧疲倦，而不是等到撐不住。'],['把需要說得具體一點','比起期待對方猜到，我想練習說出一個具體需要。'],['保留一點自己的時間','留白不一定是浪費，也可能讓我聽見自己的感受。'],['不同意也可以保持關係','我想留意不同意見出現時，對方實際怎麼回應。'],['先問清楚，再答應','我可以先確認時間與負荷，再決定是否答應。'],['不急著解釋每一種感受','有些感受還沒有答案，也可以先留下。'],['慢慢把注意力放回生活','我想記住散步、音樂與那些讓自己鬆一口氣的時刻。'],['試著接受別人的幫忙','提出需要不等於沒有能力，我想留意願意支持我的人。'],['今天可以做得少一點','事情不必每一次都做到完美，我想練習看見已完成的部分。'],['留意自在的時候','不只注意困難，也留意自己在什麼情況下比較自在。']];
+      samples.forEach((v,n)=>{const date='2026-11-'+String(11+n).padStart(2,'0'),m=moments[4+n],stamp=date.slice(5).replace('-','/');state.insights.push({id:key+'i'+(n+2),title:v[0],text:v[1],assisted:false,origins:[{key:key+'sample'+n,date:stamp+' · 示例',order:n+3,sources:[clone(m)],bases:[],answer:'',understanding:v[1],understandingTitle:v[0],keepAi:false,seed:true}],versions:[],paused:n===3,action:'',createdIso:date,updatedIso:date,updated:'示例 · '+stamp,sequence:n+3});});
+      state.insights[0].sequence=20;state.insights[1].sequence=19;state.clock=30;
+    }
+    return state;
+  }
+  const S=()=>stores[scenario]||(stores[scenario]=fresh(scenario));
+  const E=()=>S().explorations.find(x=>x.id===S().explorationId);
+  const I=()=>S().insights.find(x=>x.id===S().insightId);
+  const M=key=>S().moments.find(x=>x.id===key);
+  const B=(act,label,primary=false,disabled=false)=>`<button type="button" data-act="${act}" class="cursor-interaction ${primary?'primary':''}" ${disabled?'disabled':''}>${label}</button>`;
+  const actions=(...x)=>`<div class="actions">${x.join('')}</div>`;
+  const Q=t=>`<blockquote>${escape(t)}</blockquote>`;
+  const H=(label,title)=>`<div class="stack"><p class="eyebrow">${label}</p><h1>${title}</h1></div>`;
+  const D=(title,body,key='')=>`<details ${key?`data-fold="${escape(key)}"`:''}><summary class="cursor-interaction">${title}</summary><div class="stack">${body}</div></details>`;
+  const field=(key,label,value,large=true)=>`<div class="stack"><label for="v15-${key}">${label}</label>${large?`<textarea id="v15-${key}" maxlength="2000">${escape(value)}</textarea>`:`<input id="v15-${key}" type="text" maxlength="90" value="${escape(value)}">`}</div>`;
+  function remember(){if(window.openai?.setWidgetState)Promise.resolve(window.openai.setWidgetState({modelContent:{prototype:'life-os-prototype-v15',scenario},privateContent:null})).catch(()=>{});}
+  window.addEventListener('openai:set_globals',event=>{const key=event.detail?.globals?.widgetState?.modelContent?.scenario;if(['a','b','c','d','e'].includes(key)&&key!==scenario){scenario=key;render();}});
+  const flowPages=['recorded','observation','question','answer-saved','response','meaning'];
+  function viewRef(){const st=S();return {page:st.page,entryId:st.entryId,entryOriginKey:st.entryOriginKey,explorationId:st.explorationId,insightId:st.insightId};}
+  function routeSnapshot(){return {...viewRef(),entryReturn:clone(S().entryReturn),insightReturn:clone(S().insightReturn),originFocus:S().originFocus,detailsOpen:[...screen.querySelectorAll('details')].map((d,i)=>d.open?i:-1).filter(i=>i>=0),returnY:window.scrollY};}
+  function restoreRoute(route){Object.assign(S(),clone(route));S().notice='';render();const all=screen.querySelectorAll('details');if(route.detailsOpen)all.forEach((d,i)=>d.open=route.detailsOpen.includes(i));S().renderedRoute=routeSnapshot();remember();if(route.returnAnchor){const button=root.querySelector('[id="'+route.returnAnchor+'"]');button?.scrollIntoView({block:'center'});button?.focus({preventScroll:true});}else window.scrollTo(0,route.returnY||0);}
+  function openInsight(key,originKey=null){S().insightReturn=routeSnapshot();S().insightId=key;S().originFocus=originKey;nav('insight');}
+  function nav(page,notice=''){
+    const st=S();if(page!==st.page)st.trail.push(clone(st.renderedRoute||routeSnapshot()));
+    st.page=page;st.notice=notice;
+    if(flowPages.includes(page)&&E()){E().step=page;E().touched=++st.clock;}
+    render();remember();root.querySelector('header').scrollIntoView({block:'start'});
+  }
+  function makeExploration(type,sourceIds,target=null){
+    const sources=sourceIds.map(M).filter(Boolean).map(clone);
+    const e={id:id('e'),date:storyStamp(),type,sources,targetId:type==='edit'?target?.id||null:null,base:target?{title:target.title,text:target.text,paused:target.paused}:null,bases:[],modeDrafts:{},title:type==='review'?sources.map(m=>m.title).slice(0,2).join('、')||'帶著理解回看':sources[0]?.title||target?.title||'我的理解',step:'recorded',answerDraft:'',answer:'',question:'',observation:'',response:'',corrected:false,meaningDraft:'',titleDraft:target?.title||'',assisted:target?.assisted||false,keepAi:true,savedInsight:null,closed:false,touched:++S().clock};
+    S().explorations.push(e);S().explorationId=e.id;return e;
+  }
+  function sourceView(m){if(m.deleted)return '<p class="muted">原片刻已刪除，這裡不再保留原文。</p>';return `<div class="source"><h3>${escape(m.date)} · ${escape(m.title)}</h3><p>${escape(m.text)}</p></div>`;}
+  function referenceView(i,key){
+    if(i.deleted)return '<p class="muted">先前參考的理解已刪除，這裡不再保留它的原文。</p>';
+    const found=S().insights.some(x=>x.id===i.id),self=S().page==='insight'&&S().insightId===i.id,canJump=found&&!self,fold='ref-'+key+'-'+i.id;
+    const note=self?'<p class="muted">這是本頁理解以前的寫法。</p>':!found?'<p class="muted">這份理解目前已不在目錄中；當時的參考文字仍在。</p>':'';
+    return `<div class="source-fold ${canJump?'has-jump':''}"><details data-fold="${escape(fold)}"><summary class="cursor-interaction">理解 · ${escape(i.title)}</summary><div class="stack"><p class="setting-note">當時參考的文字</p>${Q(i.text)}${note}</div></details>${canJump?jumpLink('open-reference',i.id,fold,'查看這份理解：'+i.title):''}</div>`;
+  }
+  function discardButton(kind,key=''){return `<button type="button" class="quiet discard-x cursor-interaction" data-act="discard-${kind}" data-id="${key}" aria-label="${kind==='composer'?'放棄這份片刻草稿':'移除這次未完成的思考'}">×</button>`;}
+  function undoDiscard(){const st=S(),u=st.discarded;if(!u)return;if(u.kind==='composer'){if(st.composer.text||st.composer.title){st.notice='目前有另一份片刻草稿，先保留這份草稿後再復原，避免覆蓋。';render();return;}st.composer=clone(u.value);}else if(!st.explorations.some(e=>e.id===u.value.id)){st.explorations.splice(Math.min(u.index,st.explorations.length),0,clone(u.value));}st.discarded=null;st.notice='剛才移除的內容已復原。';render();}
+  function understandingView(i){return `<div class="source"><p class="eyebrow">我目前的看法 · 不是另一個生活事件</p><h3>${escape(i.title)}</h3>${Q(i.text)}</div>`;}
+  function originKey(o){return o.explorationId||o.key;}
+  function deletePlan(kind,key){
+    const st=S(),field=kind==='moment'?'sources':'bases',pending=st.explorations.filter(e=>!e.savedInsight&&((e[field]||[]).some(x=>x.id===key)||(kind==='insight'&&e.targetId===key)));
+    const target=kind==='insight'?st.insights.find(i=>i.id===key):null,others=st.insights.filter(i=>i.id!==key),shared=target?target.origins.filter(o=>others.some(i=>i.origins.some(x=>originKey(x)===originKey(o)))):[];
+    const related=st.insights.filter(i=>i.id!==key&&i.origins.some(o=>(o[field]||[]).some(x=>x.id===key)));
+    return {pending:pending.map(e=>e.id),shared:shared.length,exclusive:target?target.origins.length-shared.length:0,related};
+  }
+  function deletePage(kind){
+    const st=S(),target=kind==='moment'?M(st.deleteTarget):st.insights.find(i=>i.id===st.deleteTarget);if(!target)return H('已不在這裡','這個項目已移除。')+B('nav-home','回到今天');
+    const plan=deletePlan(kind,target.id),name=kind==='moment'?'片刻':'理解';
+    const scope=kind==='moment'?'<p>會刪除這個片刻，以及思考紀錄裡另外保存的片刻原文。</p><p><strong>已留下的理解、回答與 AI 回應會保留。</strong>原片刻的位置會標示「已刪除」。</p>':`<p>這份理解與只屬於它的思考紀錄會一起刪除，<strong>原本的片刻會保留。</strong></p><p class="muted">包含以前的寫法、小提醒，以及 ${plan.exclusive} 筆專屬思考紀錄。${plan.shared?`另有 ${plan.shared} 筆共同思考紀錄，仍保留在其他理解裡。`:''}</p><p class="muted">其他理解不會一起刪除；其中保存的這份理解原文會改為「已刪除」。</p>`;
+    const pending=plan.pending.length?`<p class="reading-context">另有 ${plan.pending.length} 段使用這個${name}的未完成思考會一起移除；其他片刻與已完成的理解不受影響。</p>`:'';
+    const references=plan.related.length?D(`會保留的相關理解（${plan.related.length} 份）`,plan.related.map(i=>`<p>${escape(i.title)}</p>`).join('')):'';
+    return H('刪除'+name,kind==='moment'?'確定刪除這個片刻？':'確定刪除這份理解？')+`<p>${escape(target.title)}</p>`+scope+pending+references+`<p class="setting-note">保留的理解與問答可能仍提到相同內容，不會跟著改寫。若也想移除，請另外修改或刪除。</p>`+B('cancel-delete-item','先保留',true)+B(kind==='moment'?'confirm-delete-moment':'confirm-delete',kind==='moment'?'確認刪除這個片刻':'確認刪除這份理解');
+  }
+  function scrubSnapshots(value,field,key){if(!value||typeof value!=='object')return;for(const prop of Object.keys(value)){const child=value[prop];if(prop===field&&Array.isArray(child))value[prop]=child.map(x=>x?.id===key?{id:key,deleted:true,title:field==='sources'?'已刪除的片刻':'已刪除的理解',text:'',date:''}:x);scrubSnapshots(value[prop],field,key);}}
+  function clearSelectionItem(kind,key){const st=S();if(kind==='moment'){st.temporarySkipped=(st.temporarySkipped||[]).filter(k=>k!==key);st.manualMoments=(st.manualMoments||[]).filter(k=>k!==key);Object.values(st.relatedGroups||{}).forEach(g=>g.m=g.m.filter(k=>k!==key));}else{st.manualIdeas=(st.manualIdeas||[]).filter(k=>k!==key);st.temporaryHidden=(st.temporaryHidden||[]).filter(k=>k!==key);st.reviewRoots=(st.reviewRoots||[]).filter(k=>k!==key);delete(st.relatedGroups||{})[key];Object.values(st.relatedGroups||{}).forEach(g=>g.i=g.i.filter(k=>k!==key));}syncSelection();}
+  function finishDelete(kind){
+    const st=S(),key=st.deleteTarget,plan=deletePlan(kind,key),field=kind==='moment'?'sources':'bases';
+    if(kind==='moment'&&!M(key)||kind==='insight'&&!st.insights.some(i=>i.id===key))return;
+    st.explorations=st.explorations.filter(e=>!plan.pending.includes(e.id));
+    if(kind==='moment'){
+      st.moments=st.moments.filter(m=>m.id!==key);st.momentEdit=null;
+      st.explorations.filter(e=>e.sources.some(m=>m.id===key)).forEach(e=>e.title='原片刻已刪除的思考紀錄');
+    }else{
+      st.insights=st.insights.filter(i=>i.id!==key);
+      st.explorations=st.explorations.filter(e=>{if(e.savedInsight!==key&&e.targetId!==key)return true;const survivor=st.insights.find(i=>i.origins.some(o=>originKey(o)===e.id));if(survivor){e.savedInsight=survivor.id;e.targetId=survivor.id;return true;}return false;});
+      st.explorations.forEach(e=>{if(e.modeDrafts)delete e.modeDrafts[key];});
+      st.moments.forEach(m=>{if(m.linkedInsightId===key){m.linkedInsightId=null;m.linkedInsightTitle='';}});
+      if(st.composer.linked===key){st.composer.linked=null;st.composer.returnTo={page:'library'};}
+      if(st.discarded?.kind==='composer'&&st.discarded.value.linked===key){st.discarded.value.linked=null;st.discarded.value.returnTo={page:'library'};}
+      if(st.actionTargetId===key){st.actionTargetId=null;st.actionDraft='';}if(st.undoAction?.insightId===key)st.undoAction=null;
+    }
+    if(st.discarded?.kind==='thought'&&((st.discarded.value[field]||[]).some(x=>x.id===key)||st.discarded.value.targetId===key))st.discarded=null;
+    scrubSnapshots(st,field,key);clearSelectionItem(kind,key);st.explorationId=null;st.insightId=null;st.entryId=null;st.entryOriginKey=null;st.reviewSourceMomentId=null;st.deleteTarget=null;st.deleteReturn=null;st.trail=[];st.entryReturn={page:'library'};st.insightReturn={page:'insights'};st.page=kind==='moment'?'library':'insights';st.notice=kind==='moment'?'片刻與保存的原文已刪除。已留下的理解與問答仍在。':'理解與專屬思考紀錄已刪除，原本的片刻仍在。';render();remember();
+  }
+  function defaultRange(){const date=new Date(storyToday+'T00:00:00Z');date.setUTCDate(date.getUTCDate()-preferences.days+1);return {from:date.toISOString().slice(0,10),to:storyToday};}
+  function dateOf(m){return m.iso||storyToday;}
+  function inRange(m,range){const day=dateOf(m);return day>=range.from&&day<=range.to;}
+  function rangeLabel(range){return range.from.replaceAll('-','/')+' — '+range.to.replaceAll('-','/');}
+  function validDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(s||''))return false;const date=new Date(s+'T00:00:00Z');return !Number.isNaN(+date)&&date.toISOString().slice(0,10)===s;}
+  function validRange(r){return r&&validDate(r.from)&&validDate(r.to)&&r.from<=r.to&&r.to<=storyToday;}
+  function startReview(momentIds,insightIds,context,notice='',range=null){const st=S();st.manualMoments=[...new Set(momentIds)];st.temporarySkipped=momentIds.filter(k=>M(k)?.skipReview);st.showSkipped=st.temporarySkipped.length>0;st.momentSearch='';st.momentLimit=10;st.momentsOpen=true;st.onlySelected=false;st.manualIdeas=[...new Set(insightIds)];st.temporaryHidden=insightIds.filter(k=>st.insights.some(i=>i.id===k&&i.paused));st.showHidden=st.temporaryHidden.length>0;st.reviewRoots=[...new Set(insightIds)];st.relatedGroups={};syncSelection();st.reviewContext=context;st.preselectionNotice=notice;st.reviewSourceMomentId=st.page==='entry'?st.entryId:null;st.reviewPending=true;st.reviewRange=range||defaultRange();st.reviewBaseRange=clone(st.reviewRange);st.rangeDraft=clone(st.reviewRange);nav('review-select');}
+  function selectableMoment(m){return !m.skipReview||(S().temporarySkipped||[]).includes(m.id);}
+  function selectableIdea(i){return !i.paused||(S().temporaryHidden||[]).includes(i.id);}
+  function hiddenControl(){return `<div class="list-option"><label><input id="v15-show-hidden" type="checkbox" ${S().showHidden?'checked':''}><span>顯示先放一放的理解</span></label><p>平常隱藏的理解，也列出來看看。</p></div>`;}
+  function insightManagement(i){return D('調整這份理解',B('edit-understanding','修改這份理解')+B('toggle-insight',i.paused?'重新拿出來':'先放一放')+`<p class="setting-note">${i.paused?'平常在「一起看看」中隱藏，仍保留在「我的理解」。也可以只帶進這一次回看。':'在「一起看看」選擇內容時先隱藏，仍可在「我的理解」找到。'}</p>`+B('delete-insight','刪除這份理解'));}
+  function directRelated(key){const i=S().insights.find(x=>x.id===key),o=i?.origins.slice().sort((a,b)=>(b.order||0)-(a.order||0))[0];return {m:[...new Set((o?.sources||[]).map(x=>x.id))].filter(k=>M(k)&&!M(k).skipReview),i:[...new Set((o?.bases||[]).map(x=>x.id))].filter(k=>k!==key&&S().insights.some(i=>i.id===k&&!i.paused))};}
+  function syncSelection(){const st=S(),groups=Object.values(st.relatedGroups||{});st.selected=[...new Set([...(st.manualMoments||[]),...groups.flatMap(g=>g.m)])].filter(k=>M(k)&&selectableMoment(M(k)));st.selectedInsights=[...new Set([...(st.manualIdeas||[]),...groups.flatMap(g=>g.i)])].filter(k=>st.insights.some(i=>i.id===k&&selectableIdea(i)));}
+  function chooseOne(kind,key,checked){const st=S(),manual=kind==='m'?'manualMoments':'manualIdeas';if(kind==='m'&&M(key)?.skipReview){st.temporarySkipped=checked?[...new Set([...(st.temporarySkipped||[]),key])]:(st.temporarySkipped||[]).filter(k=>k!==key);}if(kind==='i'&&st.insights.some(i=>i.id===key&&i.paused)){st.temporaryHidden=checked?[...new Set([...(st.temporaryHidden||[]),key])]:(st.temporaryHidden||[]).filter(k=>k!==key);}st[manual]=checked?[...new Set([...st[manual],key])]:st[manual].filter(k=>k!==key);if(!checked)Object.values(st.relatedGroups).forEach(g=>g[kind]=g[kind].filter(k=>k!==key));if(kind==='i'){if(checked)st.reviewRoots=[...new Set([...st.reviewRoots,key])];else{st.reviewRoots=st.reviewRoots.filter(k=>k!==key);delete st.relatedGroups[key];}}syncSelection();}
+  function relatedLabel(kind,key){return (S().reviewRoots||[]).some(root=>directRelated(root)[kind].includes(key));}
+  function bulkChoices(){const st=S();return (st.reviewRoots||[]).filter(k=>st.selectedInsights.includes(k)).map(k=>{const i=st.insights.find(x=>x.id===k),g=directRelated(k),n=g.m.length+g.i.length;return `<label class="check"><input type="checkbox" data-bulk="${k}" data-instance="bulk-${k}" ${!n?'disabled':''}><span>一併選取「${escape(i.title)}」的相關內容<small>最近一次直接參考的 ${g.m.length} 個片刻、${g.i.length} 份理解 · <span data-bulk-status="${k}"></span></small></span></label>`;}).join('');}
+  function updateBulkStates(){const st=S();root.querySelectorAll('[data-bulk]').forEach(box=>{const g=directRelated(box.dataset.bulk),total=g.m.length+g.i.length,count=g.m.filter(k=>st.selected.includes(k)).length+g.i.filter(k=>st.selectedInsights.includes(k)).length,active=!!st.relatedGroups[box.dataset.bulk];box.checked=active&&total>0&&count===total;box.indeterminate=count>0&&!box.checked;box.setAttribute('aria-checked',box.indeterminate?'mixed':String(box.checked));root.querySelector('[data-bulk-status="'+box.dataset.bulk+'"]').textContent=count===total&&total?'已選齊':count?'已選 '+count+' 項':'尚未選取';});}
+  function bulkSection(){const choices=bulkChoices();return choices?`<div class="bulk-choices">${choices}<p class="setting-note">只選最近一次直接參考的內容，不會繼續展開。取消整組時，原本自行勾選的項目會保留。</p></div>`:'';}
+  function startTimeReview(){const range=defaultRange();startReview(S().moments.filter(m=>inRange(m,range)&&!m.skipReview).map(m=>m.id),[],'回看這段日子','',range);}
+  function sortMoments(list){return list.slice().sort((a,b)=>(b.iso||'').localeCompare(a.iso||'')||(b.date.match(/\d{2}:\d{2}/)?.[0]||'').localeCompare(a.date.match(/\d{2}:\d{2}/)?.[0]||''));}
+  function listFilter(kind){const st=S();st.listFilters??={};return st.listFilters[kind]??={query:'',from:'',to:'',draftFrom:'',draftTo:'',basis:'created',limit:10,open:false};}
+  function displayListDate(date){return validDate(date)?date.replaceAll('-','/'):'日期未記錄';}
+  function validListRange(f){return (!f.draftFrom||validDate(f.draftFrom)&&f.draftFrom<=storyToday)&&(!f.draftTo||validDate(f.draftTo)&&f.draftTo<=storyToday)&&(!f.draftFrom||!f.draftTo||f.draftFrom<=f.draftTo);}
+  function listMatches(kind){
+    const f=listFilter(kind),query=f.query.normalize('NFKC').toLocaleLowerCase().trim(),all=kind==='moments'?sortMoments(S().moments):S().insights.slice().sort((a,b)=>b.sequence-a.sequence);
+    return all.filter(item=>{const date=kind==='moments'?item.iso:item[f.basis==='created'?'createdIso':'updatedIso'];return (!query||(item.title+' '+item.text).normalize('NFKC').toLocaleLowerCase().includes(query))&&(!(f.from||f.to)||validDate(date)&&(!f.from||date>=f.from)&&(!f.to||date<=f.to));});
+  }
+  function listFinder(kind){
+    const f=listFilter(kind),noun=kind==='moments'?'片刻':'理解',basis=kind==='moments'?'記錄日期':f.basis==='created'?'建立日期':'最近更新日期',hasDates=!!(f.from||f.to),active=!!f.query.trim()||hasDates;
+    const parts=[f.query.trim()?'「'+escape(f.query.trim())+'」':'',hasDates?basis+' · '+(f.from?displayListDate(f.from):'不限起日')+' — '+(f.to?displayListDate(f.to):'不限迄日'):''].filter(Boolean);
+    const body=`<div class="search-row"><label for="v15-${kind}-query">搜尋名字或${kind==='moments'?'內文':'目前的理解內容'}</label><input id="v15-${kind}-query" type="search" data-list-query="${kind}" data-instance="list-${kind}-query" value="${escape(f.query)}" placeholder="輸入關鍵字"></div>${kind==='insights'?`<div class="stack"><label for="v15-${kind}-basis">依哪個日期查找？</label><select id="v15-${kind}-basis" data-list-basis="${kind}" data-instance="list-${kind}-basis"><option value="created" ${f.basis==='created'?'selected':''}>建立日期</option><option value="updated" ${f.basis==='updated'?'selected':''}>最近更新日期</option></select></div>`:'<p class="setting-note">日期依片刻的記錄時間，修改文字不會改動記錄日期。</p>'}<div class="range-fields"><div class="stack"><label for="v15-${kind}-from">從哪一天（可留白）</label><input type="date" id="v15-${kind}-from" max="${storyToday}" value="${f.draftFrom}" data-list-date="${kind}" data-date-side="draftFrom"></div><div class="stack"><label for="v15-${kind}-to">到哪一天（可留白）</label><input type="date" id="v15-${kind}-to" max="${storyToday}" value="${f.draftTo}" data-list-date="${kind}" data-date-side="draftTo"></div></div><p class="setting-note">日期包含當天；留白不限範圍。${kind==='insights'?'只搜尋目前保存的理解，不搜尋 AI 回覆或舊版本。':''}</p><p id="v15-${kind}-error" role="alert">${validListRange(f)?'':'請選擇有效日期，起日不晚於迄日，且不超過故事日期。'}</p><button type="button" data-act="list-apply" data-kind="${kind}" class="cursor-interaction" ${validListRange(f)?'':'disabled'}>套用日期範圍</button>`;
+    return `<div class="list-find-tools"><details class="list-find" data-fold="list-find-${kind}" ${f.open?'open':''}><summary class="cursor-interaction">找${noun} · ${active?parts.join(' · '):'搜尋與日期'}</summary><div class="stack">${body}</div></details>${active?`<button type="button" data-act="list-clear" data-kind="${kind}" class="quiet cursor-interaction">清除查找條件</button>`:''}</div>`;
+  }
+  function collectionPage(kind){
+    const f=listFilter(kind),rows=listMatches(kind),shown=rows.slice(0,f.limit),all=kind==='moments'?S().moments:S().insights,noun=kind==='moments'?'個片刻':'份理解';
+    const head=kind==='moments'?H('回看','留下的片刻，都在這裡')+B('start-review','選幾個片刻，一起看看',true):H('我的理解','不同的事情，<br>可以有不同的理解');
+    const description=kind==='moments'?'依記錄時間由近到遠；回看時略過的片刻也在這裡。':'依最近更新排列；先放一放的理解也在這裡。';
+    const empty=all.length?'沒有符合的內容。可以換個關鍵字，或清除日期條件。':kind==='moments'?'這裡還沒有片刻。想留下時，再慢慢寫。':'這裡還沒有理解，不必急著填滿。';
+    return head+`<p class="setting-note">${description}</p>`+listFinder(kind)+`<p class="setting-note" role="status">找到 ${rows.length} ${noun}${rows.length>shown.length?' · 目前顯示 '+shown.length+' '+noun:''}</p><div class="list-results" data-list-results="${kind}">${shown.map(x=>kind==='moments'?momentRow(x):insightRow(x)).join('')||'<p class="muted">'+empty+'</p>'}</div>${rows.length>shown.length?`<button type="button" data-act="list-more" data-kind="${kind}" class="cursor-interaction">顯示更多（還有 ${rows.length-shown.length} ${noun}）</button>`:''}`;
+  }
+  function filteredMoments(){const st=S(),q=(st.momentSearch||'').normalize('NFKC').toLocaleLowerCase().trim();return sortMoments(st.moments.filter(m=>(st.onlySelected?st.selected.includes(m.id):inRange(m,st.reviewRange)&&(!m.skipReview||st.showSkipped)&&(!q||(m.title+' '+m.text).normalize('NFKC').toLocaleLowerCase().includes(q)))));}
+  function selectionPage(){
+    const st=S(),selected=st.selected.map(M).filter(Boolean),ideas=st.insights.filter(i=>st.selectedInsights.includes(i.id)&&selectableIdea(i)),matches=filteredMoments(),shown=matches.slice(0,st.momentLimit||10),outside=selected.filter(m=>!matches.some(x=>x.id===m.id)).length;
+    const rangeForm=`<p class="setting-note">目前列出：${rangeLabel(st.reviewRange)}</p><div class="range-fields"><div class="stack"><label for="v15-range-from">從哪一天</label><input id="v15-range-from" type="date" max="${storyToday}" value="${st.rangeDraft.from}"></div><div class="stack"><label for="v15-range-to">到哪一天</label><input id="v15-range-to" type="date" max="${storyToday}" value="${st.rangeDraft.to}"></div></div><p class="setting-note">只縮小清單，不更動已選內容。</p><p id="v15-range-error" role="alert">${validRange(st.rangeDraft)?'':'請選擇有效日期，起日不晚於迄日，且不超過故事日期。'}</p>${B('apply-range','查看這段時間',false,!validRange(st.rangeDraft))}`;
+    const baseRange=st.reviewBaseRange||defaultRange(),rangeChanged=st.reviewRange.from!==baseRange.from||st.reviewRange.to!==baseRange.to,query=(st.momentSearch||'').trim(),active=!!query||rangeChanged;
+    const filterLabel='找片刻 · '+(active?[query?'「'+escape(query)+'」':'',rangeChanged?rangeLabel(st.reviewRange):''].filter(Boolean).join(' · '):'搜尋與日期');
+    const findBody=`<div class="search-row"><label for="v15-moment-search">搜尋片刻</label><input type="search" id="v15-moment-search" data-instance="moment-search" placeholder="搜尋名字或內文" value="${escape(st.momentSearch||'')}"></div>${rangeForm}`;
+    const filter=st.onlySelected?'<p class="setting-note">目前只列出已選片刻；原本的搜尋與日期條件保留。</p>':`<div class="find-tools">${D(filterLabel,findBody,'find-moments')}${active?'<button type="button" class="quiet clear-find cursor-interaction" data-act="clear-find">清除查找條件</button>':''}</div><div class="list-option"><label><input id="v15-show-skipped" type="checkbox" ${st.showSkipped?'checked':''}><span>顯示回看時略過的片刻</span></label><p>手動勾選，才會加入這一次。</p></div>`;
+    const cards=shown.map(m=>momentChoice(m,'main',m.skipReview?'回看時先略過 · 只在手動勾選後加入這一次':'')).join('');
+    const moments=`<details class="select-group" data-fold="moments" ${st.momentsOpen?'open':''}><summary class="cursor-interaction">片刻 · 記下的經驗（已選 ${selected.length} 個）</summary><div class="stack">${bulkSection()}${filter}<p class="setting-note">${st.onlySelected?'已選':'找到'} ${matches.length} 個 · 目前顯示 ${shown.length} 個</p>${cards||'<p class="muted">這裡沒有符合的片刻。可以換個關鍵字或日期，已選內容不會改變。</p>'}${matches.length>shown.length?B('more-moments',`顯示更多（還有 ${matches.length-shown.length} 個）`):''}</div></details>`;
+    const ideaChoices=st.insights.filter(i=>!i.paused||st.showHidden).map(i=>ideaChoice(i,'main')).join('');
+    const understanding=`<details class="select-group" data-fold="ideas"><summary class="cursor-interaction">我的理解 · 目前的看法（已選 ${ideas.length} 份）</summary><div class="stack">${hiddenControl()}${ideaChoices||'<p class="muted">這裡暫時沒有理解。</p>'}</div></details>`;
+    return H(escape(st.reviewContext),'這次，想把哪些放在一起？')+`<div class="stack"><p>已選 ${selected.length} 個片刻、${ideas.length} 份理解。</p>${outside?`<p class="setting-note">其中 ${outside} 個片刻不在目前搜尋／日期結果中，仍保留選取。</p>`:''}${selected.length||st.onlySelected?B('view-selected',st.onlySelected?'返回查找片刻':'查看已選片刻'):''}</div>`+moments+understanding+'<p class="setting-note">只與 AI 分享勾選的文字，同一項只分享一次。AI 舊回應與小提醒不會加入。</p>'+sharing('按下「一起看看」，讓 AI 陪你看看這次選好的內容。',selected.map(sourceView).join('')+ideas.map(understandingView).join(''))+B('observe-selected','一起看看',true,!selected.length&&!ideas.length);
+  }
+  function autoTitle(text){const line=text.trim().split(/\r?\n/).find(s=>s.trim())?.trim()||'';const chars=Array.from(line);return chars.slice(0,22).join('')+(chars.length>22?'…':'');}
+  function finalTitle(e){return e.titleDraft.trim()||autoTitle(e.meaningDraft);}
+  function titleField(e){return field('meaning-title','給這份理解一個名字（可留白）',e.titleDraft,false)+`<p class="name-hint" id="v15-title-hint" aria-live="polite">${titleHint(e)}</p>`;}
+  function titleHint(e){return e.titleDraft.trim()?'這個名字之後仍可以修改。':e.meaningDraft.trim()?'留白時，會用：「'+escape(autoTitle(e.meaningDraft))+'」':'留白時，會用內容開頭作為標題。';}
+  function sourceDisclosure(m,key='source'){
+    if(m.deleted)return sourceView(m);
+    const exists=!!M(m.id),fold=escape('source-'+key+'-'+m.id);
+    return `<div class="source-fold ${exists?'has-jump':''}"><details data-fold="${fold}"><summary class="cursor-interaction">片刻 · ${escape(m.title)}</summary><div class="stack"><p class="setting-note">${escape(m.date)} · 當時一起看的文字</p>${Q(m.text)}</div></details>${exists?jumpLink('open-source',m.id,'source-'+key+'-'+m.id,'查看這個片刻：'+m.title):''}</div>`;
+  }
+  function jumpLink(action,id,anchor,label){return `<button type="button" id="${escape(anchor)}" data-act="${action}" data-id="${escape(id)}" class="source-jump cursor-interaction" aria-label="${escape(label)}"><i data-lucide="arrow-right" aria-hidden="true"></i><span class="jump-fallback" aria-hidden="true">→</span></button>`;}
+  function momentManagement(m){return D('管理這個片刻',B('toggle-moment-skip',m.skipReview?'恢復列入回看':'回看時先略過')+'<p class="setting-note">仍可在全部片刻找到、閱讀及修改；略過後，平常回看與相關內容整組選取不會自動納入。</p>'+B('delete-moment','刪除這個片刻'));}
+  function openSettings(){const st=S();st.settingsReturn=routeSnapshot();st.settingsTrail=clone(st.trail);nav('settings-hub');}
+  function openReviewSettings(){S().settingsDraft={frequency:preferences.frequency,mode:[7,14,30].includes(preferences.days)?String(preferences.days):'custom',days:String(preferences.days)};nav('settings');}
+  function closeSettings(){const st=S();st.trail=clone(st.settingsTrail||[]);restoreRoute(st.settingsReturn||{page:'home'});}
+  function renderNotice(){root.querySelector('#v15-notice-text').textContent=S().notice;root.querySelector('#v15-notice').hidden=!S().notice;}
+  function meaningField(e){
+    const help=e.type==='edit'?'':`<button type="button" data-act="draft-example" class="quiet cursor-interaction" aria-label="試試由 AI 協助起草一個理解">試試 AI 協助起草</button>`;
+    const preview=e.previewDraft?`<section class="draft-preview" aria-label="AI 起草的寫法"><div class="reminder-heading"><p class="eyebrow">AI 起草的寫法 · 示例</p><button type="button" data-act="dismiss-draft" class="quiet cursor-interaction" aria-label="先不用這個寫法">×</button></div>${Q(e.previewDraft)}<p class="setting-note">只是一個起點，還沒有改動你的文字。</p>${B('apply-draft',e.meaningDraft.trim()?'用這個寫法取代，再修改':'放入輸入欄，再修改')}</section>`:'';
+    return `<div class="stack"><div class="field-heading"><label for="v15-meaning-text">我目前的理解</label>${help}</div><textarea id="v15-meaning-text" maxlength="2000">${escape(e.meaningDraft)}</textarea><p class="muted">${e.assisted?'AI 協助起草，由你修改與決定。':'由你撰寫，之後仍可以改變。'}</p>${e.beforeAiDraft?`<button type="button" data-act="undo-draft" class="quiet cursor-interaction">復原起草前的文字</button>`:''}${preview}</div>`;
+  }
+  function settingsDays(){const s=S().settingsDraft;return Number(s.mode==='custom'?s.days:s.mode);}
+  function validSettings(){const n=settingsDays();return Number.isInteger(n)&&n>=1&&n<=365;}
+  function rerenderSelection(focus=''){const states=Object.fromEntries([...screen.querySelectorAll('details[data-fold]')].map(d=>[d.dataset.fold,d.open])),y=window.scrollY,active=document.activeElement,selection=active?.tagName==='INPUT'&&active.type==='search'?[active.selectionStart,active.selectionEnd]:null;render();screen.querySelectorAll('details[data-fold]').forEach(d=>{if(d.dataset.fold in states)d.open=states[d.dataset.fold];});if(focus){const node=[...screen.querySelectorAll('[data-instance]')].find(n=>n.dataset.instance===focus);node?.focus({preventScroll:true});if(selection&&node?.type==='search')node.setSelectionRange(...selection);}S().renderedRoute=routeSnapshot();window.scrollTo(0,y);}
+  function momentChoice(m,where,note=''){const related=relatedLabel('m',m.id),selected=S().selected.includes(m.id);return `<div class="choice ${related&&selected?'is-related-selected':''}" data-choice-moment="${m.id}"><label class="check"><input type="checkbox" data-select="${m.id}" data-instance="${escape(where+'-'+m.id)}" ${selected?'checked':''}><span>${escape(m.date)} · ${escape(m.title)}${note?`<small>${escape(note)}</small>`:''}${related?'<small class="relation-tag">與帶來的理解相關</small>':''}</span></label><div class="choice-body">${D('讀這個片刻',`<p>${escape(m.text)}</p>`,where+'-m-'+m.id)}</div></div>`;}
+  function ideaChoice(i,where,note=''){const related=relatedLabel('i',i.id),selected=S().selectedInsights.includes(i.id);return `<div class="choice ${related&&selected?'is-related-selected':''}" data-choice-insight="${i.id}"><label class="check"><input type="checkbox" data-select-insight="${i.id}" data-instance="${escape(where+'-'+i.id)}" ${selected?'checked':''}><span>${escape(i.title)}${note?`<small>${escape(note)}</small>`:''}${related?'<small class="relation-tag">與帶來的理解相關</small>':''}${i.paused?`<small>先放一放 · ${selected?'只加入這一次，平常仍隱藏':'勾選才加入這一次'}</small>`:''}</span></label><div class="choice-body">${D('讀這份理解',Q(i.text),where+'-i-'+i.id)}</div></div>`;}
+  function relationPanel(rootIdea){
+    const st=S(),path=st.relationPaths?.[rootIdea.id]||[rootIdea.id],current=st.insights.find(i=>i.id===path.at(-1))||rootIdea;
+    const origins=current.origins.slice().sort((a,b)=>(b.order||0)-(a.order||0)),rows=[],seen=new Set();
+    origins.forEach((o,index)=>{
+      o.sources.forEach(source=>{const key='m:'+source.id;if(seen.has(key))return;seen.add(key);const m=M(source.id),note=(index===0?'最近一次一起看過':'較早的思考紀錄用過')+(m&&!inRange(m,st.reviewRange)?' · 日期範圍外，可另外加入':'');rows.push(m?momentChoice(m,'rel-'+rootIdea.id+'-'+current.id,note):`<p class="muted">${escape(source.title)} · 原片刻已不在，未加入分享。</p>`);});
+      (o.bases||[]).forEach(source=>{const key='i:'+source.id;if(seen.has(key))return;seen.add(key);const i=st.insights.find(x=>x.id===source.id);rows.push(i?ideaChoice(i,'rel-'+rootIdea.id+'-'+current.id,index===0?'當時參考的理解':'較早參考的理解')+`<button type="button" class="quiet cursor-interaction" data-act="relation-next" data-root="${rootIdea.id}" data-id="${i.id}">看這份理解曾參考什麼</button>`:`<p class="muted">${escape(source.title)} · 這份理解已不在，未加入分享。</p>`);});
+    });
+    const head=path.length>1?`<p class="muted">正在看「${escape(current.title)}」曾參考的內容。</p><button type="button" class="quiet cursor-interaction" data-act="relation-back" data-root="${rootIdea.id}">回到上一層參考內容</button>`:'';
+    return `<details class="relation-panel" data-fold="rel-root-${rootIdea.id}"><summary class="cursor-interaction">「${escape(rootIdea.title)}」曾參考的內容</summary><div class="stack">${head}<p class="setting-note">只列出關聯，不會自動勾選。勾選的是目前保存的文字。</p>${rows.join('')||'<p class="muted">這份理解沒有另外參考的內容。</p>'}</div></details>`;
+  }
+  function sourceIds(insight){return [...new Set(insight.origins.flatMap(o=>o.sources.map(x=>x.id)))];}
+  function stageText(e){if(e.savedInsight)return '已留下理解';if(e.step==='question')return e.answerDraft.trim()?'回答到一半':'等待回答';return ({recorded:'尚未開始思考',observation:'已看到觀察','answer-saved':'已留下回答',response:'已看到回應',meaning:'正在寫理解'})[e.step]||'尚未完成';}
+  function resumeLabel(e){return e.step==='question'?'繼續寫回答':e.step==='meaning'?'繼續寫理解':'繼續這次思考';}
+  function scopeLabel(o){const count=o.sources.length,bases=(o.bases||[]).length;return (count===1?'只看這個片刻':count?`一起看了 ${count} 個片刻`:'沒有加入片刻')+(bases?`、${bases} 份先前的理解`:'');}
+  function momentRow(m){
+    const related=S().explorations.filter(e=>!e.savedInsight&&!e.closed&&e.sources.some(x=>x.id===m.id));
+    return `<button type="button" class="entry-row cursor-interaction ${m.skipReview?'is-resting':''}" data-act="open-moment" data-id="${m.id}"><span class="row-title"><span class="row-label"><span>${escape(m.title)}</span>${m.skipReview?'<span class="rest-mark">回看時略過</span>':''}</span><span aria-hidden="true">›</span></span><span class="excerpt">${escape(m.text.slice(0,46))}${m.text.length>46?'…':''}</span><small>${escape(m.date)}${related.length?' · 可接續上次的探索':''}</small></button>`;
+  }
+  function insightRow(insight,select=false){return `<button type="button" class="entry-row cursor-interaction ${insight.paused?'is-resting':''}" data-act="${select?'choose-insight':'open-insight'}" data-id="${insight.id}"><span class="row-title"><span class="row-label"><span>${escape(insight.title)}</span>${insight.paused?'<span class="rest-mark">先放一放</span>':''}</span><span aria-hidden="true">›</span></span><span class="excerpt">${escape(insight.text.slice(0,52))}${insight.text.length>52?'…':''}</span><small>建立 ${displayListDate(insight.createdIso)} · 更新 ${displayListDate(insight.updatedIso)}</small><small>來自 ${sourceIds(insight).length} 個片刻</small></button>`;}
+  function resumeRow(e){return `<div class="discard-row"><button type="button" class="entry-row cursor-interaction" data-act="resume" data-id="${e.id}"><span class="row-title"><span>${escape(e.title)}</span><span aria-hidden="true">›</span></span><small>${escape(stageText(e))} · ${escape(resumeLabel(e))}</small></button>${discardButton('thought',e.id)}</div>`;}
+  function sharing(label,content){return `<div class="sharing"><p>${label}</p><p>AI 服務：這裡使用示例回應，不會送出內容。</p>${D('查看這次與 AI 分享的內容',content,'share-preview')}</div>`;}
+  function currentPacket(e,followup=false){return e.sources.map(sourceView).join('')+(e.bases||[]).map(understandingView).join('')+(followup?`${e.observation?`<h3>剛才的 AI 觀察</h3>${Q(e.observation)}`:''}${e.question?`<h3>剛才的問題</h3>${Q(e.question)}`:''}${e.answer?`<h3>我的回答</h3>${Q(e.answer)}`:''}`:'');}
+  function renderMap(){
+    const st=S(),e=E(),map=root.querySelector('#v15-map');
+    const active=['compose','review-select',...flowPages,'action-edit'].includes(st.page);
+    map.hidden=!active;root.querySelector('#v15-pause').hidden=!active;
+    root.querySelector('#v15-back').hidden=st.page==='home';
+    root.querySelector('#v15-back').textContent=st.page==='insight'?({entry:'回到這個片刻',insight:'回到剛才的理解','review-reading':'回到這次回看'})[st.insightReturn?.page]||'回到我的理解':st.page==='entry'?(st.entryReturn?.page==='insight'?'回到這份理解':st.entryReturn?.page==='home'?'回到今天':'回到片刻列表'):'上一頁';
+    root.querySelector('#v15-fill').hidden=!['compose','question','meaning','action-edit'].includes(st.page);
+    let stage=['observation','question','answer-saved','response'].includes(st.page)?2:st.page==='meaning'?3:['compare-ready','comparison','action-edit'].includes(st.page)?4:1;
+    if(!active)return;
+    const labels=[st.page==='review-select'||(st.page!=='compose'&&e?.type==='review')?'選好內容':'記下片刻','一起看看','留下理解','帶回生活'];
+    const desc={compose:'寫下這個片刻','review-select':'選好內容後，就可以一起看了',recorded:'片刻已留下，想繼續再往下走',observation:'看看這個觀察像不像你的經驗',question:e?.corrected?'先聽聽你的補充':'正在想一個問題','answer-saved':'你的回答已留下',response:'接著可以寫下自己的理解',meaning:e?.targetId?'重新寫下這份理解':'用自己的話留下一份理解','compare-ready':'你選擇把新片刻與這份理解一起看',comparison:'新經驗會支持、細化，也可能改變理解','action-edit':'選一個想試試的小步驟'}[st.page];
+    map.dataset.stage=stage;map.innerHTML=`<ol>${labels.map((t,i)=>`<li ${i+1===stage?'aria-current="step"':''}><span>${i+1}</span><span>${t}</span></li>`).join('')}</ol><p>現在：${desc}</p>`;
+  }
+  function originLabel(o){return `${o.date||'先前'} · ${o.sources.length===1?o.sources[0].title:o.sources.length?o.sources.map(m=>m.title).slice(0,2).join('、')+(o.sources.length>2?'等片刻':''):'帶著理解回看'}`;}
+  function originsView(insight){
+    const moments=new Set(insight.origins.flatMap(o=>o.sources.map(m=>m.id))),bases=new Set(insight.origins.flatMap(o=>(o.bases||[]).map(i=>i.id)));
+    const count=`來自 ${moments.size} 個片刻${bases.size?`與 ${bases.size} 份先前的理解`:''}`;
+    const ordered=insight.origins.slice().reverse().sort((a,b)=>Number((b.key||b.explorationId)===S().originFocus)-Number((a.key||a.explorationId)===S().originFocus));
+    const bodies=ordered.map(o=>{
+      const inputs=o.sources.map(m=>sourceDisclosure(m,o.key||o.explorationId)).join('')+(o.bases||[]).map(i=>referenceView(i,o.key||o.explorationId)).join('');
+      const thoughts=(o.keepAi?(o.observation?D('AI 的觀察',Q(o.observation)):''):'<p class="muted">當時沒有保留 AI 的觀察與回應。</p>')+(o.keepAi&&o.question?D('AI 問的問題',Q(o.question)):'')+(o.answer?D('我的回答',Q(o.answer)):'')+(o.keepAi&&o.response?D('AI 後來的回應',Q(o.response)):'');
+      const body=`<div class="origin-content" data-origin="${escape(o.key||o.explorationId)}"><h3>當時一起看的內容</h3>${inputs||'<p class="muted">沒有另外選取內容。</p>'}${thoughts?'<h3>當時怎麼想的</h3>'+thoughts:''}</div>`;
+      return ordered.length===1?body:D(`${escape(o.date||'先前')} · ${escape(scopeLabel(o))}`,body);
+    }).join('');
+    return `<details class="origin-overview"><summary class="cursor-interaction">這份理解是怎麼來的？<small>${count}</small></summary><div class="stack">${bodies}</div></details>`;
+  }
+  function entryReadings(moment){
+    const saved=S().insights.flatMap(i=>i.origins.filter(o=>o.sources.some(m=>m.id===moment.id)).map(o=>({key:o.key||o.explorationId,origin:o,insight:i,order:o.order||0,pending:null})));
+    const pending=S().explorations.filter(e=>!e.savedInsight&&!e.closed&&e.type!=='edit'&&e.sources.some(m=>m.id===moment.id)).map(e=>({key:e.id,origin:{...e,keepAi:true,understanding:'',order:e.touched},insight:null,order:e.touched,pending:e}));
+    return [...saved,...pending].sort((a,b)=>b.order-a.order);
+  }
+  function readingBody(record,momentId=null){
+    const o=record.origin,i=record.insight;
+    const context=D('當時一起看的內容',o.sources.map(m=>sourceDisclosure(m,o.key||o.explorationId||o.id)).join('')+(o.bases||[]).map(b=>referenceView(b,o.key||o.explorationId||o.id)).join(''));
+    const oldMoment=o.sources.find(m=>m.id===momentId), changed=oldMoment&&M(momentId)&&oldMoment.text!==M(momentId).text;
+    const observation=o.keepAi?(o.observation?'<h4>AI 的觀察</h4>'+Q(o.observation):''):'<p class="muted">當時沒有保留 AI 的觀察與回應。</p>';
+    const answer=(o.keepAi&&o.question?`<h4>當時的問題</h4>${Q(o.question)}`:'')+(o.answer?`<h4>我的回答</h4>${Q(o.answer)}`:'')+(o.keepAi&&o.response?D('當時 AI 怎麼回應',Q(o.response)):'');
+    const jump=i&&momentId?`<button type="button" data-act="locate-insight" data-id="${i.id}" class="cursor-interaction">前往相關的理解 ↓</button>`:'';
+    return `<section class="stack" data-reading-process>${context}${changed?D('當時看的片刻文字（修改前）',sourceView(oldMoment)):''}${observation}${answer}${!observation&&!answer?'<p class="muted">這裡還沒有問答內容。</p>':''}${jump}</section>`;
+  }
+  function thoughtRecord(record,moment){
+    const o=record.origin,e=record.pending,open=S().entryOriginKey===record.key;
+    const status=e?stageText(e):'已留下理解';
+    return `<section class="record" data-record="${escape(record.key)}"><div class="discard-row"><button type="button" class="entry-row cursor-interaction" data-act="toggle-record" data-id="${escape(record.key)}" aria-expanded="${open}" aria-controls="record-${escape(record.key)}"><span class="row-title"><span>${escape(o.date||'先前')} · ${escape(scopeLabel(o))}</span><span aria-hidden="true">${open?'−':'＋'}</span></span><span class="record-state">${escape(status)}</span><small>${open?'收起紀錄':'查看這次怎麼想'}</small></button>${e?discardButton('thought',e.id):''}</div>${e?`<button type="button" class="cursor-interaction" data-act="resume" data-id="${e.id}">${escape(resumeLabel(e))}</button>`:''}<div id="record-${escape(record.key)}" class="record-body" ${open?'':'hidden'}>${open?readingBody(record,moment.id):''}</div></section>`;
+  }
+  function render(){
+    if(flowPages.includes(S().page)&&!E()){S().page='home';S().trail=[];}
+    const st=S(),e=E(),insight=I(),d=data[scenario];picker.value=scenario;applyAppearance();renderNotice();renderMap();root.querySelector('#v15-settings').hidden=['settings','settings-hub','appearance'].includes(st.page);
+    const topPages=['home','library','entry','insights','insight','review-reading'];root.querySelector('#v15-nav').hidden=!topPages.includes(st.page);
+    const activeTab=st.page==='insight'&&st.insightReturn?.page==='entry'?'nav-library':['insights','insight'].includes(st.page)?'nav-insights':['library','entry','review-reading'].includes(st.page)?'nav-library':'nav-home';
+    root.querySelectorAll('#v15-nav button').forEach(b=>{b.removeAttribute('aria-current');if(b.dataset.act===activeTab)b.setAttribute('aria-current','page');});
+    let html='';
+    switch(st.page){
+      case 'home':{
+        const pending=st.explorations.filter(x=>!x.savedInsight&&!x.closed).sort((a,b)=>b.touched-a.touched);
+        html=H('今天','有什麼片刻，<br>你想留下來？')+B('new-moment','寫下片刻',true);
+        if(st.composer.text||st.composer.title)html+=`<section class="box"><div class="discard-row"><h2>還有一段正在寫的片刻</h2>${discardButton('composer')}</div>${B('resume-composer','繼續寫')}</section>`;
+        if(pending.length)html+=`<section class="stack"><h2>從上次繼續</h2>${resumeRow(pending[0])}${pending.length>1?D('其他可以接續的探索',pending.slice(1).map(resumeRow).join('')):''}</section>`;
+        if(st.reviewPending)html+=B('resume-selection','接續上次選好的內容');
+        if(st.actionTargetId)html+=B('resume-action','接著寫小提醒');
+        const range=defaultRange(),frequency={week:'每週',twoWeeks:'每兩週',month:'每月'}[preferences.frequency];
+        html+=preferences.frequency!=='off'?`<section class="box"><h2>要回看這段時間嗎？</h2><p>最近 ${preferences.days} 天 · ${rangeLabel(range)}</p><p class="setting-note">${frequency}邀請一次（示範）。${pending.length?'不用先完成上次的思考。':''}</p>${B('start-review','看看這些片刻')}</section>`:`<section class="stack"><p class="setting-note">回看邀請已關閉，仍可隨時自己回看。</p>${B('start-review','自己選一段時間回看')}</section>`;
+        html+=`<div class="stack"><h2>最近留下的</h2>${sortMoments(st.moments).slice(0,3).map(momentRow).join('')}</div>`+B('nav-library','查看所有片刻');break;
+      }
+      case 'library':html=collectionPage('moments');break;
+      case 'settings-hub':html=H('設定','讓這裡適合你')+B('appearance','色調與字體 · '+palettes[preferences.theme].name)+`<button type="button" data-act="review-settings" class="entry-row cursor-interaction"><span class="row-title"><span>回看與提醒</span><span aria-hidden="true">›</span></span><small>${({week:'每週',twoWeeks:'每兩週',month:'每月',off:'不主動提醒'})[preferences.frequency]} · 預先整理最近 ${preferences.days} 天</small></button><section class="settings-placeholder"><h2>AI 服務與金鑰</h2><p class="setting-note">之後在這裡管理服務與 API Key。這版尚未開放，也不收取金鑰。</p></section><section class="settings-placeholder"><h2>語言</h2><p class="setting-note">之後在這裡切換語言。這版先試走繁體中文。</p></section>`;break;
+      case 'appearance':html=appearancePage();break;
+      case 'settings':{
+        const draft=st.settingsDraft;
+        html=H('回看設定','用適合自己的節奏')+`<div class="stack"><label for="v15-frequency">多久邀請我回看一次？</label><select id="v15-frequency">${[['week','每週'],['twoWeeks','每兩週'],['month','每月'],['off','先不要提醒']].map(([v,t])=>`<option value="${v}" ${draft.frequency===v?'selected':''}>${t}</option>`).join('')}</select></div><div class="stack"><label for="v15-window">每次預先整理多久的片刻？</label><select id="v15-window">${[['7','最近 7 天'],['14','最近 14 天'],['30','最近 30 天'],['custom','自訂天數']].map(([v,t])=>`<option value="${v}" ${draft.mode===v?'selected':''}>${t}</option>`).join('')}</select>${draft.mode==='custom'?`<label for="v15-custom-days">天數（1–365 天，包含故事當日）</label><input id="v15-custom-days" type="number" min="1" max="365" step="1" value="${escape(draft.days)}">`:''}</div><p class="setting-note">例如每週邀請一次，每次回看最近 30 天。關閉邀請後，仍能自己回看。</p><p class="setting-note">這裡只示範首頁與預選範圍，不建立排程或系統通知。日期以故事的 2026/11/28 為準。</p><p id="v15-setting-error" role="alert">${validSettings()?'':'請填入 1–365 的整數天數。'}</p>`+B('save-settings','留下這個設定',true,!validSettings())+B('cancel-settings','先不改');break;
+      }
+      case 'entry':{
+        const m=M(st.entryId);if(!m){nav('library');return;}
+        const readings=entryReadings(m);if(!readings.some(r=>r.key===st.entryOriginKey))st.entryOriginKey=null;
+        const linked=st.insights.find(i=>i.id===m.linkedInsightId),pending=readings.filter(r=>r.pending);
+        const related=st.insights.filter(i=>sourceIds(i).includes(m.id)||i.id===m.linkedInsightId);
+        html=H(escape(m.date),escape(m.title))+(m.skipReview?'<p class="setting-note">回看時先略過 · 仍可閱讀與修改</p>':'')+(m.linkedInsightId?`<div class="reading-context"><p>接著「${escape(linked?.title||m.linkedInsightTitle||'先前的理解')}」記下的事</p><p class="muted">新的片刻已留下。是否一起回看，仍由你決定。</p></div>`:'')+`<section class="stack" data-reading-moment><h2>這個片刻</h2>${Q(m.text)}${B('edit-moment','修改這個片刻')}</section>`;
+        html+=`<section class="reading-part" data-thought-records><h2>這個片刻的思考紀錄</h2><p class="muted">每一筆，是一次思考的過程。</p><div class="section-items">${readings.length?readings.map(r=>thoughtRecord(r,m)).join(''):'<p class="muted">還沒有思考紀錄。只記下片刻，也很好。</p>'}</div></section>`;
+        html+=`<section class="reading-part" data-related-insights><h2>相關的理解</h2><p class="muted">已留下、之後仍可以改變的看法。</p><div class="section-items">${related.length?related.map(i=>`<div class="stack" id="related-${i.id}"><p class="eyebrow">${i.id===m.linkedInsightId?'記下這個片刻時接續的理解':'由這個片刻留下的理解'}</p>${insightRow(i)}</div>`).join(''):'<p class="muted">還沒有留下理解，不用急著填滿。</p>'}</div></section>`;
+        html+=`<section class="reading-part"><h2>想從這裡開始新的思考？</h2>${linked?B('continue-linked-review','和這份理解一起看看',!pending.length):''}${sharing('只用這個片刻重新開始；原有的思考紀錄會保留。',sourceView(m))}${B('single-start',readings.length?'重新想想這個片刻':'陪我想一想',!pending.length&&(!linked||linked.paused))}${B('entry-write','直接寫下我的理解')}${B('link-insight','和其他片刻一起看看')}</section>`;break;
+      }
+      case 'edit-moment':{
+        const m=M(st.entryId);html=H('修改這個片刻',escape(m.title))+(m.linkedInsightId?`<p class="muted">仍連到「${escape(st.insights.find(i=>i.id===m.linkedInsightId)?.title||m.linkedInsightTitle||'先前的理解')}」。</p>`:'')+field('edit-moment-title','片刻的名字',st.momentEdit.title,false)+field('edit-moment-text','片刻內容',st.momentEdit.text)+'<p class="muted">以前一起看過的文字會保留在當時的紀錄裡，不會被改寫。</p>'+B('save-moment-edit','儲存修改',true,!st.momentEdit.text.trim())+B('cancel-moment-edit','取消修改');break;
+      }
+      case 'compose':html=H(st.composer.linked?'記下後來發生的事':'留下片刻','不必先想清楚')+(st.composer.linked?`<p class="muted">這是新的片刻，也會出現在「回看」。這次連到：${escape(st.insights.find(x=>x.id===st.composer.linked)?.title||'之前的理解')}。留下後，你可以再決定要不要一起看。</p>`:'')+field('moment-title','給這個片刻一個名字（可以留白）',st.composer.title,false)+field('moment-text','這次想留下什麼？',st.composer.text)+B('save-moment','留下這個片刻',true,!st.composer.text.trim());break;
+      case 'recorded':html=H('我的片刻','已留在這裡。')+Q(e.sources[0].text)+sharing('只用剛才這個片刻，讓 AI 陪你想一個問題。',currentPacket(e))+B('daily-question','陪我想一想',true);break;
+      case 'review-select':html=selectionPage();break;
+      case 'observation':html=H('AI 的觀察',e.insufficient?'現在還不用替它命名':'有沒有一點像你的經驗？')+Q(e.observation)+D(e.bases.length?'這次一起看的片刻與理解':'這次一起看的片刻',currentPacket(e))+actions(B('explore',e.insufficient?'我想補充一點':'有點像，繼續想想',true),...(e.insufficient?[]:[B('disagree','不太像，我想補充')]));break;
+      case 'question':html=H(e.corrected?'AI 想先聽聽你的經驗':'AI 想問你',escape(e.question))+field('answer','我的想法',e.answerDraft)+(e.corrected?'':D('還沒頭緒？看看幾個可能的想法','<p class="muted">只是起點，也可以都不符合。</p>'+['我擔心被認為能力不足。','我擔心對方生氣。','我擔心有實際不利後果。','我還沒有想清楚自己的需要。','目前都不符合。'].map((v,i)=>B('angle-'+i,escape(v))).join('')))+B('save-answer','留下我的回答',true,!e.answerDraft.trim());break;
+      case 'answer-saved':html=H('我的回答','你的話已經留下')+Q(e.answer)+sharing(`一起看這次選好的內容、${e.observation?'剛才的觀察、':''}問題與回答。不包含小提醒。`,currentPacket(e,true))+B('followup','帶著回答，再一起看看',true)+B('write-understanding','直接寫下我的理解');break;
+      case 'response':html=H('AI 的回應',e.corrected?'這個補充，讓理解不同了':'把答案留在可以改變的地方')+Q(e.response)+D('再看看我剛才的回答',Q(e.answer))+B('write-understanding','接著，寫下我的理解',true);break;
+      case 'meaning':{
+        const hasAi=!!(e.observation||e.response||e.question);
+        const choices=e.bases.filter(i=>st.insights.some(x=>x.id===i.id));
+        const saveChoice=e.type!=='edit'&&choices.length?`<div class="stack"><label for="v15-save-mode">這次想怎麼留下？</label><select id="v15-save-mode"><option value="new" ${!e.targetId?'selected':''}>留下一份新的理解</option>${choices.map(i=>`<option value="${i.id}" ${e.targetId===i.id?'selected':''}>更新：${escape(i.title)}</option>`).join('')}</select><p class="muted">只更新你選的那一份，其他理解不會改動。</p></div>`:'';
+        html=H(e.targetId?'更新原本這份理解':'留下一份新的理解',e.targetId?'現在想怎麼改寫？':'有哪一句，想留給自己？')+saveChoice+titleField(e)+meaningField(e)+(hasAi?`<label class="check"><input id="v15-keep-ai" type="checkbox" ${e.keepAi?'checked':''}><span>一併保留這次 AI 的觀察與回應，方便日後回看。<br><small>保留作為參考，不代表認同，也不會自動分享給 AI。</small></span></label>`:'')+B('save-understanding',e.targetId?'更新這份理解':'留下這份理解',true,!e.meaningDraft.trim())+(e.type==='edit'?B('cancel-edit','取消修改'):'');break;
+      }
+      case 'insights':html=collectionPage('insights');break;
+      case 'insight':{
+        if(!insight){nav('insights');return;}
+        html=H(insight.paused?'先放一放':'我目前的理解',escape(insight.title))+Q(insight.text)+`<p class="muted">${insight.assisted?'AI 協助起草，由你修改與決定':'由你撰寫'} · ${escape(insight.updated)}</p>`+originsView(insight)+(insight.versions.length?D('看看以前的寫法',insight.versions.map(v=>`<div class="source"><h3>${escape(v.title)}</h3>${Q(v.text)}<p class="muted">${v.assisted?'AI 協助起草':'由你撰寫'}</p></div>`).join('')):'')+(insight.action?`<section class="box"><div class="reminder-heading"><h3>也許下次可以試著…</h3><button type="button" data-act="remove-action" class="quiet cursor-interaction" aria-label="移除這個小提醒">×</button></div>${Q(insight.action)}<p class="muted">只留給自己的提醒，不會一起交給 AI。沒有完成期限。</p></section>`:st.undoAction?.insightId===insight.id?B('undo-action','復原剛才的小提醒'):'')+B('later-moment','記下後來發生的事<small>新增一個片刻，連到這份理解</small>',true)+`<p class="muted">記下新的事情，連到這份理解；留下後，再決定要不要一起看看。</p>`+B('review-insight','帶著這份理解回看',false)+B('action-edit',insight.action?'修改小提醒':'給自己留個小提醒')+insightManagement(insight);break;
+      }
+      case 'review-reading':{
+        const i=st.insights.find(i=>i.id===e?.savedInsight),o=i?.origins.find(o=>o.explorationId===e?.id);if(!o){nav('library');return;}
+        html=H('這次回看 · 已留下','回到當時一起想的事')+`<p class="muted">${escape(scopeLabel(o))}</p>`+readingBody({origin:o,insight:i},null)+`<section class="reading-part"><h2>相關的理解</h2>${insightRow(i)}</section>`;break;
+      }
+      case 'action-edit':html=H('帶回生活 · 想做再做','也許下次可以試著…')+'<p class="muted">這只是留給自己的提醒，不會一起交給 AI；隨時可以拿掉。</p>'+D('看看幾個小嘗試',['分開留意我預期的反應，與實際發生的事。','下次先詢問優先順序，而不是直接答應全部。','先評估表達的風險，想想合適的管道與可信任的支持。'].map((v,i)=>B('try-'+i,escape(v))).join(''))+field('action-text','留一句話提醒自己',st.actionDraft)+B('save-action','留下這個小提醒',true,!st.actionDraft.trim());break;
+      case 'delete-insight':html=deletePage('insight');break;
+      case 'delete-moment':html=deletePage('moment');break;
+      default:st.page='home';render();return;
+    }
+    if(st.page==='entry')html+=momentManagement(M(st.entryId));
+    if(st.page==='compose')html+=`<div class="discard-row"><p class="muted">不想保留這份草稿？</p>${discardButton('composer')}</div>`;
+    else if(flowPages.includes(st.page)&&e&&!e.savedInsight)html+=`<div class="discard-row"><p class="muted">不保留這次未完成的思考？片刻仍會留下。</p>${discardButton('thought',e.id)}</div>`;
+    if(st.discarded&&!st.discarded.dismissed)html=`<section class="compact-notice" aria-label="移除提示"><div class="stack"><p role="status">${st.discarded.kind==='composer'?'片刻草稿已移除。':'未完成的思考已移除，原本的片刻與理解仍在。'}</p><button type="button" data-act="undo-discard" class="quiet cursor-interaction">復原</button></div><button type="button" data-act="dismiss-discard" class="quiet cursor-interaction" aria-label="關閉移除提示">×</button></section>`+html;
+    screen.innerHTML=html;screen.dataset.page=st.page;updateFontStatus();if(st.page==='review-select')updateBulkStates();if(globalThis.lucide?.createIcons)globalThis.lucide.createIcons({attrs:{width:18,height:18}});st.renderedRoute=routeSnapshot();
+  }
+  function beginQuestion(e){e.question='當時你最希望對方理解的是什麼？';nav('question');}
+  function insightDraft(e){nav('meaning');}
+  function changeSaveMode(value){
+    const e=E();if(!e||e.type==='edit')return;
+    const target=value==='new'?null:S().insights.find(i=>i.id===value&&e.bases.some(b=>b.id===i.id));if(value!=='new'&&!target)return;
+    e.modeDrafts[e.targetId||'new']={meaningDraft:e.meaningDraft,titleDraft:e.titleDraft,assisted:e.assisted,previewDraft:e.previewDraft||'',beforeAiDraft:e.beforeAiDraft?clone(e.beforeAiDraft):null};e.targetId=target?.id||null;
+    Object.assign(e,{previewDraft:'',beforeAiDraft:null},e.modeDrafts[value]||(target?{meaningDraft:target.text,titleDraft:target.title,assisted:target.assisted}:{meaningDraft:'',titleDraft:'',assisted:false}));render();
+  }
+  function preserveInsight(){
+    const st=S(),e=E();if(!e.meaningDraft.trim())return;
+    let insight=st.insights.find(x=>x.id===e.targetId);
+    const origin={key:e.id,explorationId:e.id,date:e.date,order:++st.clock,sources:clone(e.sources),bases:clone(e.bases),answer:e.answer,understanding:e.meaningDraft.trim(),understandingTitle:finalTitle(e),keepAi:e.keepAi,observation:e.keepAi?e.observation:'',question:e.keepAi?e.question:'',response:e.keepAi?e.response:''};
+    if(insight){insight.versions.push({title:insight.title,text:insight.text,assisted:insight.assisted});if(e.type!=='edit'){const index=insight.origins.findIndex(o=>o.explorationId===e.id);if(index<0)insight.origins.push(origin);else insight.origins[index]=origin;}}
+    else {insight={id:id('i'),createdIso:storyToday,origins:[origin],versions:[],paused:false,action:''};st.insights.push(insight);}
+    Object.assign(insight,{title:finalTitle(e),text:e.meaningDraft.trim(),assisted:e.assisted,updatedIso:storyToday,updated:storyStamp(),sequence:++st.clock});
+    if(e.type!=='edit'){
+      if(e.type==='single'&&e.sources[0]){st.entryId=e.sources[0].id;st.entryOriginKey=e.id;st.insightReturn={page:'entry',entryId:st.entryId,entryOriginKey:e.id};}
+      else st.insightReturn={page:'review-reading',explorationId:e.id};
+      st.originFocus=e.id;
+    }
+    e.savedInsight=insight.id;e.targetId=insight.id;st.insightId=insight.id;nav('insight','這份理解已留下，也可以在「我的理解」找到。');st.trail=[];
+  }
+  function resume(e){if(!e)return;S().explorationId=e.id;if(e.savedInsight){nav('review-reading');}else nav(e.step,'從上次停下的地方繼續；沒有重新產生回應。');}
+  root.addEventListener('toggle',event=>{
+    if(!event.target.isConnected||!screen.contains(event.target))return;
+    if(event.target.dataset.fold?.startsWith('list-find-'))listFilter(event.target.dataset.fold.slice(10)).open=event.target.open;
+    if(event.target.dataset.fold==='moments')S().momentsOpen=event.target.open;
+    S().renderedRoute=routeSnapshot();
+  },true);
+  root.addEventListener('compositionend',event=>{if(event.target.dataset.listQuery){const kind=event.target.dataset.listQuery,f=listFilter(kind);f.query=event.target.value;f.limit=10;rerenderSelection('list-'+kind+'-query');return;}if(event.target.id==='v15-moment-search'){S().momentSearch=event.target.value;S().momentLimit=10;rerenderSelection('moment-search');}});
+  root.addEventListener('input',event=>{
+    const st=S(),e=E(),key=event.target.id,value=event.target.value;
+    if(key==='v15-moment-search'){st.momentSearch=value;st.momentLimit=10;if(!event.isComposing)rerenderSelection('moment-search');return;}
+    if(event.target.dataset.listQuery){const kind=event.target.dataset.listQuery,f=listFilter(kind);f.query=value;f.limit=10;if(!event.isComposing)rerenderSelection('list-'+kind+'-query');return;}
+    if(event.target.dataset.listDate){const kind=event.target.dataset.listDate,f=listFilter(kind);f[event.target.dataset.dateSide]=value;root.querySelector('#v15-'+kind+'-error').textContent=validListRange(f)?'':'請選擇有效日期，起日不晚於迄日，且不超過故事日期。';root.querySelector('[data-act="list-apply"][data-kind="'+kind+'"]').disabled=!validListRange(f);return;}
+    const map={'v15-answer':'answerDraft','v15-meaning-title':'titleDraft','v15-meaning-text':'meaningDraft'};
+    if(key==='v15-moment-title')st.composer.title=value;
+    if(key==='v15-moment-text')st.composer.text=value;
+    if(key==='v15-action-text')st.actionDraft=value;
+    if(key==='v15-edit-moment-title')st.momentEdit.title=value;
+    if(key==='v15-edit-moment-text')st.momentEdit.text=value;
+    if(key==='v15-custom-days'){st.settingsDraft.days=value;root.querySelector('#v15-setting-error').textContent=validSettings()?'':'請填入 1–365 的整數天數。';root.querySelector('[data-act="save-settings"]').disabled=!validSettings();}
+    if(key==='v15-range-from'||key==='v15-range-to'){st.rangeDraft[key.endsWith('from')?'from':'to']=value;root.querySelector('#v15-range-error').textContent=validRange(st.rangeDraft)?'':'請選擇有效日期，起日不晚於迄日，且不超過故事日期。';root.querySelector('[data-act="apply-range"]').disabled=!validRange(st.rangeDraft);}
+    if(map[key]&&e)e[map[key]]=value;
+    if(['v15-meaning-title','v15-meaning-text'].includes(key)&&e){const hint=root.querySelector('#v15-title-hint');if(hint)hint.innerHTML=titleHint(e);}
+    const valid={'save-moment':st.composer.text.trim(),'save-answer':e?.answerDraft.trim(),'save-understanding':e?.meaningDraft.trim(),'save-action':st.actionDraft.trim(),'save-moment-edit':st.momentEdit?.text.trim()};
+    Object.entries(valid).forEach(([act,v])=>{const b=root.querySelector(`[data-act="${act}"]`);if(b)b.disabled=!v;});
+  });
+  root.addEventListener('change',event=>{
+    if(event.target.dataset.listBasis){const kind=event.target.dataset.listBasis;listFilter(kind).basis=event.target.value;listFilter(kind).limit=10;rerenderSelection('list-'+kind+'-basis');return;}
+    if(event.target===picker){scenario=picker.value;render();remember();return;}
+    if(event.target.dataset.select){chooseOne('m',event.target.dataset.select,event.target.checked);rerenderSelection(event.target.dataset.instance);}
+    if(event.target.dataset.selectInsight){chooseOne('i',event.target.dataset.selectInsight,event.target.checked);rerenderSelection(event.target.dataset.instance);}
+    if(event.target.dataset.bulk){const k=event.target.dataset.bulk;if(event.target.checked)S().relatedGroups[k]=directRelated(k);else delete S().relatedGroups[k];syncSelection();rerenderSelection(event.target.dataset.instance);}
+    if(event.target.id==='v15-show-hidden'){const st=S();st.showHidden=event.target.checked;if(!st.showHidden){const keys=[...(st.temporaryHidden||[])];keys.forEach(k=>chooseOne('i',k,false));if(keys.length)st.notice='已取消選取先放一放的理解，其他選取保留。';}rerenderSelection();root.querySelector('#v15-show-hidden')?.focus({preventScroll:true});}
+    if(event.target.id==='v15-show-skipped'){S().showSkipped=event.target.checked;S().momentLimit=10;rerenderSelection();root.querySelector('#v15-show-skipped')?.focus({preventScroll:true});}
+    if(event.target.name==='v15-theme'||event.target.name==='v15-font'){S().appearanceDraft[event.target.name==='v15-theme'?'theme':'font']=event.target.value;applyAppearance();updateFontStatus();}
+    if(event.target.id==='v15-frequency')S().settingsDraft.frequency=event.target.value;
+    if(event.target.id==='v15-window'){S().settingsDraft.mode=event.target.value;if(event.target.value!=='custom')S().settingsDraft.days=event.target.value;render();}
+    if(event.target.id==='v15-save-mode')changeSaveMode(event.target.value);
+    if(event.target.id==='v15-keep-ai')E().keepAi=event.target.checked;
+    if(event.target.id==='v15-entry-reading'){S().entryOriginKey=event.target.value;render();}
+  });
+  root.addEventListener('click',event=>{
+    const b=event.target.closest('button');if(!b||!root.contains(b)||b.disabled)return;
+    const act=b.dataset.act,st=S(),e=E(),d=data[scenario];
+    if(act==='back'){
+      if(['delete-insight','delete-moment'].includes(st.page)){st.trail.pop();restoreRoute(st.deleteReturn||{page:'library'});st.deleteTarget=null;return;}
+      if(st.page==='settings-hub'){closeSettings();return;}
+      if(['settings','appearance'].includes(st.page)){st.trail.pop();st.page='settings-hub';st.appearanceDraft=null;st.notice='';render();return;}
+      if(st.page==='insight'){const route=clone(st.insightReturn||{page:'insights'});st.trail=[];restoreRoute(route);return;}
+      if(st.page==='entry'){const route=clone(st.entryReturn||{page:'library'});st.trail=[];restoreRoute(route);return;}
+      const previous=st.trail.pop();if(previous){restoreRoute(previous);}else nav('home');return;
+    }
+    if(act.startsWith('nav-')){nav(({ 'nav-home':'home','nav-library':'library','nav-insights':'insights'})[act]);return;}
+    switch(act){
+      case 'list-apply':{const f=listFilter(b.dataset.kind);if(!validListRange(f))return;f.from=f.draftFrom;f.to=f.draftTo;f.limit=10;rerenderSelection();break;}
+      case 'list-clear':{const f=listFilter(b.dataset.kind);Object.assign(f,{query:'',from:'',to:'',draftFrom:'',draftTo:'',basis:'created',limit:10});rerenderSelection();root.querySelector('[data-fold="list-find-'+b.dataset.kind+'"] > summary')?.focus({preventScroll:true});break;}
+      case 'list-more':listFilter(b.dataset.kind).limit+=10;rerenderSelection();break;
+      case 'settings':openSettings();break;
+      case 'review-settings':openReviewSettings();break;
+      case 'appearance':st.appearanceDraft={theme:preferences.theme,font:preferences.font};nav('appearance');break;
+      case 'save-appearance':Object.assign(preferences,st.appearanceDraft);st.appearanceDraft=null;st.trail.pop();st.page='settings-hub';st.notice='色調與字體已留下。';render();break;
+      case 'cancel-appearance':st.appearanceDraft=null;st.trail.pop();st.page='settings-hub';st.notice='';render();break;
+      case 'save-settings':if(!validSettings())return;preferences.frequency=st.settingsDraft.frequency;preferences.days=settingsDays();st.trail.pop();st.page='settings-hub';st.notice='回看設定已留下。';render();break;
+      case 'cancel-settings':st.trail.pop();st.page='settings-hub';st.notice='';render();break;
+      case 'dismiss-notice':st.notice='';renderNotice();break;
+      case 'dismiss-discard':if(st.discarded)st.discarded.dismissed=true;root.querySelector('.compact-notice')?.remove();break;
+      case 'clear-find':st.momentSearch='';st.reviewRange=clone(st.reviewBaseRange||defaultRange());st.rangeDraft=clone(st.reviewRange);st.momentLimit=10;rerenderSelection();root.querySelector('[data-fold="find-moments"] > summary')?.focus({preventScroll:true});break;
+      case 'apply-range':if(!validRange(st.rangeDraft))return;st.reviewRange=clone(st.rangeDraft);st.momentLimit=10;rerenderSelection();break;
+      case 'more-moments':st.momentLimit=(st.momentLimit||10)+10;rerenderSelection();break;
+      case 'view-selected':st.onlySelected=!st.onlySelected;st.momentLimit=10;st.momentsOpen=true;rerenderSelection();root.querySelector('[data-fold="moments"]').open=true;break;
+      case 'open-source':{if(!M(b.dataset.id))return;const route=routeSnapshot();route.returnAnchor=b.id;st.entryReturn=route;st.entryId=b.dataset.id;st.entryOriginKey=null;nav('entry');break;}
+      case 'toggle-moment-skip':{const m=M(st.entryId);m.skipReview=!m.skipReview;if(m.skipReview)clearSelectionItem('moment',m.id);st.notice=m.skipReview?'已設定回看時先略過。過去的理解與思考紀錄不變。':'已恢復列入回看。';render();break;}
+      case 'relation-next':{const k=b.dataset.root,path=st.relationPaths[k]||[k],target=b.dataset.id;if(!st.insights.some(i=>i.id===target))return;const index=path.indexOf(target);st.relationPaths[k]=index>=0?path.slice(0,index+1):[...path,target];rerenderSelection();break;}
+      case 'relation-back':{const k=b.dataset.root,path=st.relationPaths[k]||[k];st.relationPaths[k]=path.length>1?path.slice(0,-1):path;rerenderSelection();break;}
+      case 'pause':nav('home','先停在這裡。回到片刻或「從上次繼續」，就能接著想。');break;
+      case 'new-moment':if(!st.composer.text&&!st.composer.title)st.composer={title:'',text:'',linked:null};nav('compose');break;
+      case 'resume-composer':nav('compose');break;
+      case 'discard-composer':st.notice='';st.discarded={kind:'composer',value:clone(st.composer)};st.composer={title:'',text:'',linked:null};st.trail=[];if(st.page==='compose'){nav('home');st.trail=[];}else render();break;
+      case 'discard-thought':{
+        const index=st.explorations.findIndex(x=>x.id===b.dataset.id&&!x.savedInsight&&!x.closed);if(index<0)return;
+        const removed=st.explorations[index];st.notice='';st.discarded={kind:'thought',value:clone(removed),index};st.explorations.splice(index,1);if(st.explorationId===removed.id)st.explorationId=null;if(st.entryOriginKey===removed.id)st.entryOriginKey=null;st.trail=[];
+        if(flowPages.includes(st.page)){nav('home');st.trail=[];}else render();break;
+      }
+      case 'undo-discard':undoDiscard();break;
+      case 'save-moment':{
+        if(!st.composer.text.trim())return;
+        const linked=st.insights.find(x=>x.id===st.composer.linked);
+        const m={id:id('m'),date:storyStamp(),iso:storyToday,title:st.composer.title.trim()||st.composer.text.trim().slice(0,16),text:st.composer.text.trim(),linkedInsightId:linked?.id||null,linkedInsightTitle:linked?.title||''};st.moments.push(m);st.entryId=m.id;st.entryOriginKey=null;st.entryReturn=st.composer.returnTo||{page:'library'};st.composer={title:'',text:'',linked:null};
+        st.trail=[];st.page='entry';render();
+        if(linked){startReview([m.id],[linked.id],'新片刻已留下 · 想繼續再一起看');}else{makeExploration('single',[m.id]);nav('recorded');}break;
+      }
+      case 'open-moment':st.entryReturn=routeSnapshot();st.entryId=b.dataset.id;st.entryOriginKey=null;nav('entry');break;
+      case 'toggle-record':st.entryOriginKey=st.entryOriginKey===b.dataset.id?null:b.dataset.id;render();break;
+      case 'edit-moment':st.momentEdit={title:M(st.entryId).title,text:M(st.entryId).text};nav('edit-moment');break;
+      case 'save-moment-edit':if(!st.momentEdit.text.trim())return;M(st.entryId).title=st.momentEdit.title.trim()||st.momentEdit.text.trim().slice(0,16);M(st.entryId).text=st.momentEdit.text.trim();st.momentEdit=null;nav('entry','修改已留下，仍是同一個片刻。');break;
+      case 'cancel-moment-edit':st.momentEdit=null;nav('entry','沒有更動片刻。');break;
+      case 'resume':resume(st.explorations.find(x=>x.id===b.dataset.id));break;
+      case 'single-start':beginQuestion(makeExploration('single',[st.entryId]));break;
+      case 'entry-write':insightDraft(makeExploration('single',[st.entryId]));break;
+      case 'daily-question':beginQuestion(e);break;
+      case 'start-review':startTimeReview();break;
+      case 'resume-selection':nav('review-select');break;
+      case 'observe-selected':{
+        const ideas=st.insights.filter(i=>st.selectedInsights.includes(i.id)&&selectableIdea(i));if(!st.selected.length&&!ideas.length)return;
+        st.reviewPending=false;const x=makeExploration('review',st.selected);x.bases=ideas.map(i=>({id:i.id,title:i.title,text:i.text,assisted:i.assisted,sequence:i.sequence}));
+        const exact=!ideas.length&&x.sources.length===d.moments.length&&x.sources.every(m=>m.id.startsWith(scenario+'m'));
+        x.insufficient=scenario==='c'||(!exact&&!ideas.length)||!x.sources.length;
+        x.observation=ideas.length?(x.sources.length?'這次把記下的經驗與目前的理解放在一起。可以留意：這些經驗讓哪一份理解更貼近自己，又讓哪一部分需要調整？這些理解是你的暫時看法，不是新的事件證據。':'這次只有理解，沒有新的片刻。可以看看這些看法是否仍貼近自己，但不能因此認定同樣的事情又發生了。'):exact?d.observation+'\n\n'+d.exception:'這次選的片刻不太一樣。我們先只看你選擇的內容，不急著把它們連成一個解釋。';nav('observation');break;
+      }
+      case 'explore':e.question=e.bases.length?'哪一份理解仍然貼近你？哪一部分，現在想說得不一樣？':e.insufficient?'你想先補充哪個片刻的情況？':d.question;nav('question');break;
+      case 'disagree':e.corrected=true;e.question='哪裡不太像？我想先聽聽你的經驗。';nav('question');break;
+      case 'save-answer':if(!e.answerDraft.trim())return;e.answer=e.answerDraft.trim();nav('answer-saved');break;
+      case 'followup':e.response=e.bases.length?'不必把幾份理解合成同一個答案。你可以留下新的理解，或只改寫其中一份；仍不確定的部分也可以先保留。':e.corrected?'那就不適合再用「沒有說出口」來理解這些經驗。記錄沒寫到，不代表你沒有做過。對方如何回應你的限制，也需要被看見。':e.insufficient||scenario==='c'?'這幾段感受不一定有相同原因。可以先保留差異，不必急著命名。':'擔心被否定可能是其中一部分。但不同對象帶來的安全感也可能不同，還不能用一個原因解釋全部。';nav('response');break;
+      case 'write-understanding':insightDraft(e);break;
+      case 'draft-example':e.previewDraft=e.bases.length?'我想把這些理解保留成可以修改的看法，繼續留意什麼情況符合、什麼情況不同。':e.corrected?data.b.draft:d.draft;render();root.querySelector('.draft-preview')?.scrollIntoView({block:'nearest'});break;
+      case 'dismiss-draft':e.previewDraft='';render();root.querySelector('[data-act="draft-example"]')?.focus({preventScroll:true});break;
+      case 'apply-draft':if(!e.previewDraft)return;e.beforeAiDraft={text:e.meaningDraft,assisted:e.assisted};e.meaningDraft=e.previewDraft;e.previewDraft='';e.assisted=true;render();root.querySelector('#v15-meaning-text').focus();break;
+      case 'undo-draft':if(!e.beforeAiDraft)return;e.meaningDraft=e.beforeAiDraft.text;e.assisted=e.beforeAiDraft.assisted;e.beforeAiDraft=null;e.previewDraft='';render();root.querySelector('#v15-meaning-text').focus();break;
+      case 'save-understanding':preserveInsight();break;
+      case 'open-insight':openInsight(b.dataset.id);break;
+      case 'open-reference':{
+        if(!st.insights.some(i=>i.id===b.dataset.id))return;const route=routeSnapshot();route.returnAnchor=b.id;st.insightReturn=route;st.insightId=b.dataset.id;st.originFocus=null;nav('insight');break;
+      }
+      case 'locate-insight':{
+        const target=root.querySelector('[id="related-'+b.dataset.id+'"]');if(target){root.querySelectorAll('.located').forEach(n=>n.classList.remove('located'));target.classList.add('located');target.scrollIntoView({block:'center'});target.querySelector('button')?.focus({preventScroll:true});}break;
+      }
+      case 'open-reading-insight':openInsight(b.dataset.id,b.dataset.origin);break;
+      case 'edit-understanding':{
+        const i=I(),x=makeExploration('edit',[],i);x.titleDraft=i.title;x.meaningDraft=i.text;x.assisted=i.assisted;nav('meaning');break;
+      }
+      case 'cancel-edit':e.closed=true;st.insightId=e.targetId;nav('insight','沒有更動原本的理解。');st.trail=[];break;
+      case 'later-moment':
+        if(st.composer.text||st.composer.title){nav('compose','先接續正在寫的片刻；沒有替它更改關聯。');break;}
+        st.composer={title:'',text:'',linked:I().id,returnTo:routeSnapshot()};nav('compose');break;
+      case 'link-insight':startReview([st.entryId],[],'從這個片刻回看');break;
+      case 'continue-linked-review':if(st.reviewPending&&st.reviewSourceMomentId===st.entryId){nav('review-select');}else{startReview([st.entryId],[M(st.entryId).linkedInsightId],'接著這份理解，一起看看');}break;
+      case 'review-insight':{
+        const i=I(),latest=i.origins.slice().sort((a,b)=>(b.order||0)-(a.order||0))[0],ids=[...new Set((latest?.sources||[]).map(m=>m.id))].filter(id=>M(id)&&!M(id).skipReview);
+        startReview(ids,[i.id],'帶著這份理解回看',`先為你選了這份理解，與最近一次一起看的 ${ids.length} 個片刻。可取消勾選；片刻使用目前保存的文字。`);break;
+      }
+      case 'action-edit':if(st.actionTargetId&&st.actionTargetId!==I().id){st.insightId=st.actionTargetId;nav('action-edit','先接續正在寫的小提醒。');}else{if(!st.actionTargetId)st.actionDraft=I().action;st.actionTargetId=I().id;nav('action-edit');}break;
+      case 'resume-action':st.insightId=st.actionTargetId;nav('action-edit');break;
+      case 'save-action':if(!st.actionDraft.trim())return;I().action=st.actionDraft.trim();I().sequence=++st.clock;I().updated=storyStamp();I().updatedIso=storyToday;st.undoAction=null;st.actionTargetId=null;nav('insight','小提醒已留下，想做的時候再試試。');break;
+      case 'remove-action':st.undoAction={insightId:I().id,text:I().action};I().action='';st.notice='小提醒已拿掉，理解和片刻都還在。';render();break;
+      case 'undo-action':if(st.undoAction?.insightId===I().id&&!I().action){I().action=st.undoAction.text;st.undoAction=null;st.notice='小提醒已復原。';render();}break;
+      case 'toggle-insight':{const i=I();i.paused=!i.paused;if(i.paused)clearSelectionItem('insight',i.id);st.notice=i.paused?'已先放一放。理解仍在，平常回看時先隱藏。':'已重新拿出來，回看時可以選到了。';render();break;}
+      case 'delete-insight':st.deleteTarget=I().id;st.deleteReturn=routeSnapshot();nav('delete-insight');break;
+      case 'delete-moment':st.deleteTarget=st.entryId;st.deleteReturn=routeSnapshot();nav('delete-moment');break;
+      case 'cancel-delete-item':st.trail.pop();restoreRoute(st.deleteReturn||{page:'library'});st.deleteTarget=null;break;
+      case 'confirm-delete':finishDelete('insight');break;
+      case 'confirm-delete-moment':finishDelete('moment');break;
+      case 'fill-example':
+        if(st.page==='compose'){st.composer.title=st.composer.linked?'後來，我試著說出口':'今天臨時多了一項工作';st.composer.text=st.composer.linked?d.next:'今天臨時多了一項工作。我答應了，但心裡很緊繃。';}
+        if(st.page==='question')e.answerDraft=e.corrected?data.b.answer:d.answer;
+        if(st.page==='meaning'){e.meaningDraft=e.bases.length?'我想把這些理解保留成可以修改的看法，繼續留意什麼情況符合、什麼情況不同。':e.corrected?data.b.draft:d.draft;e.assisted=true;}
+        if(st.page==='action-edit')st.actionDraft='下次工作衝突時，我想先詢問優先順序，而不是直接答應全部。';render();break;
+      default:
+        if(act.startsWith('angle-')){e.answerDraft=['我擔心被認為能力不足。','我擔心對方生氣。','我擔心有實際不利後果。','我還沒有想清楚自己的需要。','目前都不符合。'][Number(act.slice(6))];render();}
+        if(act.startsWith('try-')){st.actionDraft=['分開留意我預期的反應，與實際發生的事。','下次先詢問優先順序，而不是直接答應全部。','先評估表達的風險，想想合適的管道與可信任的支持。'][Number(act.slice(4))];render();}
+    }
+  });
+  render();
+})();
+</script>

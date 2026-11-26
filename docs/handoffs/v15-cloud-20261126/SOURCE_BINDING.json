@@ -1,0 +1,31 @@
+{
+  "created_date_taipei": "2026-11-26",
+  "repository": "https://github.com/mattlin715/life-os",
+  "source_base_commit": "388d9304988a46c548cc124fe820d61957f2c3ea",
+  "source_base_tree": "fa8408ed3e42e4362a8d21d5e20c93e2e336d062",
+  "handoff_commit": "provided externally after publication; do not replace with branch tip",
+  "packages": [
+    {
+      "archive": "archives/life-os-v15-design-review-02.zip",
+      "expanded": "originals/design-review-02",
+      "sha256": "dd71d48ec616c82017677a6a61db37144d0788c2eb724d7526552bb0ac8c9af9"
+    },
+    {
+      "archive": "archives/life-os-v15-a-exact-design-02.zip",
+      "expanded": "originals/exact-design-02",
+      "sha256": "9e54a4b89f2e5fb8bd5b3d900241b80168cfac3e9b164460b9941806bf142cd1"
+    }
+  ],
+  "prototype": {
+    "path": "originals/design-review-02/life-os-experience-prototype-v15.html",
+    "sha256": "91eb8d73442bffd109037f526344802876eff66f871e9641f8e190553547ac96"
+  },
+  "claims": {
+    "prototype_new_browser_walkthrough": "not_run by packager; mandatory for receiving sessions",
+    "product_implementation": "not_run",
+    "product_tests": "not_run",
+    "android_device": "not_run",
+    "decision_status": "Exact Design 02 and limited R1 design accepted; see 02_DECISION_LEDGER.md",
+    "original_documents": "unaltered historical artifacts; pending wording resolved only within explicit later acceptance"
+  }
+}
