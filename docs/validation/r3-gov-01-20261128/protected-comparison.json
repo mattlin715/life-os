@@ -1,0 +1,14 @@
+{
+  "files": 652,
+  "identical": true,
+  "changed": [],
+  "before_manifest_sha256": "f6c6de86c8620644cea1321799a2e0c201bd133bfe3d39b9cfb17ed323851f35",
+  "after_manifest_sha256": "f6c6de86c8620644cea1321799a2e0c201bd133bfe3d39b9cfb17ed323851f35",
+  "unchanged_r3": {
+    "sprint_id": "android-pilot-byo-gemini-r1",
+    "state_revision": 56,
+    "status": "human_decision_required",
+    "decision_resolution": null,
+    "adr_0013": "Proposed"
+  }
+}

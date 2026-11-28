@@ -1,0 +1,9 @@
+{
+  "format": "life-os/verification-output-v1",
+  "encoding": "utf-8",
+  "byte_length": 66,
+  "sha256": "8ccc5b12dbfb2d6cc78894f83883262e17d733764566f18494f18b4c923bfa0c",
+  "utf8_lines": [
+    "{\"archives\":58,\"all_verdicts_unchanged\":true,\"baseline_valid\":58}\n"
+  ]
+}

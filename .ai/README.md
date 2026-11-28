@@ -63,3 +63,12 @@ sprints have produced recoverable evidence. See
 
 The current files intentionally begin in an idle state. They are reusable
 workflow control surfaces, not evidence that a sprint has been completed.
+
+For independently authorized cancellation of an unresolved Founder gate, use
+`cancel-sprint` with separate sprint-disposition evidence. Cancellation is not
+schema resolution or implementation authority. The bounded journal and
+`recover-governance` protect cancellation and archive/idle reset across process
+interruption; a pending operation blocks ordinary mutations and start. Read
+[the disposition and recovery contract](workflow/WORKFLOW.md#independent-sprint-disposition-and-bounded-recovery-2026-11-28)
+before future authorized use. This maintenance documentation does not itself
+authorize real R3 cancellation, archive, recovery or a new mission.

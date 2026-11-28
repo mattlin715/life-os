@@ -1,0 +1,15 @@
+{
+  "format": "life-os/sprint-disposition-v1",
+  "disposition": "cancelled",
+  "sprint_id": "REQUIRED-EXACT-ACTIVE-SPRINT-ID",
+  "expected_sequence": null,
+  "scope": "cancel-current-sprint-only",
+  "authorization_source": "direct-founder-chat",
+  "authorization_reference": "",
+  "exact_founder_response": "",
+  "retained_constraints": {
+    "schema_decision": "unresolved",
+    "adr_status": "unchanged",
+    "product_authority": "none"
+  }
+}

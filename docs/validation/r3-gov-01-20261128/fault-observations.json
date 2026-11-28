@@ -1,0 +1,521 @@
+{
+  "observations": [
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-rename:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-rename:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "verified",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:WORKFLOW_STATE.json",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: before-write:WORKFLOW_STATE.json"
+    },
+    {
+      "governance_fault": "write:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:CURRENT_MISSION.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:PRODUCT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:ENGINEERING_PLAN.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:ENGINEERING_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:THEORY_ALIGNMENT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:DECISION_REQUIRED.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:SPRINT_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:WORKFLOW_CONTRACT.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:SPRINT_DISPOSITION.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:CANCELLATION_CHECKPOINT.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:SPRINT_DISPOSITION_EVIDENCE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:ARCHIVE_MANIFEST.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-publish",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "published",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:CURRENT_MISSION.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:CURRENT_MISSION.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:PRODUCT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:PRODUCT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:ENGINEERING_PLAN.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:ENGINEERING_PLAN.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:ENGINEERING_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:ENGINEERING_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:THEORY_ALIGNMENT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:THEORY_ALIGNMENT_REVIEW.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:DECISION_REQUIRED.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:DECISION_REQUIRED.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:SPRINT_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:SPRINT_REPORT.md",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:WORKFLOW_STATE.json",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "before-write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "verified",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "published",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "published",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "copy:CURRENT_MISSION.md",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: copy:CURRENT_MISSION.md"
+    },
+    {
+      "governance_fault": "before-publish",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: before-publish"
+    },
+    {
+      "governance_fault": "before-rename:CURRENT_MISSION.md",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: before-rename:CURRENT_MISSION.md"
+    },
+    {
+      "governance_fault": "before-rename:WORKFLOW_STATE.json",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: before-rename:WORKFLOW_STATE.json"
+    },
+    {
+      "governance_fault": "before-rename:EVENTS.jsonl",
+      "mode": "FAIL",
+      "status": 1,
+      "signal": null,
+      "stderr": "Injected governance failure: before-rename:EVENTS.jsonl"
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "regression": "R3-GOV-01",
+      "expected_refusal": "Cancellation checkpoint does not match before state",
+      "matching_operation_sha256": "c8d7f882af06fee2cb616bee3c8ed9983d966ace2e357f6a33f70adec0b09a16",
+      "status": 1,
+      "signal": null,
+      "stderr": "Cancellation checkpoint does not match before state"
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "regression": "R3-GOV-01",
+      "expected_refusal": "Cancellation events do not preserve before prefix",
+      "matching_operation_sha256": "083a380b85a039f45d3ddeed5f89d22cfd79f04875b70d7b7cced67364a386dd",
+      "status": 1,
+      "signal": null,
+      "stderr": "Cancellation events do not preserve before prefix"
+    },
+    {
+      "governance_fault": "prepared",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "regression": "R3-GOV-01",
+      "expected_refusal": "Cancellation must append exactly one event line",
+      "matching_operation_sha256": "0f6c8c99d5beccab2b65c6255b3144ff853e483fbf156efdd67ee820c87bb59e",
+      "status": 1,
+      "signal": null,
+      "stderr": "Cancellation must append exactly one event line"
+    },
+    {
+      "governance_fault": "write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    },
+    {
+      "governance_fault": "write:EVENTS.jsonl",
+      "mode": "KILL",
+      "status": null,
+      "signal": "SIGKILL",
+      "stderr": ""
+    }
+  ],
+  "sigkill": 64,
+  "injected_exceptions": 6,
+  "matching_hash_refusals": 3
+}

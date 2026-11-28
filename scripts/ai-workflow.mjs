@@ -2,9 +2,11 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { assertNoGovernanceOperation, controlImages, digest, dispositionScope, jsonBytes, pendingGovernance, prepareGovernance, recoverGovernance } from "./ai-workflow-governance.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(scriptDirectory, "..");
@@ -209,6 +211,8 @@ function validateEventChain(events, contract, errors) {
         || !event.reason.trim()
         || event.terminal_snapshot?.status !== "completed"
       ) errors.push(`event ${event.event_id ?? "unknown"}: invalid terminal follow-up event`);
+    } else if (event.event_type === "sprint_cancelled") {
+      if (event.role !== "orchestrator" || event.from_status !== "human_decision_required" || event.to_status !== "cancelled" || !event.sprint_disposition) errors.push(`event ${event.event_id}: invalid sprint disposition event`);
     } else if (event.event_type !== "transition") {
       errors.push(`event ${event.event_id ?? "unknown"}: unknown event_type ${event.event_type}`);
     } else {
@@ -220,9 +224,41 @@ function validateEventChain(events, contract, errors) {
   }
 }
 
+function checkDispositionRequest(request, checkpoint) {
+  const keys = ["format", "disposition", "scope", "sprint_id", "expected_sequence", "authorization_source", "authorization_reference", "exact_founder_response", "retained_constraints"];
+  if (!request || stable(Object.keys(request).sort()) !== stable(keys.sort()) || request.format !== "life-os/sprint-disposition-v1" || request.disposition !== "cancelled" || request.scope !== dispositionScope
+    || request.sprint_id !== checkpoint.sprint_id || request.expected_sequence !== checkpoint.state_revision
+    || request.authorization_source !== "direct-founder-chat"
+    || typeof request.authorization_reference !== "string" || !request.authorization_reference.trim()
+    || typeof request.exact_founder_response !== "string" || !request.exact_founder_response.trim()
+    || stable(request.retained_constraints) !== stable({ schema_decision: "unresolved", adr_status: "unchanged", product_authority: "none" })) {
+    throw new Error("Invalid Founder sprint disposition authorization/scope/sprint/sequence");
+  }
+}
+function validateDisposition(state, events, errors) {
+  const event = events.findLast((item) => item.event_type === "sprint_cancelled");
+  if (state.sprint_disposition === undefined && !event) return; // legacy states/archives unchanged
+  try {
+    const d = state.sprint_disposition;
+    if (!d || d.format !== "life-os/sprint-disposition-record-v1" || d.disposition !== "cancelled" || d.scope !== dispositionScope || d.recorded_at !== state.updated_at) throw new Error("Invalid sprint disposition projection");
+    const checkpoint = d.checkpoint;
+    if (checkpoint?.status !== "human_decision_required" || checkpoint.decision_resolution !== null || checkpoint.sprint_disposition !== undefined) throw new Error("Invalid cancellation checkpoint");
+    if (typeof d.evidence?.content !== "string" || digest(d.evidence.content) !== d.evidence.sha256 || typeof d.evidence.path !== "string") throw new Error("Disposition evidence hash mismatch");
+    checkDispositionRequest(JSON.parse(d.evidence.content), checkpoint);
+    if (!event || events.at(-1) !== event || event.sequence !== checkpoint.state_revision + 1 || event.previous_event_hash !== checkpoint.last_event_hash || stable(event.sprint_disposition) !== stable(d)) throw new Error("Disposition event/state/checkpoint mismatch");
+    const prefix = events.slice(0, -1);
+    if (prefix.length !== checkpoint.state_revision || prefix.at(-1)?.event_id !== checkpoint.last_event_id || prefix.at(-1)?.to_status !== checkpoint.status || prefix.at(-1)?.sprint_id !== checkpoint.sprint_id) throw new Error("Disposition event prefix mismatch");
+    const expected = { ...checkpoint, status: "cancelled", current_phase: "cancelled", current_role: "orchestrator", human_approval_required: false, next_action: null,
+      updated_at: d.recorded_at, sprint_disposition: d, state_revision: event.sequence, last_event_id: event.event_id, last_event_hash: event.event_hash,
+      repository_head: event.repository_head, working_branch: event.working_branch, working_tree_digest: event.working_tree_digest };
+    if (stable(expected) !== stable(state)) throw new Error("Disposition must preserve decisions, gates, artifacts and verification checkpoint");
+  } catch (error) { errors.push(error.message); }
+}
+
 export function validateWorkflow(root = defaultRoot, options = {}) {
   const paths = workflowPaths(root);
   const errors = [];
+  if (pendingGovernance(root)) errors.push("Governance recovery required; mutations/start refused");
   let contract;
   let state;
   let events;
@@ -246,6 +282,7 @@ export function validateWorkflow(root = defaultRoot, options = {}) {
     if (state.verification?.manual_ui?.scoped_evidence?.sprint_id !== state.sprint_id) errors.push("scoped manual state sprint mismatch");
     if (!manualEvent || stable(manualEvent.manual_verification) !== stable(state.verification?.manual_ui)) errors.push("scoped manual projection does not match its registration event");
   }
+  validateDisposition(state, events, errors);
   const last = events.at(-1);
   if (last) {
     if (state.last_event_id !== last.event_id || state.last_event_hash !== last.event_hash) errors.push("state last event does not match EVENTS.jsonl");
@@ -312,7 +349,7 @@ export function validateWorkflow(root = defaultRoot, options = {}) {
   if (state.status === "completed" && !["approved", "approved_with_follow_up"].includes(state.artifacts.theory_alignment_review)) errors.push("completed requires approved Theory Alignment Review");
   if (state.status === "completed" && !["completed", "completed_with_follow_up"].includes(state.artifacts.sprint_report)) errors.push("completed requires a completed Sprint Report");
   if (state.status === "failed" && state.artifacts.sprint_report !== "failed") errors.push("failed requires a failed Sprint Report");
-  if (state.status === "cancelled" && state.artifacts.sprint_report !== "cancelled") errors.push("cancelled requires a cancelled Sprint Report");
+  if (state.status === "cancelled" && state.sprint_disposition === undefined && state.artifacts.sprint_report !== "cancelled") errors.push("cancelled requires a cancelled Sprint Report");
   if (decisionOpen && !["open", "resolved"].includes(state.artifacts.decision_required)) errors.push("human decision state requires open or resolved DECISION_REQUIRED.md");
 
   if (options.checkRepositoryFreshness && state.status !== "idle") {
@@ -437,7 +474,7 @@ function commandValidate(root) {
 
 function commandStatus(root) {
   const state = readJson(workflowPaths(root).state);
-  process.stdout.write(`${JSON.stringify({ status: state.status, sprint_id: state.sprint_id, phase: state.current_phase, role: state.current_role, revision: state.state_revision, review_cycle: state.review_cycle, next_action: state.next_action }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ status: state.status, sprint_id: state.sprint_id, phase: state.current_phase, role: state.current_role, revision: state.state_revision, review_cycle: state.review_cycle, recovery_required: pendingGovernance(root), next_action: state.next_action }, null, 2)}\n`);
 }
 
 function commandStart(root, args) {
@@ -933,6 +970,42 @@ function commandResolveDecision(root, args) {
   }
 }
 
+function commandCancelSprint(root, args) {
+  const paths = workflowPaths(root);
+  const state = readJson(paths.state);
+  const errors = validateWorkflow(root);
+  if (errors.length) throw new Error(errors.join("\n"));
+  if (state.status !== "human_decision_required" || state.decision_resolution !== null) throw new Error("Cancellation requires an unresolved human decision gate");
+  if (args.sprint_id !== state.sprint_id || args.expected_sequence === undefined || Number(args.expected_sequence) !== state.state_revision) throw new Error("Exact --sprint-id and --expected-sequence required");
+  const evidence = repositoryFile(root, args.evidence, "--evidence");
+  const raw = readFileSync(evidence.absolute, "utf8");
+  if (!/^[a-f0-9]{64}$/.test(args.evidence_sha256 ?? "") || digest(raw) !== args.evidence_sha256) throw new Error("Disposition evidence hash mismatch");
+  const request = JSON.parse(raw);
+  checkDispositionRequest(request, state);
+  if (args.scope !== request.scope || args.founder_response !== request.exact_founder_response) throw new Error("Exact Founder response/scope must match evidence");
+  const snapshot = repositorySnapshot(root);
+  const next = structuredClone(state);
+  next.status = next.current_phase = "cancelled";
+  next.current_role = "orchestrator";
+  // Gate history remains in the checkpoint; terminal status grants no product authority.
+  next.human_approval_required = false;
+  next.next_action = null;
+  next.updated_at = new Date().toISOString();
+  next.sprint_disposition = {
+    format: "life-os/sprint-disposition-record-v1", disposition: "cancelled",
+    scope: dispositionScope, evidence: { path: evidence.relative, sha256: args.evidence_sha256, content: raw },
+    checkpoint: structuredClone(state), recorded_at: next.updated_at,
+  };
+  const event = buildEvent(state, next, snapshot, loadContract(root), { eventType: "sprint_cancelled", reason: request.exact_founder_response });
+  event.sprint_disposition = next.sprint_disposition;
+  event.event_hash = sha256(stable(Object.fromEntries(Object.entries(event).filter(([key]) => key !== "event_hash"))));
+  Object.assign(next, { state_revision: event.sequence, last_event_id: event.event_id, last_event_hash: event.event_hash, repository_head: event.repository_head, working_branch: event.working_branch, working_tree_digest: event.working_tree_digest });
+  const existing = readFileSync(paths.events, "utf8");
+  const after = { "EVENTS.jsonl": `${existing}${existing && !existing.endsWith("\n") ? "\n" : ""}${JSON.stringify(event)}\n`, "WORKFLOW_STATE.json": jsonBytes(next) };
+  const hash = prepareGovernance(root, "cancel", after, null, validateWorkflow);
+  recoverGovernance(root, hash, validateWorkflow);
+}
+
 function commandArchive(root) {
   const paths = workflowPaths(root);
   const contract = loadContract(root);
@@ -940,75 +1013,42 @@ function commandArchive(root) {
   if (!contract.terminal_statuses.includes(state.status)) throw new Error("Only a terminal sprint can be archived");
   const errors = validateWorkflow(root, { checkRepositoryFreshness: true });
   if (errors.length) throw new Error(`Cannot archive an invalid workflow:\n${errors.join("\n")}`);
-
-  const finalArchive = join(paths.history, state.sprint_id);
-  if (existsSync(finalArchive)) throw new Error(`Archive already exists: ${state.sprint_id}`);
-  const temporaryArchive = join(paths.history, `.tmp-${state.sprint_id}-${randomUUID()}`);
-  mkdirSync(temporaryArchive, { recursive: true });
-  let archivePromoted = false;
-  const archivedFiles = [
-    ...Object.values(contract.artifact_files),
-    "WORKFLOW_STATE.json",
-    "EVENTS.jsonl",
-    "WORKFLOW_CONTRACT.json",
-  ];
-  try {
-    for (const filename of archivedFiles) copyFileSync(join(paths.workflow, filename), join(temporaryArchive, filename));
-    const manifest = {
-      schema_version: "1.0",
-      sprint_id: state.sprint_id,
-      terminal_status: state.status,
-      archived_at: new Date().toISOString(),
-      repository_head: state.repository_head,
-      working_branch: state.working_branch,
-      working_tree_digest: state.working_tree_digest,
-      last_event_id: state.last_event_id,
-      last_event_hash: state.last_event_hash,
-      files: archivedFiles,
-    };
-    writeFileSync(join(temporaryArchive, "ARCHIVE_MANIFEST.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-    renameSync(temporaryArchive, finalArchive);
-    archivePromoted = true;
-
-    const templateMap = {
-      "current-mission.template.md": "CURRENT_MISSION.md",
-      "product-review.template.md": "PRODUCT_REVIEW.md",
-      "engineering-plan.template.md": "ENGINEERING_PLAN.md",
-      "engineering-report.template.md": "ENGINEERING_REPORT.md",
-      "theory-alignment-review.template.md": "THEORY_ALIGNMENT_REVIEW.md",
-      "decision-required.template.md": "DECISION_REQUIRED.md",
-      "sprint-report.template.md": "SPRINT_REPORT.md",
-      "workflow-state.template.json": "WORKFLOW_STATE.json",
-    };
-    for (const [template, current] of Object.entries(templateMap)) {
-      writeAtomic(join(paths.workflow, current), readFileSync(join(root, ".ai", "templates", template), "utf8"));
-    }
-    writeAtomic(paths.events, "");
-    const resetErrors = validateWorkflow(root, { checkRepositoryFreshness: false });
-    if (resetErrors.length) throw new Error(`Archive created but idle reset is invalid:\n${resetErrors.join("\n")}`);
-  } catch (error) {
-    if (existsSync(temporaryArchive)) rmSync(temporaryArchive, { recursive: true, force: true });
-    if (archivePromoted && existsSync(finalArchive)) {
-      // The archive is a complete recovery source. Restore the current control
-      // plane before removing this command's just-created archive.
-      for (const filename of archivedFiles) {
-        if (filename !== "WORKFLOW_CONTRACT.json") copyFileSync(join(finalArchive, filename), join(paths.workflow, filename));
-      }
-      rmSync(finalArchive, { recursive: true, force: true });
-    }
-    throw error;
+  const archive = controlImages(root);
+  if (state.sprint_disposition) {
+    archive["SPRINT_DISPOSITION.json"] = jsonBytes(state.sprint_disposition);
+    archive["CANCELLATION_CHECKPOINT.json"] = jsonBytes(state.sprint_disposition.checkpoint);
+    archive["SPRINT_DISPOSITION_EVIDENCE.json"] = state.sprint_disposition.evidence.content;
   }
+  const files = Object.keys(archive);
+  archive["ARCHIVE_MANIFEST.json"] = jsonBytes({
+    schema_version: "2.0", sprint_id: state.sprint_id, terminal_status: state.status,
+    archived_at: new Date().toISOString(), repository_head: state.repository_head,
+    working_branch: state.working_branch, working_tree_digest: state.working_tree_digest,
+    last_event_id: state.last_event_id, last_event_hash: state.last_event_hash,
+    files, hashes: Object.fromEntries(files.map((name) => [name, digest(archive[name])])),
+    external_logs: { status: "not_acquired", detail: "Original external logs were not read or copied. Embedded historical verification records are retained; no raw external-log archival claim." },
+  });
+  const after = { "EVENTS.jsonl": "" };
+  for (const [key, filename] of Object.entries(contract.artifact_files)) {
+    after[filename] = readFileSync(join(root, ".ai", "templates", `${key.replaceAll("_", "-")}.template.md`));
+  }
+  after["WORKFLOW_STATE.json"] = readFileSync(join(root, ".ai", "templates", "workflow-state.template.json"));
+  const hash = prepareGovernance(root, "archive", after, archive, validateWorkflow);
+  recoverGovernance(root, hash, validateWorkflow);
 }
 
 function usage() {
-  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs start-terminal-follow-up --sprint-id <id> --expected-head <sha> --expected-branch <name> --expected-sequence <n> --authorization-reference <ref> --authorization-evidence <path> --reason <text>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-scoped-manual-verification --sprint-id <id> --expected-sequence <n> --evidence <path> --evidence-sha256 <hash> --acceptance-source direct-founder-chat --founder-response <text> --scope <exact scope>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs archive\n`;
+  return `Usage:\n  node scripts/ai-workflow.mjs validate\n  node scripts/ai-workflow.mjs status\n  node scripts/ai-workflow.mjs start --sprint-id <id> --mission-title <title>\n  node scripts/ai-workflow.mjs start-terminal-follow-up --sprint-id <id> --expected-head <sha> --expected-branch <name> --expected-sequence <n> --authorization-reference <ref> --authorization-evidence <path> --reason <text>\n  node scripts/ai-workflow.mjs record-artifact --artifact <key> --status <status> --expected-sequence <n>\n  node scripts/ai-workflow.mjs transition --to <status> --expected-sequence <n> [--reason <text>]\n  node scripts/ai-workflow.mjs resolve-decision --decision-reference <ref> --founder-response <text> --selected-option <id> --authorized-scope <text> --expected-sequence <n>\n  node scripts/ai-workflow.mjs record-scoped-manual-verification --sprint-id <id> --expected-sequence <n> --evidence <path> --evidence-sha256 <hash> --acceptance-source direct-founder-chat --founder-response <text> --scope <exact scope>\n  node scripts/ai-workflow.mjs record-verification --status <passed|failed|skipped> --exit-code <n> --expected-sequence <n>\n  node scripts/ai-workflow.mjs refresh-verification-for-resume --status passed --exit-code 0 --decision-reference <ref> --expected-sequence <n>\n  node scripts/ai-workflow.mjs cancel-sprint --sprint-id <id> --expected-sequence <n> --evidence <path> --evidence-sha256 <hash> --founder-response <exact text> --scope cancel-current-sprint-only\n  node scripts/ai-workflow.mjs recover-governance --operation-sha256 <hash>\n  node scripts/ai-workflow.mjs archive\n`;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const command = args._[0];
   const root = args.root ? resolve(args.root) : defaultRoot;
-  if (command === "validate") commandValidate(root);
+  if (!["validate", "status", "recover-governance"].includes(command)) assertNoGovernanceOperation(root);
+  if (command === "recover-governance") recoverGovernance(root, args.operation_sha256, validateWorkflow);
+  else if (command === "cancel-sprint") commandCancelSprint(root, args);
+  else if (command === "validate") commandValidate(root);
   else if (command === "status") commandStatus(root);
   else if (command === "start") commandStart(root, args);
   else if (command === "start-terminal-follow-up") commandStartTerminalFollowUp(root, args);

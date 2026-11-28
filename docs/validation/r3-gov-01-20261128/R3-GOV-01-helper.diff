@@ -1,0 +1,23 @@
+--- a/scripts/ai-workflow-governance.mjs
++++ b/scripts/ai-workflow-governance.mjs
+@@ -5,0 +6 @@
++import { isDeepStrictEqual } from "node:util";
+@@ -25,0 +27,16 @@
++}
++function validateCancellationImages(before, after, prior, result) {
++  if (!isDeepStrictEqual(result.sprint_disposition.checkpoint, prior)) throw new Error("Cancellation checkpoint does not match before state");
++  const prefix = before["EVENTS.jsonl"];
++  const events = after["EVENTS.jsonl"];
++  if (!events.subarray(0, prefix.length).equals(prefix)) throw new Error("Cancellation events do not preserve before prefix");
++  const separator = prefix.length && prefix.at(-1) !== 0x0a ? "\n" : "";
++  const appended = events.subarray(prefix.length).toString("utf8");
++  const line = appended.slice(separator.length);
++  if (!appended.startsWith(separator) || !line.endsWith("\n") || line.slice(0, -1).includes("\n")) throw new Error("Cancellation must append exactly one event line");
++  const event = JSON.parse(line);
++  if (event.event_type !== "sprint_cancelled" || event.from_status !== prior.status || event.to_status !== "cancelled"
++    || event.sprint_id !== prior.sprint_id || event.sequence !== prior.state_revision + 1
++    || event.previous_event_hash !== prior.last_event_hash) throw new Error("Invalid cancellation append event");
++  // The existing candidate validator below still checks the complete event
++  // chain, disposition authority and resulting state projection.
+@@ -129,0 +147 @@
++  if (r.kind === "cancel") validateCancellationImages(before, after, prior, result);

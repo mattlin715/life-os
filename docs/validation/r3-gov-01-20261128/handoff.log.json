@@ -1,0 +1,24 @@
+{
+  "format": "life-os/verification-output-v1",
+  "encoding": "utf-8",
+  "byte_length": 453,
+  "sha256": "917d64df763ddd4f0f545e8dfc3466572bfe99f5d4527d4a218f72d7a7de3531",
+  "utf8_lines": [
+    "{\n",
+    "  \"result\": \"PASS\",\n",
+    "  \"manifest_files\": 29,\n",
+    "  \"original_packages\": {\n",
+    "    \"archives/life-os-v15-design-review-02.zip\": {\n",
+    "      \"zip_files\": 6,\n",
+    "      \"inner_hashes\": 5\n",
+    "    },\n",
+    "    \"archives/life-os-v15-a-exact-design-02.zip\": {\n",
+    "      \"zip_files\": 9,\n",
+    "      \"inner_hashes\": 8\n",
+    "    }\n",
+    "  },\n",
+    "  \"prototype_sha256\": \"91eb8d73442bffd109037f526344802876eff66f871e9641f8e190553547ac96\",\n",
+    "  \"scope\": \"handoff integrity only; no product tests or browser walkthrough\"\n",
+    "}\n"
+  ]
+}

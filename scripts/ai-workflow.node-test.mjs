@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
 import { createTransition, loadContract, validateWorkflow } from "./ai-workflow.mjs";
+import { validateImages } from "./ai-workflow-governance.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 
@@ -260,6 +261,7 @@ function withGitWorkflow(callback) {
   resetCopiedWorkflowToIdle(root);
   mkdirSync(join(root, "scripts"), { recursive: true });
   cpSync(join(repositoryRoot, "scripts", "ai-workflow.mjs"), join(root, "scripts", "ai-workflow.mjs"));
+  cpSync(join(repositoryRoot, "scripts", "ai-workflow-governance.mjs"), join(root, "scripts", "ai-workflow-governance.mjs"));
   const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
   git("init");
   git("config", "user.email", "workflow-test@example.invalid");
@@ -1023,5 +1025,362 @@ test("CLI records role artifacts, verification, completion, and terminal archive
     assert.equal(JSON.parse(readFileSync(join(archived, "ARCHIVE_MANIFEST.json"), "utf8")).last_event_id, `${id}:0014`);
     assert.equal(idleState(root).status, "idle");
     assert.deepEqual(validateWorkflow(root), []);
+  });
+});
+
+// All governance fixtures below are freshly synthesized from templates and the
+// vocabulary contract. No real R3 state/events/decisions/history is used.
+function withGovernance(callback) {
+  const root = mkdtempSync(join(tmpdir(), "life-os-governance-synthetic-"));
+  mkdirSync(join(root, ".ai/workflow"), { recursive: true });
+  cpSync(join(repositoryRoot, ".ai/templates"), join(root, ".ai/templates"), { recursive: true });
+  copyFileSync(join(repositoryRoot, ".ai/workflow/WORKFLOW_CONTRACT.json"), join(root, ".ai/workflow/WORKFLOW_CONTRACT.json"));
+  resetCopiedWorkflowToIdle(root);
+  mkdirSync(join(root, "scripts"));
+  for (const name of ["ai-workflow.mjs", "ai-workflow-governance.mjs"]) copyFileSync(join(repositoryRoot, "scripts", name), join(root, "scripts", name));
+  const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+  git("init"); git("config", "user.email", "synthetic@example.invalid"); git("config", "user.name", "Synthetic fixture"); git("add", "."); git("commit", "-m", "fresh synthetic fixture only");
+  try {
+    const id = "synthetic-r3-schema-gate";
+    const run = (...args) => { const r = runWorkflow(root, ...args); assert.equal(r.status, 0, r.stderr); return r; };
+    run("start", "--sprint-id", id, "--mission-title", "Synthetic unresolved schema");
+    completeCurrentMission(root);
+    run("record-artifact", "--artifact", "current_mission", "--status", "ready", "--expected-sequence", "1");
+    run("transition", "--to", "product_review", "--expected-sequence", "2");
+    completeOpenDecision(root, id);
+    run("record-artifact", "--artifact", "decision_required", "--status", "open", "--expected-sequence", "3");
+    run("transition", "--to", "human_decision_required", "--resume-phase", "engineering_planning", "--decision-ids", "SYNTHETIC-SCHEMA-UNRESOLVED", "--reason", "Synthetic schema unresolved; ADR remains Proposed", "--expected-sequence", "4");
+    const request = {
+      format: "life-os/sprint-disposition-v1", disposition: "cancelled", sprint_id: id,
+      expected_sequence: 5, scope: "cancel-current-sprint-only", authorization_source: "direct-founder-chat",
+      authorization_reference: "SYNTHETIC-FOUNDER-TEST-ONLY", exact_founder_response: "SYNTHETIC ONLY: cancel this sprint; schema unresolved, no ADR acceptance or product authority.",
+      retained_constraints: { schema_decision: "unresolved", adr_status: "unchanged", product_authority: "none" },
+    };
+    const evidencePath = join(root, "synthetic-disposition.json");
+    const put = () => writeFileSync(evidencePath, `${JSON.stringify(request, null, 2)}\n`);
+    put();
+    const args = () => ["cancel-sprint", "--sprint-id", id, "--expected-sequence", String(request.expected_sequence), "--evidence", "synthetic-disposition.json", "--evidence-sha256", digestBytes(readFileSync(evidencePath)), "--founder-response", request.exact_founder_response, "--scope", request.scope];
+    callback({ root, run, id, request, put, args });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}
+const currentBytes = (root) => Object.fromEntries(readdirSync(join(root, ".ai/workflow"), { withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => [entry.name, digestBytes(readFileSync(join(root, ".ai/workflow", entry.name)))]));
+function pendingRecord(root) {
+  const path = join(root, ".ai/workflow/.governance-operation/operation.json");
+  return { path, bytes: readFileSync(path), hash: digestBytes(readFileSync(path)), record: JSON.parse(readFileSync(path, "utf8")) };
+}
+function injectGovernance(root, args, point, mode = "KILL") {
+  const result = spawnSync(process.execPath, [join(root, "scripts/ai-workflow.mjs"), ...args], {
+    cwd: root, encoding: "utf8", env: { ...process.env, NODE_ENV: "test", [`LIFE_OS_GOVERNANCE_${mode}_AT`]: point },
+  });
+  process.stdout.write(`${JSON.stringify({ governance_fault: point, mode, status: result.status, signal: result.signal, stderr: result.stderr.trim() })}\n`);
+  if (mode === "KILL") { assert.equal(result.signal, "SIGKILL"); assert.equal(result.status, null); }
+  else { assert.equal(result.status, 1); assert.match(result.stderr, /Injected governance failure/); }
+  const output = process.env.LIFE_OS_GOVERNANCE_EVIDENCE_DIRECTORY;
+  const kind = args[0] === "cancel-sprint" ? "cancel" : args[0];
+  if (output && mode === "KILL" && ((kind === "cancel" && point === "write:EVENTS.jsonl") || (kind === "archive" && point === "write:WORKFLOW_STATE.json"))) {
+    const destination = join(output, `${kind}-interrupted`);
+    cpSync(join(root, ".ai/workflow"), destination, { recursive: true });
+    writeFileSync(join(output, `${kind}-OBSERVATION.json`), JSON.stringify({ command: args, point, mode, status: result.status, signal: result.signal, operation_sha256: pendingRecord(root).hash }, null, 2));
+  }
+  return result;
+}
+function resumeGovernance(f, env) {
+  const hash = pendingRecord(f.root).hash;
+  const args = ["recover-governance", "--operation-sha256", hash];
+  if (env) return injectGovernance(f.root, args, env.point, env.mode);
+  f.run(...args);
+  assert.deepEqual(validateWorkflow(f.root), []);
+  assert.equal(readdirSync(join(f.root, ".ai/workflow")).includes(".governance-operation"), false);
+}
+
+test("disposition cancels unresolved schema without resolving it, granting PASS, or changing historical artifacts", () => {
+  withGovernance((f) => {
+    const before = readState(f.root), oldFiles = currentBytes(f.root), prefix = pairBytes(f.root)[1];
+    const resume = runWorkflow(f.root, "transition", "--to", "engineering_planning", "--decision-reference", "pretend", "--expected-sequence", "5");
+    assert.equal(resume.status, 1); assert.match(resume.stderr, /recorded resolution/);
+    for (const to of ["failed", "cancelled"]) {
+      assert.equal(runWorkflow(f.root, "transition", "--to", to, "--expected-sequence", "5").status, 1);
+      assert.deepEqual(currentBytes(f.root), oldFiles);
+    }
+    f.run(...f.args());
+    const after = readState(f.root);
+    assert.equal(after.status, "cancelled"); assert.equal(after.decision_resolution, null);
+    for (const key of ["verification", "active_decision_ids", "blocked_phase", "resume_phase", "blocking_reason", "last_completed_phase", "artifacts"]) assert.deepEqual(after[key], before[key]);
+    assert.deepEqual(after.sprint_disposition.checkpoint, before);
+    assert.ok(pairBytes(f.root)[1].startsWith(prefix));
+    for (const name of Object.keys(oldFiles).filter((name) => !["WORKFLOW_STATE.json", "EVENTS.jsonl"].includes(name))) assert.equal(currentBytes(f.root)[name], oldFiles[name]);
+    assert.deepEqual(validateWorkflow(f.root), []);
+    assert.equal(runWorkflow(f.root, ...f.args()).status, 1);
+    assert.equal(runWorkflow(f.root, "transition", "--to", "engineering_planning", "--expected-sequence", "6").status, 1);
+    const statePath = join(f.root, ".ai/workflow/WORKFLOW_STATE.json");
+    after.decision_resolution = { status: "resolved" };
+    writeFileSync(statePath, JSON.stringify(after));
+    assert.match(validateWorkflow(f.root).join("\n"), /preserve decisions/);
+  });
+});
+
+test("disposition refuses missing authority, stale coordinates, changed hash and scope without any state/artifact writes", () => {
+  withGovernance((f) => {
+    const before = currentBytes(f.root);
+    assert.equal(runWorkflow(f.root, "cancel-sprint").status, 1); assert.deepEqual(currentBytes(f.root), before);
+    const replace = (args, key, value) => { const copy = [...args]; copy[copy.indexOf(key) + 1] = value; return copy; };
+    for (const [key, value] of [["--evidence", "missing.json"], ["--sprint-id", "other-sprint"], ["--expected-sequence", "4"], ["--evidence-sha256", "0".repeat(64)], ["--scope", "cancel-and-accept-schema"], ["--founder-response", "different"], ["--evidence", ".ai/workflow/DECISION_REQUIRED.md"]]) {
+      const result = runWorkflow(f.root, ...replace(f.args(), key, value));
+      assert.equal(result.status, 1, `${key}: ${result.stderr}`); assert.deepEqual(currentBytes(f.root), before);
+    }
+    const valid = structuredClone(f.request);
+    for (const [key, value] of [["authorization_source", "agent-recommendation"], ["authorization_reference", ""], ["exact_founder_response", ""], ["sprint_id", "wrong-sprint"], ["expected_sequence", 4], ["scope", "complete-product"], ["retained_constraints", {}]]) {
+      Object.assign(f.request, valid, { [key]: value }); f.put();
+      assert.equal(runWorkflow(f.root, ...f.args()).status, 1, key); assert.deepEqual(currentBytes(f.root), before);
+    }
+    Object.assign(f.request, valid, { extra_authority: "accept ADR" }); f.put();
+    assert.equal(runWorkflow(f.root, ...f.args()).status, 1); assert.deepEqual(currentBytes(f.root), before);
+    delete f.request.extra_authority;
+    Object.assign(f.request, valid); f.put(); const oldArgs = f.args();
+    writeFileSync(join(f.root, "synthetic-disposition.json"), "changed after hash");
+    assert.equal(runWorkflow(f.root, ...oldArgs).status, 1); assert.deepEqual(currentBytes(f.root), before);
+  });
+});
+
+for (const point of ["prepared", "before-write:EVENTS.jsonl", "before-rename:EVENTS.jsonl", "write:EVENTS.jsonl", "before-write:WORKFLOW_STATE.json", "before-rename:WORKFLOW_STATE.json", "write:WORKFLOW_STATE.json", "verified"]) {
+  test(`SIGKILL cancellation at ${point} preserves recovery and blocks all mutations`, () => withGovernance((f) => {
+    const before = readState(f.root);
+    injectGovernance(f.root, f.args(), point);
+    const hash = pendingRecord(f.root).hash, bytes = currentBytes(f.root);
+    for (const command of ["start", "transition", "resolve-decision", "archive", "cancel-sprint", "record-artifact", "record-verification", "refresh-verification-for-resume", "start-terminal-follow-up", "record-scoped-manual-verification"]) {
+      const result = runWorkflow(f.root, command); assert.equal(result.status, 1); assert.match(result.stderr, /Governance recovery required/); assert.deepEqual(currentBytes(f.root), bytes);
+    }
+    assert.equal(runWorkflow(f.root, "validate").status, 1);
+    assert.equal(runWorkflow(f.root, "recover-governance", "--operation-sha256", "0".repeat(64)).status, 1);
+    assert.equal(pendingRecord(f.root).hash, hash);
+    resumeGovernance(f);
+    assert.deepEqual(readState(f.root).sprint_disposition.checkpoint, before);
+    assert.equal(readState(f.root).status, "cancelled");
+  }));
+}
+
+test("recovery failure and a second SIGKILL preserve the sole record and permit exact reentry", () => withGovernance((f) => {
+  injectGovernance(f.root, f.args(), "write:EVENTS.jsonl");
+  const hash = pendingRecord(f.root).hash;
+  resumeGovernance(f, { point: "before-write:WORKFLOW_STATE.json", mode: "FAIL" });
+  assert.equal(pendingRecord(f.root).hash, hash);
+  resumeGovernance(f, { point: "write:WORKFLOW_STATE.json", mode: "KILL" });
+  assert.equal(pendingRecord(f.root).hash, hash);
+  resumeGovernance(f);
+  assert.equal(runWorkflow(f.root, "recover-governance", "--operation-sha256", hash).status, 1);
+}));
+
+const archiveFileNames = ["CURRENT_MISSION.md", "PRODUCT_REVIEW.md", "ENGINEERING_PLAN.md", "ENGINEERING_REPORT.md", "THEORY_ALIGNMENT_REVIEW.md", "DECISION_REQUIRED.md", "SPRINT_REPORT.md", "WORKFLOW_STATE.json", "EVENTS.jsonl", "WORKFLOW_CONTRACT.json", "SPRINT_DISPOSITION.json", "CANCELLATION_CHECKPOINT.json", "SPRINT_DISPOSITION_EVIDENCE.json", "ARCHIVE_MANIFEST.json"];
+const resetFileNames = archiveFileNames.slice(0, 9);
+for (const point of ["prepared", ...archiveFileNames.map((name) => `copy:${name}`), "before-publish", "published", ...resetFileNames.flatMap((name) => [`before-write:${name}`, `write:${name}`]), "verified"]) {
+  test(`SIGKILL archive at ${point} retains verified checkpoint and resumes only this reset`, () => withGovernance((f) => {
+    const gate = readState(f.root), originalDecision = readFileSync(join(f.root, ".ai/workflow/DECISION_REQUIRED.md")), prefix = pairBytes(f.root)[1];
+    f.run(...f.args());
+    const cancelled = currentBytes(f.root);
+    injectGovernance(f.root, ["archive"], point);
+    const attempt = runWorkflow(f.root, "start", "--sprint-id", "new-synthetic-mission", "--mission-title", "Must refuse partial reset");
+    assert.equal(attempt.status, 1); assert.match(attempt.stderr, /Governance recovery required/);
+    resumeGovernance(f);
+    const archived = join(f.root, ".ai/workflow/HISTORY", f.id);
+    const manifest = JSON.parse(readFileSync(join(archived, "ARCHIVE_MANIFEST.json")));
+    for (const name of manifest.files) assert.equal(digestBytes(readFileSync(join(archived, name))), manifest.hashes[name]);
+    for (const [name, hash] of Object.entries(cancelled)) assert.equal(digestBytes(readFileSync(join(archived, name))), hash);
+    assert.deepEqual(JSON.parse(readFileSync(join(archived, "CANCELLATION_CHECKPOINT.json"))), gate);
+    assert.deepEqual(readFileSync(join(archived, "DECISION_REQUIRED.md")), originalDecision);
+    assert.ok(readFileSync(join(archived, "EVENTS.jsonl"), "utf8").startsWith(prefix));
+    assert.equal(manifest.external_logs.status, "not_acquired");
+    const idle = readState(f.root); assert.equal(idle.status, "idle"); assert.equal(idle.verification.repository_verify.status, "not_run");
+    assert.equal(idle.sprint_disposition, undefined);
+    assert.equal(runWorkflow(f.root, "archive").status, 1);
+    f.run("start", "--sprint-id", "new-synthetic-mission", "--mission-title", "New bounded mission");
+    const fresh = readState(f.root); assert.equal(fresh.status, "intake"); assert.equal(fresh.decision_resolution, null); assert.equal(fresh.verification.repository_verify.status, "not_run"); assert.deepEqual(fresh.active_decision_ids, []);
+    assert.equal(runWorkflow(f.root, "transition", "--to", "implementation", "--expected-sequence", "1").status, 1);
+  }));
+}
+
+test("unknown current bytes, operation files, replacement hashes and archive conflicts refuse without writes or deleting recovery", () => {
+  for (const damage of ["current", "unknown-current-file", "operation-file", "replacement", "record", "published-file", "published-hash", "staged-file", "receipt-conflict"]) withGovernance((f) => {
+    f.run(...f.args());
+    injectGovernance(f.root, ["archive"], damage.startsWith("published") ? "published" : "prepared");
+    const p = pendingRecord(f.root), op = join(f.root, ".ai/workflow/.governance-operation"), archive = join(f.root, ".ai/workflow/HISTORY", f.id);
+    if (damage === "unknown-current-file") writeFileSync(join(f.root, ".ai/workflow/unknown-original.txt"), "preserve unknown control-plane file");
+    if (damage === "current") writeFileSync(join(f.root, ".ai/workflow/DECISION_REQUIRED.md"), "unknown changes must survive");
+    if (damage === "operation-file") writeFileSync(join(op, "unknown.txt"), "preserve");
+    if (damage === "replacement") writeFileSync(join(op, "replacement"), "unknown replacement");
+    if (damage === "record") writeFileSync(p.path, `${p.bytes} `);
+    if (damage === "published-file") writeFileSync(join(archive, "unknown.txt"), "preserve");
+    if (damage === "published-hash") writeFileSync(join(archive, "DECISION_REQUIRED.md"), "preserve unknown archive bytes");
+    if (damage === "staged-file") { mkdirSync(join(op, "archive")); writeFileSync(join(op, "archive/unknown.txt"), "preserve"); }
+    if (damage === "receipt-conflict") mkdirSync(join(f.root, ".ai/workflow/.governance-receipts", p.record.id), { recursive: true });
+    const before = currentBytes(f.root), retained = readFileSync(p.path);
+    const result = runWorkflow(f.root, "recover-governance", "--operation-sha256", p.hash);
+    assert.equal(result.status, 1, damage);
+    assert.deepEqual(currentBytes(f.root), before, damage);
+    assert.deepEqual(readFileSync(p.path), retained, damage);
+  });
+});
+
+test("prior repository PASS stays historical after cancellation/archive and is not inherited by a new mission", () => withGovernance((f) => {
+  resetCopiedWorkflowToIdle(f.root); // only this freshly synthesized fixture
+  prepareResolvedTheoryDecision(f.root, { sprintId: f.id, resolved: false, resumePhase: "engineering_planning" });
+  const before = readState(f.root);
+  assert.equal(before.verification.repository_verify.status, "passed");
+  f.request.expected_sequence = before.state_revision; f.put();
+  f.run(...f.args());
+  assert.deepEqual(readState(f.root).verification, before.verification);
+  f.run("archive");
+  f.run("start", "--sprint-id", "fresh-independent-mission", "--mission-title", "No inherited authority");
+  const next = readState(f.root);
+  assert.equal(next.verification.repository_verify.status, "not_run"); assert.equal(next.verification.manual_ui.status, "not_run");
+  assert.equal(next.decision_resolution, null); assert.equal(next.sprint_disposition, undefined);
+}));
+
+for (const point of ["copy:CURRENT_MISSION.md", "before-publish", "before-rename:CURRENT_MISSION.md", "before-rename:WORKFLOW_STATE.json", "before-rename:EVENTS.jsonl"]) {
+  test(`archive exception at ${point} retains all recovery images and safely completes on reentry`, () => withGovernance((f) => {
+    f.run(...f.args());
+    injectGovernance(f.root, ["archive"], point, "FAIL");
+    const record = pendingRecord(f.root);
+    assert.equal(runWorkflow(f.root, "archive").status, 1);
+    resumeGovernance(f);
+    assert.equal(readState(f.root).status, "idle");
+    const receipts = join(f.root, ".ai/workflow/.governance-receipts", record.record.id, "operation.json");
+    assert.deepEqual(readFileSync(receipts), record.bytes);
+  }));
+}
+
+test("unsafe idle candidates and duplicate sprint archive names refuse before creating an operation", () => withGovernance((f) => {
+  f.run(...f.args()); const before = currentBytes(f.root);
+  const path = join(f.root, ".ai/templates/workflow-state.template.json"), template = readFileSync(path);
+  const state = JSON.parse(template); state.verification.repository_verify.status = "passed";
+  writeFileSync(path, JSON.stringify(state));
+  assert.equal(runWorkflow(f.root, "archive").status, 1); assert.deepEqual(currentBytes(f.root), before);
+  assert.equal(readdirSync(join(f.root, ".ai/workflow")).includes(".governance-operation"), false);
+  writeFileSync(path, template);
+  mkdirSync(join(f.root, ".ai/workflow/HISTORY", f.id), { recursive: true });
+  writeFileSync(join(f.root, ".ai/workflow/HISTORY", f.id, "unique-original.txt"), "preserve original archive");
+  assert.equal(runWorkflow(f.root, "archive").status, 1); assert.deepEqual(currentBytes(f.root), before);
+  assert.equal(readFileSync(join(f.root, ".ai/workflow/HISTORY", f.id, "unique-original.txt"), "utf8"), "preserve original archive");
+}));
+
+test("recovery refuses damaged internal images even with freshly supplied record hash, and preserves incomplete preparations", () => withGovernance((f) => {
+  injectGovernance(f.root, f.args(), "prepared");
+  const p = pendingRecord(f.root), before = currentBytes(f.root);
+  p.record.after["WORKFLOW_STATE.json"].sha256 = "0".repeat(64);
+  writeFileSync(p.path, JSON.stringify(p.record));
+  assert.equal(runWorkflow(f.root, "recover-governance", "--operation-sha256", pendingRecord(f.root).hash).status, 1);
+  assert.deepEqual(currentBytes(f.root), before);
+  writeFileSync(p.path, p.bytes);
+  mkdirSync(join(f.root, ".ai/workflow/.governance-preparing-incomplete"));
+  writeFileSync(join(f.root, ".ai/workflow/.governance-preparing-incomplete/unique.txt"), "unique incomplete preparation");
+  assert.equal(runWorkflow(f.root, "start").status, 1);
+  assert.equal(runWorkflow(f.root, "recover-governance", "--operation-sha256", p.hash).status, 1);
+  assert.deepEqual(readFileSync(p.path), p.bytes); assert.deepEqual(currentBytes(f.root), before);
+}));
+
+test("dangling directory symlinks and symlink control files are unknown content and refuse without writes", () => {
+  for (const target of ["HISTORY", ".governance-receipts", "EVENTS.jsonl"]) withGovernance((f) => {
+    injectGovernance(f.root, f.args(), "prepared");
+    const p = pendingRecord(f.root), path = join(f.root, ".ai/workflow", target);
+    if (target === "EVENTS.jsonl") rmSync(path);
+    symlinkSync(join(f.root, "missing-destination"), path);
+    const result = runWorkflow(f.root, "recover-governance", "--operation-sha256", p.hash);
+    assert.equal(result.status, 1); assert.deepEqual(readFileSync(p.path), p.bytes);
+    assert.equal(runWorkflow(f.root, "start").status, 1);
+  });
+});
+
+function recoveryImage(record, side, name, bytes) {
+  const data = Buffer.from(bytes);
+  record[side][name] = { sha256: digestBytes(data), base64: data.toString("base64") };
+}
+function decodedRecoveryImages(record, side) {
+  return Object.fromEntries(Object.entries(record[side]).map(([name, image]) => [name, Buffer.from(image.base64, "base64")]));
+}
+function workflowTreeHashes(root) {
+  const entries = {};
+  const walk = (path, prefix = "") => {
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      const name = `${prefix}${entry.name}`;
+      if (entry.isDirectory()) { entries[`${name}/`] = null; walk(join(path, entry.name), `${name}/`); }
+      else entries[name] = digestBytes(readFileSync(join(path, entry.name)));
+    }
+  };
+  walk(join(root, ".ai/workflow"));
+  return entries;
+}
+function assertRecoveryContradictionRefused(f, record, expectedMessage) {
+  const before = decodedRecoveryImages(record, "before");
+  const after = { ...before, ...decodedRecoveryImages(record, "after") };
+  // Both snapshots must independently pass the real validator. Neither a bad
+  // image hash nor an already invalid workflow may cause the expected refusal.
+  validateImages(before, validateWorkflow);
+  validateImages(after, validateWorkflow);
+  for (const [name, bytes] of Object.entries(before)) assert.deepEqual(readFileSync(join(f.root, ".ai/workflow", name)), bytes);
+  const path = pendingRecord(f.root).path;
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+  const matchingHash = digestBytes(readFileSync(path));
+  const retained = workflowTreeHashes(f.root);
+  const result = runWorkflow(f.root, "recover-governance", "--operation-sha256", matchingHash);
+  process.stdout.write(`${JSON.stringify({ regression: "R3-GOV-01", expected_refusal: expectedMessage.source, matching_operation_sha256: matchingHash, status: result.status, signal: result.signal, stderr: result.stderr.trim() })}\n`);
+  assert.equal(result.status, 1, "Individually valid but contradictory images must refuse even with a matching operation hash");
+  assert.match(result.stderr, expectedMessage);
+  assert.deepEqual(workflowTreeHashes(f.root), retained, "No control-plane file, pending record or recovery material may change");
+  assert.equal(pendingRecord(f.root).hash, matchingHash);
+  assert.match(runWorkflow(f.root, "start").stderr, /Governance recovery required/);
+}
+
+test("R3-GOV-01 refuses cancellation recovery when before verification differs from after checkpoint", () => withGovernance((f) => {
+  injectGovernance(f.root, f.args(), "prepared");
+  const { record } = pendingRecord(f.root);
+  const prior = JSON.parse(Buffer.from(record.before["WORKFLOW_STATE.json"].base64, "base64"));
+  const after = JSON.parse(Buffer.from(record.after["WORKFLOW_STATE.json"].base64, "base64"));
+  prior.verification.repository_verify = {
+    status: "failed", command: "synthetic historical verifier", exit_code: 1,
+    completed_at: "2026-01-01T00:00:00.000Z", repository_head: prior.repository_head,
+    working_tree_digest: prior.working_tree_digest,
+  };
+  assert.notDeepEqual(prior.verification, after.sprint_disposition.checkpoint.verification);
+  const bytes = `${JSON.stringify(prior, null, 2)}\n`;
+  recoveryImage(record, "before", "WORKFLOW_STATE.json", bytes);
+  writeFileSync(join(f.root, ".ai/workflow/WORKFLOW_STATE.json"), bytes); // synthetic fixture only
+  assertRecoveryContradictionRefused(f, record, /Cancellation checkpoint does not match before state/);
+}));
+
+test("R3-GOV-01 refuses valid before and after chains with a different raw event prefix", () => withGovernance((f) => {
+  injectGovernance(f.root, f.args(), "prepared");
+  const { record } = pendingRecord(f.root);
+  const prefix = Buffer.from(record.before["EVENTS.jsonl"].base64, "base64");
+  const after = Buffer.from(record.after["EVENTS.jsonl"].base64, "base64");
+  // Legal JSON whitespace preserves every event object and event_hash; it
+  // changes only the historical bytes. A semantic event comparison misses it.
+  const changed = Buffer.concat([Buffer.from(" "), after]);
+  assert.deepEqual(JSON.parse(changed.toString("utf8").split("\n")[0]), JSON.parse(prefix.toString("utf8").split("\n")[0]));
+  assert.equal(changed.subarray(0, prefix.length).equals(prefix), false);
+  recoveryImage(record, "after", "EVENTS.jsonl", changed);
+  assertRecoveryContradictionRefused(f, record, /Cancellation events do not preserve before prefix/);
+}));
+
+test("R3-GOV-01 refuses extra appended event-log lines even when both snapshots validate", () => withGovernance((f) => {
+  injectGovernance(f.root, f.args(), "prepared");
+  const { record } = pendingRecord(f.root);
+  const after = Buffer.from(record.after["EVENTS.jsonl"].base64, "base64");
+  recoveryImage(record, "after", "EVENTS.jsonl", Buffer.concat([after, Buffer.from("\n")]));
+  assertRecoveryContradictionRefused(f, record, /Cancellation must append exactly one event line/);
+}));
+
+test("R3-GOV-01 preserves original CRLF and unterminated event prefixes during normal recovery", () => {
+  for (const ending of ["crlf", "unterminated"]) withGovernance((f) => {
+    const path = join(f.root, ".ai/workflow/EVENTS.jsonl");
+    const original = readFileSync(path, "utf8");
+    const prefix = Buffer.from(ending === "crlf" ? original.replaceAll("\n", "\r\n") : original.trimEnd());
+    writeFileSync(path, prefix);
+    const before = readState(f.root);
+    assert.deepEqual(validateWorkflow(f.root), []);
+    injectGovernance(f.root, f.args(), "write:EVENTS.jsonl");
+    resumeGovernance(f);
+    const events = readFileSync(path);
+    assert.ok(events.subarray(0, prefix.length).equals(prefix), ending);
+    assert.deepEqual(readState(f.root).sprint_disposition.checkpoint, before);
+    assert.equal(events.toString("utf8").trimEnd().split(/\r?\n/).length, before.state_revision + 1);
   });
 });

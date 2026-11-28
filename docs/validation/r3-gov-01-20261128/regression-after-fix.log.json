@@ -1,0 +1,28 @@
+{
+  "format": "life-os/verification-output-v1",
+  "encoding": "utf-8",
+  "byte_length": 1852,
+  "sha256": "52394b8e433360924f82c448273075a883798bf2d1612b5cda375f4cbdfca56f",
+  "utf8_lines": [
+    "{\"governance_fault\":\"prepared\",\"mode\":\"KILL\",\"status\":null,\"signal\":\"SIGKILL\",\"stderr\":\"\"}\n",
+    "{\"regression\":\"R3-GOV-01\",\"expected_refusal\":\"Cancellation checkpoint does not match before state\",\"matching_operation_sha256\":\"8e03b20983aff37391a3c7904b5e899a0dada333c60d58f9b58a0f584f8c566f\",\"status\":1,\"signal\":null,\"stderr\":\"Cancellation checkpoint does not match before state\"}\n",
+    "{\"governance_fault\":\"prepared\",\"mode\":\"KILL\",\"status\":null,\"signal\":\"SIGKILL\",\"stderr\":\"\"}\n",
+    "{\"regression\":\"R3-GOV-01\",\"expected_refusal\":\"Cancellation events do not preserve before prefix\",\"matching_operation_sha256\":\"417166a4112889f3ce6e9cbcc0ed414835060af29c65a100a186e20d280a595a\",\"status\":1,\"signal\":null,\"stderr\":\"Cancellation events do not preserve before prefix\"}\n",
+    "{\"governance_fault\":\"prepared\",\"mode\":\"KILL\",\"status\":null,\"signal\":\"SIGKILL\",\"stderr\":\"\"}\n",
+    "{\"regression\":\"R3-GOV-01\",\"expected_refusal\":\"Cancellation must append exactly one event line\",\"matching_operation_sha256\":\"3f87290fdb669bec6ab68aefb526312feefce76253e95d3615c9aa60673577ac\",\"status\":1,\"signal\":null,\"stderr\":\"Cancellation must append exactly one event line\"}\n",
+    "{\"governance_fault\":\"write:EVENTS.jsonl\",\"mode\":\"KILL\",\"status\":null,\"signal\":\"SIGKILL\",\"stderr\":\"\"}\n",
+    "{\"governance_fault\":\"write:EVENTS.jsonl\",\"mode\":\"KILL\",\"status\":null,\"signal\":\"SIGKILL\",\"stderr\":\"\"}\n",
+    "✔ R3-GOV-01 refuses cancellation recovery when before verification differs from after checkpoint (579.54082ms)\n",
+    "✔ R3-GOV-01 refuses valid before and after chains with a different raw event prefix (511.175665ms)\n",
+    "✔ R3-GOV-01 refuses extra appended event-log lines even when both snapshots validate (499.859728ms)\n",
+    "✔ R3-GOV-01 preserves original CRLF and unterminated event prefixes during normal recovery (862.992846ms)\n",
+    "ℹ tests 4\n",
+    "ℹ suites 0\n",
+    "ℹ pass 4\n",
+    "ℹ fail 0\n",
+    "ℹ cancelled 0\n",
+    "ℹ skipped 0\n",
+    "ℹ todo 0\n",
+    "ℹ duration_ms 2552.991697\n"
+  ]
+}

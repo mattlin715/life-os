@@ -1,0 +1,14 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "--test-name-pattern=R3-GOV-01",
+    "scripts/ai-workflow.node-test.mjs"
+  ],
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "exit_code": 0,
+  "source_sha256": {
+    "scripts/ai-workflow-governance.mjs": "83d53e163a02605cb662d970731eae087a504e21451c0cf2e1a2e2e93a212ed1",
+    "scripts/ai-workflow.node-test.mjs": "63fd3f58975401d6b72d33b28a531f63e925a3acc2ca11502132d40d1a9cc913"
+  }
+}

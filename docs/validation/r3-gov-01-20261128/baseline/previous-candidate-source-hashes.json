@@ -1,0 +1,8 @@
+{
+  ".ai/README.md": "2197f416eeedf1c9b001cf9d2197cacb6986f85f7ba4a5d5f7f06f62c1db6f5a",
+  ".ai/workflow/WORKFLOW.md": "12e87e8df2d849525f94ae73719cdc2648ad7978960bfa4940d4ba2707ae5b3f",
+  "scripts/ai-workflow.mjs": "f6cf42f11a7c9ad7975397ad2436a2c0a8ce977a7d2efc9d4ecaa6a8100c3833",
+  "scripts/ai-workflow.node-test.mjs": "25fbc057173a6d6d5dde5efd18b76fb414dda3706773ce7161a07b63173df2d9",
+  ".ai/templates/sprint-disposition.template.json": "d32167c304ddc99f9ca44793e6d3abad2ccb3af3f1a21672f9440ea933a3447e",
+  "scripts/ai-workflow-governance.mjs": "3ad48c5a61545b6ecb8dc312d1690eee4d3b4c133c32d9c5b6a98695b63c8ab6"
+}

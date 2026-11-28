@@ -1,0 +1,29 @@
+{
+  "base_commit": "a9433c4e3a979110e5d159d60e2bfea6a536a1f2",
+  "branch": "codex/r3-gov-01-governance-candidate",
+  "staged_source_files": [
+    ".ai/README.md",
+    ".ai/workflow/WORKFLOW.md",
+    "scripts/ai-workflow.mjs",
+    "scripts/ai-workflow.node-test.mjs",
+    ".ai/templates/sprint-disposition.template.json",
+    "scripts/ai-workflow-governance.mjs"
+  ],
+  "staged_file_count_before_this_receipt": 48,
+  "staged_diff_check": {
+    "command": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "strict_utf8_and_marker_scan": "passed for every staged file",
+  "secret_like_filename_scan": "passed for every staged file",
+  "staged_bytes_equal_worktree": true,
+  "protected_files_unchanged": 652,
+  "scope": "six authorized governance files plus this evidence directory only"
+}

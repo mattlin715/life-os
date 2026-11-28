@@ -1,0 +1,78 @@
+[
+  {
+    "name": "legacy-archives",
+    "command": [
+      "node",
+      "/workspace/r3-gov-01-evidence/check-archives.mjs",
+      "/workspace/r3-governance-source",
+      "/workspace/r3-gov-01-evidence/legacy-archives.json"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "real-control-validate",
+    "command": [
+      "node",
+      "scripts/ai-workflow.mjs",
+      "validate"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "syntax-main",
+    "command": [
+      "node",
+      "--check",
+      "scripts/ai-workflow.mjs"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "syntax-helper",
+    "command": [
+      "node",
+      "--check",
+      "scripts/ai-workflow-governance.mjs"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "handoff",
+    "command": [
+      "python3",
+      "docs/handoffs/v15-cloud-20261126/verify_handoff.py"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "exit_code": 0
+  },
+  {
+    "name": "canonical",
+    "command": [
+      "powershell",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      ".\\scripts\\verify.ps1"
+    ],
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "launcher": "bash exec argv passthrough",
+    "exit_code": 127,
+    "verifier_exit_code": null,
+    "status": "blocked/not_run"
+  }
+]

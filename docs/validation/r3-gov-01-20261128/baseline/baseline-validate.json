@@ -1,0 +1,9 @@
+{
+  "command": [
+    "node",
+    "scripts/ai-workflow.mjs",
+    "validate"
+  ],
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "exit_code": 0
+}

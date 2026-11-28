@@ -271,3 +271,125 @@ the actual branch, HEAD, diff, and check output. Resume from the last phase whos
 evidence can be independently verified. Record discrepancies rather than
 guessing. Never reset, discard, or overwrite unrelated changes to force a clean
 state.
+
+## Independent sprint disposition and bounded recovery (2026-11-28)
+
+`cancel-sprint` is an explicit disposition path for an **unresolved**
+`human_decision_required` sprint. It does not use `resolve-decision` and does
+not relax ordinary `transition` (including `failed` or unresolved resume).
+It requires an independently authorized Founder disposition; merely reading
+this documentation, a template, a hash, a host PASS or a recommendation grants
+no authority. The tool checks integrity and exact scope, not human identity.
+
+The repository-relative JSON evidence has format
+`life-os/sprint-disposition-v1` (see the
+[unfilled template](../templates/sprint-disposition.template.json)). It must
+bind the exact `sprint_id`, integer `expected_sequence`,
+`disposition: cancelled`, `scope: cancel-current-sprint-only`,
+`authorization_source: direct-founder-chat`, a nonempty
+`authorization_reference`, `exact_founder_response`, and the exact
+`retained_constraints` object in that template. The command requires the same
+sprint, sequence, scope and response, plus SHA-256 of the evidence's exact bytes.
+Paths must be existing repository-contained files; current mutable workflow
+files cannot serve as authorization. Duplicate cancellation refuses.
+
+The optional `sprint_disposition` state field and `sprint_cancelled` hash-chained
+event contain the same disposition, raw evidence bytes/hash and complete
+pre-cancellation state checkpoint. Validation checks the projection and event
+prefix. Original events, decision Markdown, reports, active decision IDs,
+blocked/resume phases, blocking reason, last completed phase and verification
+history remain unchanged. Historical reports may still say
+`human_decision_required`: the separate disposition records how the sprint
+ended. This is cancellation, not completed work, PASS, product rejection,
+resolved schema, ADR acceptance, or permission for restricted capabilities.
+An unresolved gate in the checkpoint remains unresolved after disposition.
+No existing history is required to invent this optional evidence.
+
+### Archive format and interruption protocol
+
+New archives have manifest schema `2.0`, the existing `files` list and terminal
+coordinates, and `hashes` for every payload file. They retain all current
+artifacts, the complete event/verification history and contract. A new
+cancellation archive also contains `CANCELLATION_CHECKPOINT.json`,
+`SPRINT_DISPOSITION.json`, and the exact `SPRINT_DISPOSITION_EVIDENCE.json`.
+Manifest metadata is bound by the operation record hash; it cannot contain
+its own hash. An archive records external raw logs as `not_acquired` because
+this operation does not read or copy external log locations. Embedded old
+verification references are history, not proof that unavailable logs were
+archived. Existing manifest `1.0` archives remain untouched and readable;
+existing completed-sprint archive invocation remains supported.
+
+Cancellation and archive/reset use only one operation's persistent recovery
+record at `.ai/workflow/.governance-operation/operation.json`. It contains fixed
+before/after bytes and hashes. Recovery requires its exact SHA-256. Preparation
+validates the destination images in a disposable isolated candidate before
+publishing the record. Archive preparation also validates a complete terminal
+archive and idle candidate **before changing any current file**. Copy and
+publication verify all archive bytes; publication precedes every reset write.
+The journal blocks all ordinary CLI mutations and `start`, even if a partial
+reset already looks idle. `validate` reports recovery required; `status` remains
+read-only. This record is not an alternative mission or a parallel workflow.
+
+Recovery completes the recorded forward operation only. Before any publication
+or control-plane write it checks all current files against the known before or
+after image, verifies the record and its internal hashes, validates both
+candidates, and checks staged/published archives for unknown files or changed
+hashes. For cancellation, the after disposition checkpoint must deeply equal
+**the complete before state**, including historical verification. The after
+event bytes must retain the exact before event prefix and append only one
+legal `sprint_cancelled` event, with a single boundary newline if the old log
+was unterminated. Both images being independently valid, or supplying a newly
+matching operation hash, cannot replace these cross-image checks (R3-GOV-01).
+Contradictions refuse before any current-file write and preserve pending and
+all recovery materials. It refuses unknown content, conflicts, malformed records, duplicate
+archives and unexpected operation files. There is no force, discard, automatic
+rollback or arbitrary-path recovery. On a second interruption or error retain
+the record and every known recovery image. Successfully finishing moves the
+record to `.governance-receipts/<operation-id>/`; it never deletes the only
+recovery copy. No command starts a mission as a side effect.
+
+This remains a local, single-writer operation, without a multi-task scheduler,
+concurrent lock/lease protocol or general backup framework. Tests cover Linux
+process termination (`SIGKILL`) and injected exceptions; file fsync and atomic
+renames do not establish cross-platform power-loss durability. A crash during
+initial record creation can leave `.governance-preparing-*`; mutations refuse
+and the incomplete/unknown copy is preserved for independent review, with no
+automatic removal. Unknown or damaged recovery content requires independent
+review; do not hand-edit state, delete recovery files, or force a new mission.
+
+### Future authorized operation runbook — not executed by this maintenance
+
+1. Obtain a separate explicit authorization for real disposition, archive/reset,
+   and any recovery. Review the tool candidate independently first. Recheck
+   exact HEAD, index/worktree, single writer, current sprint/sequence,
+   unresolved schema, ADR status, protection hashes, reports and historical
+   verification. Do not execute against a copied real control plane as a test.
+2. Save actual independent Founder disposition evidence in an appropriate
+   repository-relative evidence file. Fill no field by inference; compare its
+   bytes, scope and reference to the authorization. Keep a read-only inventory
+   of the original control plane and archives outside the repository.
+3. Invoke the official tool with explicit bindings, only after that authorization:
+
+   ```text
+   node scripts/ai-workflow.mjs cancel-sprint --sprint-id <exact-id> --expected-sequence <n> --evidence <relative-json> --evidence-sha256 <sha256> --founder-response <exact-text> --scope cancel-current-sprint-only
+   node scripts/ai-workflow.mjs validate
+   ```
+
+4. Compare original event prefix, decision, reports and verification, inspect
+   the new disposition/checkpoint, then invoke `node scripts/ai-workflow.mjs
+   archive` only within the independently authorized archive/reset scope. Check
+   each manifest hash and the validated idle result; retain external evidence.
+5. If interrupted, stop other writers and preserve the full operation directory.
+   Read and independently inspect `operation.json`; compute its SHA-256 and
+   compare it to the intended operation/sprint/sequence and before/after
+   inventory. With separately applicable recovery authorization use:
+
+   ```text
+   node scripts/ai-workflow.mjs recover-governance --operation-sha256 <exact-record-sha256>
+   node scripts/ai-workflow.mjs validate
+   ```
+
+   Refusal means preserve evidence and stop for review. Successful reset is
+   idle only. A new mission requires its own explicit scope, fresh reviews and
+   verification; it inherits no R3 PASS, unresolved-decision resolution or A-F1
+   product authority. Do not run `start` merely because reset succeeded.

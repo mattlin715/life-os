@@ -1,0 +1,11 @@
+{
+  "command": "node --test scripts/ai-workflow.node-test.mjs",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "exit_code": 1,
+  "source_hashes": {
+    "scripts/ai-workflow.mjs": "f6cf42f11a7c9ad7975397ad2436a2c0a8ce977a7d2efc9d4ecaa6a8100c3833",
+    "scripts/ai-workflow-governance.mjs": "d388da0d06110488163ae4f85f879c144d4683514dffd6b929f381646b777ba9",
+    "scripts/ai-workflow.node-test.mjs": "25fbc057173a6d6d5dde5efd18b76fb414dda3706773ce7161a07b63173df2d9"
+  },
+  "test_only_evidence_directory": "/workspace/r3-governance-delivery/synthetic-interruptions"
+}

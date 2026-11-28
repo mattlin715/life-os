@@ -1,0 +1,9 @@
+{
+  "format": "life-os/verification-output-v1",
+  "encoding": "utf-8",
+  "byte_length": 54,
+  "sha256": "7f314fb730cb7b0db69b9ce27f72cb8d48b1a1e61a5b2f44519be59ef3dd3cda",
+  "utf8_lines": [
+    "canonical-launch: line 1: exec: powershell: not found\n"
+  ]
+}

@@ -1,0 +1,355 @@
+{
+  "archives": 58,
+  "all_verdicts_unchanged": true,
+  "baseline_valid": 58,
+  "results": [
+    {
+      "archive": "2026-07-18-phase-3c-post-slice0-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-18-pilot-1-dev-runbook",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-18-pilot-2-interruption-recovery",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-18-pilot-3-human-decision-resume",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-18-pilot-4-schema-v5-slice-0",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-19-harness-learning-slice-1b-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-19-phase-3c-post-slice1b2-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-19-phase-3c-slice-1b2-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-24-phase-3c-post-slice2a-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-25-phase-3c-post-slice2b1-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-26-phase-3-exit-time-range-retrieval-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-26-phase-3c-post-slice2b2-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-26-phase-3c-post-slice2b3-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-26-phase-3c-post-slice3a-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-27-phase-3-exit-provenance-inspector-p1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-30-phase-3c-slice4a-experience-v5-write-parity",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-30-phase-3c-slice4b1-evidence-review-write-parity",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-07-31-phase-3c-slice4b2-reflection-write-parity-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-01-phase-3c-slice4b3-pattern-write-parity-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-01-phase-3c-slice4b4-context-recovery-write-parity-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-02-phase-3c-slice4c1-confirmed-evidence-lifecycle-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-02-phase-3c-slice4c2-phase3b-v5-creation-parity-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-03-phase-3c-slice4c3-confirmed-pattern-lifecycle-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-04-phase-3c-slice4c4-answered-reflection-lifecycle-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-09-phase-3c-remaining-lifecycle-parity-closure-audit",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-09-phase-3c-slice4c6-legacy-v4-baseline-design-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-09-phase-3c-slice4c6b-legacy-successor-parity",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-10-daily-reflection-core-ux-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-10-phase-3c-database-readiness-inspector-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-10-phase-3c-post-slice4-production-readiness-gate",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-daily-reflection-completion-ux-r2",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-daily-reflection-founder-review-corrections",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-daily-reflection-journey-summary-dedup",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-historical-preflight-cancel-focus-restoration",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-historical-relevance-origin-disclosure-correction",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-11-phase-3-product-exit-private-alpha-readiness-audit",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-12-historical-timeline-collapsed-focus-visibility",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-12-phase-3-product-exit-founder-acceptance-closeout",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-12-windows-founder-dogfooding-package-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-12-windows-founder-dogfooding-package-r1-console-correction",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-12-windows-founder-dogfooding-package-r1-embedded-config-correction",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-13-desktop-schema-v5-founder-dogfood-activation-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-16-founder-v5-context-recovery-runtime-correction-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-18-desktop-schema-v5-ordinary-production-activation-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-23-ordinary-v5-disclosure-manual-correction-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-23-ordinary-v5-manual-phase-a-closeout-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-23-ordinary-v5-real-profile-phase-b-blocked-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-23-ordinary-v5-reflection-double-submit-correction-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-08-27-desktop-schema-v5-prepared-state-recovery-r2",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-09-18-desktop-schema-v5-real-profile-post-commit-recovery-r3",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-09-20-android-build-feasibility-m0",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-09-22-android-m1-disposable-persistence-review",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-09-29-android-m2a-direct-fresh-v5",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-10-03-android-m2b-synthetic-experience-lifecycle",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-10-04-android-m2c-synthetic-daily-reflection",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-10-18-daily-reflection-response-correction-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-10-28-desktop-reflection-provenance-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    },
+    {
+      "archive": "2026-11-03-prepared-recovery-platform-boundary-r1",
+      "baseline": [],
+      "candidate": [],
+      "identical": true
+    }
+  ]
+}

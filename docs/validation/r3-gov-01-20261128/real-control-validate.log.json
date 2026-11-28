@@ -1,0 +1,9 @@
+{
+  "format": "life-os/verification-output-v1",
+  "encoding": "utf-8",
+  "byte_length": 31,
+  "sha256": "e3231cf1aac4ae9863ef4be2fc50ab353a4fa87508df596109d6cc3892bd1600",
+  "utf8_lines": [
+    "AI workflow validation passed.\n"
+  ]
+}

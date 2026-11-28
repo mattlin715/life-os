@@ -1,0 +1,15 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "--test-name-pattern=R3-GOV-01",
+    "scripts/ai-workflow.node-test.mjs"
+  ],
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "exit_code": 1,
+  "purpose": "Expected red: individually valid contradictory images are accepted by the prior recovery implementation",
+  "source_sha256": {
+    "scripts/ai-workflow-governance.mjs": "3ad48c5a61545b6ecb8dc312d1690eee4d3b4c133c32d9c5b6a98695b63c8ab6",
+    "scripts/ai-workflow.node-test.mjs": "d50311ce400e6510eeefbe835109f81c83d7acda63dbf02f27d2599026a4356d"
+  }
+}
