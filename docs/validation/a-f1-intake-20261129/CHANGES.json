@@ -1,0 +1,17 @@
+[
+  {
+    "path": ".ai/workflow/CURRENT_MISSION.md",
+    "before_sha256": "2d423f89f43c72d7ff3774b94fbb99fde4fdf4f669ef259cfc57943344087f2a",
+    "after_sha256": "fc78b7c0373de8dad1371072266d80b601adc81d57bf10025cfd40d7e733a04e"
+  },
+  {
+    "path": ".ai/workflow/EVENTS.jsonl",
+    "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after_sha256": "f38f5c2b6e2311d4e0abaf9b274345de0f91a3bf782c65486b2716c375d84d98"
+  },
+  {
+    "path": ".ai/workflow/WORKFLOW_STATE.json",
+    "before_sha256": "c68e62a717965287468b418b45ccdad46590d2b9d1c21ad41e5ed82c3b818107",
+    "after_sha256": "02ae468edfc4b49513a9cd3938be22c71732f66b69d4610029353bfd202dff7e"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "label": "02-validate-intake",
+  "argv": [
+    "node",
+    "scripts/ai-workflow.mjs",
+    "validate",
+    "--root",
+    "/workspace/r3-governance-source"
+  ],
+  "cwd": "/workspace/r3-governance-source",
+  "started_at_utc": "2026-11-28T17:55:35.784665+00:00",
+  "finished_at_utc": "2026-11-28T17:55:35.873480+00:00",
+  "returncode": 0,
+  "stdout_sha256": "e3231cf1aac4ae9863ef4be2fc50ab353a4fa87508df596109d6cc3892bd1600",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

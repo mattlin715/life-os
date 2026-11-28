@@ -1,0 +1,66 @@
+{
+  "stop": "A-F1 intake 已建立，待產品審閱",
+  "completed_at_utc": "2026-11-28T17:55:36.004602+00:00",
+  "mission_id": "a-f1-host-feasibility-20261128",
+  "mission_title": "A-F1｜離線合成 host 交易與限定 R1 可行性",
+  "candidate": "0e8e464c2a6057ec557f315571f3e9e0c80f550f",
+  "checkout": "/workspace/r3-governance-source",
+  "branch": "codex/r3-gov-01-governance-candidate",
+  "proof_commit": "5df116fc8327c184bed057ba0ac54c45d7a5d751",
+  "official_start_invocations": 1,
+  "official_start_exit_code": 0,
+  "before": {
+    "status": "idle",
+    "sequence": 0,
+    "events": 0
+  },
+  "after": {
+    "status": "intake",
+    "sequence": 1,
+    "events": 1,
+    "current_mission": "draft",
+    "product_review": "pending",
+    "engineering_plan": "pending",
+    "last_event_id": "a-f1-host-feasibility-20261128:0001",
+    "last_event_hash": "64b77b2e374391fab9dc2a66342eedadc96169f18e25c4458b25d25efe25f153",
+    "repository_verification": "not_run",
+    "manual_ui": "not_run"
+  },
+  "draft_completed": true,
+  "state_events_unchanged_during_draft_completion": true,
+  "changed_files": [
+    {
+      "path": ".ai/workflow/CURRENT_MISSION.md",
+      "before_sha256": "2d423f89f43c72d7ff3774b94fbb99fde4fdf4f669ef259cfc57943344087f2a",
+      "after_sha256": "fc78b7c0373de8dad1371072266d80b601adc81d57bf10025cfd40d7e733a04e"
+    },
+    {
+      "path": ".ai/workflow/EVENTS.jsonl",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "f38f5c2b6e2311d4e0abaf9b274345de0f91a3bf782c65486b2716c375d84d98"
+    },
+    {
+      "path": ".ai/workflow/WORKFLOW_STATE.json",
+      "before_sha256": "c68e62a717965287468b418b45ccdad46590d2b9d1c21ad41e5ed82c3b818107",
+      "after_sha256": "02ae468edfc4b49513a9cd3938be22c71732f66b69d4610029353bfd202dff7e"
+    }
+  ],
+  "existing_files_other_than_authorized_three_unchanged": 1160,
+  "r3_archive_and_both_receipts_unchanged": true,
+  "r3_specific_protected_files": 16,
+  "all_history_and_receipt_files_unchanged": 655,
+  "source_tool_hashes_unchanged": true,
+  "git_head_branch_index_unchanged": true,
+  "index_sha256": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+  "index_diff": "",
+  "worktree_status": " M .ai/workflow/CURRENT_MISSION.md\n M .ai/workflow/DECISION_REQUIRED.md\n M .ai/workflow/ENGINEERING_PLAN.md\n M .ai/workflow/ENGINEERING_REPORT.md\n M .ai/workflow/EVENTS.jsonl\n M .ai/workflow/PRODUCT_REVIEW.md\n M .ai/workflow/SPRINT_REPORT.md\n M .ai/workflow/WORKFLOW_STATE.json\n?? .ai/workflow/.governance-receipts/760892ec-e514-4b95-8d33-8d66cbb19806/operation.json\n?? .ai/workflow/.governance-receipts/85f42815-c703-4a00-af8a-5c00d0607945/operation.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ARCHIVE_MANIFEST.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CANCELLATION_CHECKPOINT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CURRENT_MISSION.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/DECISION_REQUIRED.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_PLAN.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/EVENTS.jsonl\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/PRODUCT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION_EVIDENCE.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/THEORY_ALIGNMENT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_CONTRACT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_STATE.json\n?? docs/validation/r3-disposition-20261128/founder-disposition.json\n",
+  "evidence_checkout_unchanged": true,
+  "record_artifact_or_transition_invocations": 0,
+  "product_review_executed": false,
+  "engineering_planning_executed": false,
+  "implementation": false,
+  "r3_redisposition": false,
+  "adr_acceptance": false,
+  "git_mutations": [],
+  "preflight_format_miscomparison": "One pre-start read-only helper exited 1 because of an extra index_diff key; common fields and fingerprints were identical. Corrected comparison before the first and only official start; no workflow retry. Explicit summary retained."
+}

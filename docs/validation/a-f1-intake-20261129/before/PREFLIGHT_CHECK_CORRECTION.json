@@ -1,0 +1,9 @@
+{
+  "earlier_inline_python_exit_code": 1,
+  "failed_condition": "coords_before == reference",
+  "known_cause": "Current helper included index_diff while the older reference object has no such key; all shared values and fingerprints matched exactly",
+  "diagnosis": "No source/control drift; no official start was invoked and no repository file was written by the failed preflight",
+  "corrected_check": "Every reference key must match; separately assert index_diff is empty",
+  "official_workflow_retry": false,
+  "original_full_tool_error": "Retained in this chat tool response; not separately captured to a raw stdout/stderr file. This JSON is an explicit summary, not a fabricated raw error transcript."
+}

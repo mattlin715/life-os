@@ -1,0 +1,10 @@
+{
+  "path": "/workspace/r3-governance-source/.ai/workflow/CURRENT_MISSION.md",
+  "method": "Only complete CURRENT_MISSION.md after successful official start; preserve draft status",
+  "generated_sha256": "3bc53a9badec7627a5d5b68f3863f0015d492e2a4b2877812753e7bad9b8bc72",
+  "completed_sha256": "fc78b7c0373de8dad1371072266d80b601adc81d57bf10025cfd40d7e733a04e",
+  "state_event_bytes_unchanged": true,
+  "new_event_registered": false,
+  "remaining_required_placeholders": 0,
+  "status": "draft"
+}

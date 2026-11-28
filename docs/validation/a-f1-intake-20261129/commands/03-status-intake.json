@@ -1,0 +1,16 @@
+{
+  "label": "03-status-intake",
+  "argv": [
+    "node",
+    "scripts/ai-workflow.mjs",
+    "status",
+    "--root",
+    "/workspace/r3-governance-source"
+  ],
+  "cwd": "/workspace/r3-governance-source",
+  "started_at_utc": "2026-11-28T17:55:35.873724+00:00",
+  "finished_at_utc": "2026-11-28T17:55:35.934686+00:00",
+  "returncode": 0,
+  "stdout_sha256": "b4882e81385b890146f2cac234a252ae849f6ec72b7033b2f005bf667204b400",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

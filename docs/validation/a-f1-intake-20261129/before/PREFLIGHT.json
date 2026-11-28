@@ -1,0 +1,15 @@
+{
+  "result": "PASS",
+  "checked_at_utc": "2026-11-28T17:53:52.145076+00:00",
+  "mission_id": "a-f1-host-feasibility-20261128",
+  "mission_id_available": true,
+  "status": "idle",
+  "sequence": 0,
+  "existing_changes_match_published_provenance": true,
+  "other_local_candidate_processes": [],
+  "open_local_writer_fds": [],
+  "unreadable_or_exited_system_entries": 6,
+  "single_writer_boundary": "Current local observation only; no cross-machine lease claim",
+  "pending_preparing": [],
+  "proof_commit": "5df116fc8327c184bed057ba0ac54c45d7a5d751"
+}

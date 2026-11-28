@@ -1,0 +1,18 @@
+{
+  ".ai/workflow/.governance-receipts/760892ec-e514-4b95-8d33-8d66cbb19806/operation.json": "6519fd96fe9569f73806d14fab7c8cae7e6ac28fa684078999ed1a2b8b019cc7",
+  ".ai/workflow/.governance-receipts/85f42815-c703-4a00-af8a-5c00d0607945/operation.json": "e9993f21c28c8ddb748d710faa33a89523f18fd237d39d473be5d6628e109ab5",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ARCHIVE_MANIFEST.json": "55433e098b4aea04518eb48403a12919e8e8ba3fc5e5c32864e27c8d41cab34b",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CANCELLATION_CHECKPOINT.json": "fe3410992f6b0683824740df2a82ef02887a0c49b0f604e7d776bdd451ff52d8",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CURRENT_MISSION.md": "8e6448963e4af3a92b35ac95b541b6c8a4d0f1e7c1bec7ba0b2ba3358c4e1f5a",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/DECISION_REQUIRED.md": "e48050a9435693311b5c9899b2088ccf35591013b42872b0c82e886c51b33039",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_PLAN.md": "0a21afbb44a9bc3b9389f1dc0cc277536717caf8f14d071fbe9c4bf4271be309",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_REPORT.md": "cbe1a4c65707b591679c16fb919ef68cfe66532569c95925e01a0f6808e27671",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/EVENTS.jsonl": "7f361bb9d633f457214aa2405d2c6313639a62cd4b8fc882e3ec7024a97a6ff2",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/PRODUCT_REVIEW.md": "c3013310d8505101fe7ea90b54a3dbc25bb29702d6f49be83daec2f19b9245ad",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION.json": "0b58743c52fbab06cb880bfbe37831c8289f30392f365cd19d4917a451257ff9",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION_EVIDENCE.json": "2a94f7f01dab950b88a6f535ba8bf7476ab10de27e043e3b687d27edc82ca7ed",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_REPORT.md": "b31b8be9e744c12c4340cade561b3dd0df5d8e9a7332964226f93aaee7962d1b",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/THEORY_ALIGNMENT_REVIEW.md": "2d36bb051c4fe21c2fe430c33a98d584ddae59221c573851231ad9b91d4fbce6",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_CONTRACT.json": "87a51f7a819348f0aec5a4ef82173a8a7d0539979006be67f9894b255812f6a2",
+  ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_STATE.json": "f66eaca44d7273b2429fed5ef090f4187ca80c822edb068188a1f37b2abfc8b8"
+}

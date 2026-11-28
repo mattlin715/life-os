@@ -1,0 +1,15 @@
+{
+  "official_start_invocations": 1,
+  "official_start_exit_code": 0,
+  "mission_id": "a-f1-host-feasibility-20261128",
+  "status": "intake",
+  "sequence": 1,
+  "events": 1,
+  "event_id": "a-f1-host-feasibility-20261128:0001",
+  "event_hash": "64b77b2e374391fab9dc2a66342eedadc96169f18e25c4458b25d25efe25f153",
+  "mission_status": "draft",
+  "all_existing_files_except_authorized_mission_state_events_unchanged": true,
+  "r3_archive_receipts_unchanged": true,
+  "index_unchanged": true,
+  "draft_completion_pending": true
+}
