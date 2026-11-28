@@ -1,0 +1,16 @@
+{
+  "label": "03-archive",
+  "argv": [
+    "node",
+    "scripts/ai-workflow.mjs",
+    "archive",
+    "--root",
+    "/workspace/r3-governance-source"
+  ],
+  "cwd": "/workspace/r3-governance-source",
+  "started_at_utc": "2026-11-28T07:56:34.176012+00:00",
+  "finished_at_utc": "2026-11-28T07:56:34.287342+00:00",
+  "returncode": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

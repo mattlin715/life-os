@@ -1,0 +1,16 @@
+{
+  "label": "05-status-idle",
+  "argv": [
+    "node",
+    "scripts/ai-workflow.mjs",
+    "status",
+    "--root",
+    "/workspace/r3-governance-source"
+  ],
+  "cwd": "/workspace/r3-governance-source",
+  "started_at_utc": "2026-11-28T07:56:34.370754+00:00",
+  "finished_at_utc": "2026-11-28T07:56:34.406312+00:00",
+  "returncode": 0,
+  "stdout_sha256": "d744ce4a80ea7a9e95a9c406e37846f6e670d1d2d022573b44dea72d954e05f6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

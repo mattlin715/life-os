@@ -1,0 +1,55 @@
+# 本次新增檔案清單
+
+固定 parent：`0e8e464c2a6057ec557f315571f3e9e0c80f550f`。
+
+共 49 檔，全部為新增，且全部位於授權目錄；沒有修改／刪除既有檔案。
+
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-evidence.json`
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-evidence.stderr`
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-evidence.stdout`
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-workflow.json`
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-workflow.stderr`
+- `docs/validation/r3-formal-disposition-20261128/00-preflight-workflow.stdout`
+- `docs/validation/r3-formal-disposition-20261128/01-cancel.json`
+- `docs/validation/r3-formal-disposition-20261128/01-cancel.stderr`
+- `docs/validation/r3-formal-disposition-20261128/01-cancel.stdout`
+- `docs/validation/r3-formal-disposition-20261128/02-validate-cancelled.json`
+- `docs/validation/r3-formal-disposition-20261128/02-validate-cancelled.stderr`
+- `docs/validation/r3-formal-disposition-20261128/02-validate-cancelled.stdout`
+- `docs/validation/r3-formal-disposition-20261128/03-archive.json`
+- `docs/validation/r3-formal-disposition-20261128/03-archive.stderr`
+- `docs/validation/r3-formal-disposition-20261128/03-archive.stdout`
+- `docs/validation/r3-formal-disposition-20261128/04-validate-idle.json`
+- `docs/validation/r3-formal-disposition-20261128/04-validate-idle.stderr`
+- `docs/validation/r3-formal-disposition-20261128/04-validate-idle.stdout`
+- `docs/validation/r3-formal-disposition-20261128/05-status-idle.json`
+- `docs/validation/r3-formal-disposition-20261128/05-status-idle.stderr`
+- `docs/validation/r3-formal-disposition-20261128/05-status-idle.stdout`
+- `docs/validation/r3-formal-disposition-20261128/06-final-audit-first-attempt.json`
+- `docs/validation/r3-formal-disposition-20261128/06-final-audit-first-attempt.stderr`
+- `docs/validation/r3-formal-disposition-20261128/06-final-audit-first-attempt.stdout`
+- `docs/validation/r3-formal-disposition-20261128/07-final-audit.json`
+- `docs/validation/r3-formal-disposition-20261128/07-final-audit.stderr`
+- `docs/validation/r3-formal-disposition-20261128/07-final-audit.stdout`
+- `docs/validation/r3-formal-disposition-20261128/AUTHORIZATION_BINDING.json`
+- `docs/validation/r3-formal-disposition-20261128/COMMANDS.jsonl`
+- `docs/validation/r3-formal-disposition-20261128/COPY_MAP.json`
+- `docs/validation/r3-formal-disposition-20261128/FILES.md`
+- `docs/validation/r3-formal-disposition-20261128/FINAL_GIT.json`
+- `docs/validation/r3-formal-disposition-20261128/FOUNDER_APPROVAL.md`
+- `docs/validation/r3-formal-disposition-20261128/INDEX.md`
+- `docs/validation/r3-formal-disposition-20261128/ORIGINAL_SHA256SUMS`
+- `docs/validation/r3-formal-disposition-20261128/PUBLICATION_CHECKS.json`
+- `docs/validation/r3-formal-disposition-20261128/REPORT.md`
+- `docs/validation/r3-formal-disposition-20261128/RESULT.json`
+- `docs/validation/r3-formal-disposition-20261128/SHA256SUMS`
+- `docs/validation/r3-formal-disposition-20261128/archive/VERIFICATION.json`
+- `docs/validation/r3-formal-disposition-20261128/before/coordinates.json`
+- `docs/validation/r3-formal-disposition-20261128/before/protected-hashes.json`
+- `docs/validation/r3-formal-disposition-20261128/before/source-hashes.json`
+- `docs/validation/r3-formal-disposition-20261128/cancellation/VERIFICATION.json`
+- `docs/validation/r3-formal-disposition-20261128/founder-disposition.json`
+- `docs/validation/r3-formal-disposition-20261128/idle/VERIFICATION.json`
+- `docs/validation/r3-formal-disposition-20261128/immutable-after-hashes.json`
+- `docs/validation/r3-formal-disposition-20261128/raw-evidence/life-os-r3-formal-disposition-20261128.tar.gz`
+- `docs/validation/r3-formal-disposition-20261128/raw-evidence/life-os-r3-formal-disposition-20261128.tar.gz.sha256`

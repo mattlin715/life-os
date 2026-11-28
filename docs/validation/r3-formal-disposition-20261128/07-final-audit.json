@@ -1,0 +1,13 @@
+{
+  "label": "07-final-audit",
+  "argv": [
+    "python3",
+    "-"
+  ],
+  "scope": "Read-only source/index/archive/receipt/idle verification; corrected directory count",
+  "returncode": 0,
+  "observed_at_utc": "2026-11-28T07:59:33.678784+00:00",
+  "stdout_sha256": "9be96b9fabbf273d452166863c6e72514d19b683699c45bf624d5e6d3d01e1b9",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "workflow_mutations": false
+}

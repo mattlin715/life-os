@@ -1,0 +1,39 @@
+{
+  "head": "0e8e464c2a6057ec557f315571f3e9e0c80f550f",
+  "branch": "codex/r3-gov-01-governance-candidate",
+  "index_sha256_before": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+  "index_sha256_after": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+  "index_diff": "",
+  "tracked_authorized_control_changes": [
+    ".ai/workflow/CURRENT_MISSION.md",
+    ".ai/workflow/DECISION_REQUIRED.md",
+    ".ai/workflow/ENGINEERING_PLAN.md",
+    ".ai/workflow/ENGINEERING_REPORT.md",
+    ".ai/workflow/EVENTS.jsonl",
+    ".ai/workflow/PRODUCT_REVIEW.md",
+    ".ai/workflow/SPRINT_REPORT.md",
+    ".ai/workflow/WORKFLOW_STATE.json"
+  ],
+  "untracked_authorized_evidence_archive_receipts": [
+    ".ai/workflow/.governance-receipts/760892ec-e514-4b95-8d33-8d66cbb19806/operation.json",
+    ".ai/workflow/.governance-receipts/85f42815-c703-4a00-af8a-5c00d0607945/operation.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ARCHIVE_MANIFEST.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CANCELLATION_CHECKPOINT.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CURRENT_MISSION.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/DECISION_REQUIRED.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_PLAN.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_REPORT.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/EVENTS.jsonl",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/PRODUCT_REVIEW.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION_EVIDENCE.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_REPORT.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/THEORY_ALIGNMENT_REVIEW.md",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_CONTRACT.json",
+    ".ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_STATE.json",
+    "docs/validation/r3-disposition-20261128/founder-disposition.json"
+  ],
+  "worktree_status": " M .ai/workflow/CURRENT_MISSION.md\n M .ai/workflow/DECISION_REQUIRED.md\n M .ai/workflow/ENGINEERING_PLAN.md\n M .ai/workflow/ENGINEERING_REPORT.md\n M .ai/workflow/EVENTS.jsonl\n M .ai/workflow/PRODUCT_REVIEW.md\n M .ai/workflow/SPRINT_REPORT.md\n M .ai/workflow/WORKFLOW_STATE.json\n?? .ai/workflow/.governance-receipts/760892ec-e514-4b95-8d33-8d66cbb19806/operation.json\n?? .ai/workflow/.governance-receipts/85f42815-c703-4a00-af8a-5c00d0607945/operation.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ARCHIVE_MANIFEST.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CANCELLATION_CHECKPOINT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CURRENT_MISSION.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/DECISION_REQUIRED.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_PLAN.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/EVENTS.jsonl\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/PRODUCT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION_EVIDENCE.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/THEORY_ALIGNMENT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_CONTRACT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_STATE.json\n?? docs/validation/r3-disposition-20261128/founder-disposition.json\n",
+  "git_mutations_performed": [],
+  "original_checkout_unchanged": true
+}

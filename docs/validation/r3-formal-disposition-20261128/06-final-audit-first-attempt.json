@@ -1,0 +1,10 @@
+{
+  "exit_code": 1,
+  "raw_error": "Traceback (most recent call last):\n  File \"<stdin>\", line 17, in <module>\nAssertionError\n",
+  "failed_assertion": "len(list(HISTORY.iterdir())) == 59",
+  "finding": "HISTORY contains 59 directories plus its pre-existing protected README.md; no unknown content or hash drift",
+  "correction": "Count directories separately; verify existing root file against original protected inventory",
+  "workflow_mutations_in_audit": false,
+  "archive_or_cancel_repeated": false,
+  "source_tool_modified": false
+}

@@ -1,0 +1,183 @@
+{
+  "status": "R3 正式處置結果待獨立審閱",
+  "completed_at_utc": "2026-11-28T07:59:33.678073+00:00",
+  "candidate": "0e8e464c2a6057ec557f315571f3e9e0c80f550f",
+  "checkout": "/workspace/r3-governance-source",
+  "platform": "Linux x86_64; Node v24.22.3; Git 2.56.1",
+  "founder_authorization": {
+    "evidence_path": "docs/validation/r3-disposition-20261128/founder-disposition.json",
+    "evidence_sha256": "2a94f7f01dab950b88a6f535ba8bf7476ab10de27e043e3b687d27edc82ca7ed",
+    "format": "life-os/sprint-disposition-v1",
+    "scope": "cancel-current-sprint-only",
+    "sprint_id": "android-pilot-byo-gemini-r1",
+    "sequence": 56,
+    "founder_response_source": "Exact visible Founder approval block, including its Markdown quote markers; not a cryptographic identity signature",
+    "a_b_c_scope": "A cancel once; B archive/reset once only after A verified; C forward recovery only for these operations if interrupted",
+    "git_authority": "none"
+  },
+  "A_cancellation": {
+    "result": "PASS",
+    "official_command_exit_code": 0,
+    "sprint_id": "android-pilot-byo-gemini-r1",
+    "sequence_before": 56,
+    "sequence_after": 57,
+    "status": "cancelled",
+    "events_before": 56,
+    "events_after": 57,
+    "original_event_prefix_bytes_preserved": 51221,
+    "one_legal_cancellation_event_appended": true,
+    "checkpoint_equals_complete_before_state": true,
+    "original_decision_reports_artifacts_verification_preserved": true,
+    "unchanged_original_protected_files_except_authorized_event_state_pair": 650,
+    "decision_resolution": null,
+    "historical_repository_verify": {
+      "status": "failed",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+      "exit_code": 1,
+      "completed_at": "2026-11-17T17:01:26.738Z",
+      "repository_head": "26130b9106f9efe52496ca5de659879ddc85d3e8",
+      "working_tree_digest": "d22833455a4a88e9305100857a0754bec1534049465ab20cfbcb5658d2c1fac4"
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    },
+    "last_event_id": "android-pilot-byo-gemini-r1:0057",
+    "last_event_hash": "a2831bb260b31faf745ecd7470ca1f4bf676bdabd2f3c1252721bbbb35f1bb45",
+    "state_sha256": "f66eaca44d7273b2429fed5ef090f4187ca80c822edb068188a1f37b2abfc8b8",
+    "events_sha256": "7f361bb9d633f457214aa2405d2c6313639a62cd4b8fc882e3ec7024a97a6ff2",
+    "receipt_id": "760892ec-e514-4b95-8d33-8d66cbb19806",
+    "operation_sha256": "6519fd96fe9569f73806d14fab7c8cae7e6ac28fa684078999ed1a2b8b019cc7",
+    "pending_or_preparing": false,
+    "recovery_cli_invoked": false,
+    "index_sha256": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+    "next_authorized_step": "B archive/reset once only after rechecking this exact cancelled checkpoint"
+  },
+  "B_archive": {
+    "result": "PASS",
+    "official_archive_exit_code": 0,
+    "sprint_id": "android-pilot-byo-gemini-r1",
+    "terminal_status": "cancelled",
+    "sequence": 57,
+    "archive_path": "/workspace/r3-governance-source/.ai/workflow/HISTORY/android-pilot-byo-gemini-r1",
+    "manifest_schema": "2.0",
+    "manifest_sha256": "55433e098b4aea04518eb48403a12919e8e8ba3fc5e5c32864e27c8d41cab34b",
+    "payload_files_hashed": 13,
+    "archive_files_including_manifest": 14,
+    "core_payload_bytes_equal_prearchive_control": true,
+    "checkpoint_equals_complete_precancellation_state": true,
+    "disposition_raw_evidence_preserved": true,
+    "original_decision_markdown_bytes_preserved": true,
+    "full_57_event_bytes_preserved": true,
+    "original_56_event_prefix_bytes_preserved": 51221,
+    "external_logs": {
+      "status": "not_acquired",
+      "detail": "Original external logs were not read or copied. Embedded historical verification records are retained; no raw external-log archival claim."
+    },
+    "original_history_files_unchanged": 639,
+    "original_protected_files_outside_authorized_reset_unchanged": 643,
+    "receipt_id": "85f42815-c703-4a00-af8a-5c00d0607945",
+    "operation_sha256": "e9993f21c28c8ddb748d710faa33a89523f18fd237d39d473be5d6628e109ab5",
+    "cancellation_receipt_preserved_sha256": "6519fd96fe9569f73806d14fab7c8cae7e6ac28fa684078999ed1a2b8b019cc7",
+    "pending_preparing": false,
+    "recovery_cli_invoked": false
+  },
+  "idle": {
+    "result": "PASS",
+    "status": "idle",
+    "sprint_id": null,
+    "sequence": 0,
+    "events_bytes": 0,
+    "current_files_equal_exact_idle_templates": true,
+    "repository_verify": {
+      "status": "not_run",
+      "command": null,
+      "exit_code": null,
+      "completed_at": null,
+      "repository_head": null,
+      "working_tree_digest": null
+    },
+    "manual_ui": {
+      "status": "not_run",
+      "owner": "founder",
+      "completed_at": null,
+      "evidence_reference": null
+    },
+    "last_event_id": null,
+    "last_event_hash": null,
+    "active_decision_ids": [],
+    "decision_resolution": null,
+    "state_sha256": "c68e62a717965287468b418b45ccdad46590d2b9d1c21ad41e5ed82c3b818107",
+    "events_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "new_mission_started": false,
+    "a_f1_started": false,
+    "adr_0013": "Proposed",
+    "r3_schema_decision": "Unresolved; preserved in archived decision/checkpoint, not resolved by idle reset",
+    "head": "0e8e464c2a6057ec557f315571f3e9e0c80f550f",
+    "branch": "codex/r3-gov-01-governance-candidate",
+    "index_sha256": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+    "index_diff": "",
+    "worktree_status": " M .ai/workflow/CURRENT_MISSION.md\n M .ai/workflow/DECISION_REQUIRED.md\n M .ai/workflow/ENGINEERING_PLAN.md\n M .ai/workflow/ENGINEERING_REPORT.md\n M .ai/workflow/EVENTS.jsonl\n M .ai/workflow/PRODUCT_REVIEW.md\n M .ai/workflow/SPRINT_REPORT.md\n M .ai/workflow/WORKFLOW_STATE.json\n?? .ai/workflow/.governance-receipts/760892ec-e514-4b95-8d33-8d66cbb19806/operation.json\n?? .ai/workflow/.governance-receipts/85f42815-c703-4a00-af8a-5c00d0607945/operation.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ARCHIVE_MANIFEST.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CANCELLATION_CHECKPOINT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/CURRENT_MISSION.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/DECISION_REQUIRED.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_PLAN.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/ENGINEERING_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/EVENTS.jsonl\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/PRODUCT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_DISPOSITION_EVIDENCE.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/SPRINT_REPORT.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/THEORY_ALIGNMENT_REVIEW.md\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_CONTRACT.json\n?? .ai/workflow/HISTORY/android-pilot-byo-gemini-r1/WORKFLOW_STATE.json\n?? docs/validation/r3-disposition-20261128/founder-disposition.json\n"
+  },
+  "C_recovery": {
+    "needed": false,
+    "external_recover_governance_cli_invocations": 0,
+    "reason": "Both official commands completed normally; no interruption, unknown bytes or conflict",
+    "normal_internal_transaction_protocol": "Official cancellation/archive handlers complete their own persistent-image protocol; no additional recovery operation was initiated"
+  },
+  "unresolved": [
+    {
+      "id": "ANDROID-M3-GEMINI-R3-TYPED-MODEL-SCHEMA",
+      "status": "unresolved",
+      "preserved_in": "archive DECISION_REQUIRED.md (open), cancellation checkpoint and cancelled state"
+    },
+    {
+      "id": "ADR-0013",
+      "status": "Proposed; not accepted"
+    },
+    {
+      "id": "R3 items 5/6",
+      "status": "not completed; cancellation does not reject product direction or grant capabilities"
+    },
+    {
+      "id": "original repository verification",
+      "status": "failed; historical exit 1 unchanged in archive"
+    },
+    {
+      "id": "original manual UI verification",
+      "status": "not_run; unchanged in archive"
+    },
+    {
+      "id": "external historical raw logs",
+      "status": "not_acquired; no recreation or archival claim"
+    }
+  ],
+  "limits": {
+    "windows_canonical": "blocked/not_run; PowerShell unavailable, no verifier execution in this round",
+    "cross_platform_power_loss_durability": "not verified",
+    "single_writer": "This assigned session, no other local candidate writer observed; no cross-machine lease assertion",
+    "full_review_or_regression_rerun": "not performed; not requested, exact accepted tool unchanged"
+  },
+  "forbidden_actions_performed": {
+    "tool_changes": false,
+    "manual_state_or_event_editing": false,
+    "schema_gate_resolution": false,
+    "adr_acceptance": false,
+    "git_stage_commit_push": false,
+    "merge_release": false,
+    "a_f1_or_new_mission_start": false
+  },
+  "unchanged_original_files": {
+    "historical_archive_files_including_history_readme": 639,
+    "all_original_protected_files_outside_authorized_reset": 643
+  },
+  "git": {
+    "head_unchanged": true,
+    "index_bytes_unchanged": true,
+    "tracked_authorized_control_changes": 8,
+    "untracked_authorized_archive_receipt_evidence_files": 17
+  },
+  "final_audit_note": "One read-only evidence-audit assertion initially counted HISTORY README.md as an archive directory; pre-existing file hash confirmed unchanged, directory-only count corrected, no workflow command repeated. Original exit/error preserved."
+}

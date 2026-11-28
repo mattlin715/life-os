@@ -1,0 +1,13 @@
+{
+  "result": "R3 正式處置結果待獨立審閱",
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "tracked_control_changes": 8,
+  "untracked_authorized_files": 17,
+  "old_archive_directories": 58,
+  "archive_directories_after": 59,
+  "current_status": "idle",
+  "sequence": 0,
+  "new_mission": null,
+  "final_audit": "PASS"
+}

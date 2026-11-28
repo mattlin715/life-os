@@ -1,0 +1,310 @@
+[
+  {
+    "publication_path": "00-preflight-evidence.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-evidence.json",
+    "bytes": 481,
+    "sha256": "dfb6c73305b71c2f9c9f5519515d56eaeaa4973c78168f43a6f029fbece1d31c",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "00-preflight-evidence.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-evidence.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "00-preflight-evidence.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-evidence.stdout",
+    "bytes": 106,
+    "sha256": "ccf4acbb8c00cd058eb58108df520d6d6f9a46bf3d858c310d8eae12b69ad69f",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "00-preflight-workflow.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-workflow.json",
+    "bytes": 464,
+    "sha256": "01e8e01f682e3d51b01b8f48e2cb8c17533f2cb88c8c037fbbd376c27d2aa442",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "00-preflight-workflow.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-workflow.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "00-preflight-workflow.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/00-preflight-workflow.stdout",
+    "bytes": 31,
+    "sha256": "e3231cf1aac4ae9863ef4be2fc50ab353a4fa87508df596109d6cc3892bd1600",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "01-cancel.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/01-cancel.json",
+    "bytes": 2080,
+    "sha256": "871b56845faf8d94c65aad9fd4510bac3a21b1af478084b95b90ca357ad4b357",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "01-cancel.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/01-cancel.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "01-cancel.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/01-cancel.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "02-validate-cancelled.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/02-validate-cancelled.json",
+    "bytes": 464,
+    "sha256": "167d04a176c07a1d41ec39e077d5309b306074267d7079212f0022d89acc16d4",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "02-validate-cancelled.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/02-validate-cancelled.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "02-validate-cancelled.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/02-validate-cancelled.stdout",
+    "bytes": 31,
+    "sha256": "e3231cf1aac4ae9863ef4be2fc50ab353a4fa87508df596109d6cc3892bd1600",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "03-archive.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/03-archive.json",
+    "bytes": 505,
+    "sha256": "7ca99787d60c5886bff68da1e0f8e4c245373bc77ca004f1d5244761df0a7f4c",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "03-archive.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/03-archive.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "03-archive.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/03-archive.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "04-validate-idle.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/04-validate-idle.json",
+    "bytes": 512,
+    "sha256": "205c06067c8a3d2cdef226fa67f94012d53aa3fd5cc244ec6966cb16b9043e3f",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "04-validate-idle.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/04-validate-idle.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "04-validate-idle.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/04-validate-idle.stdout",
+    "bytes": 31,
+    "sha256": "e3231cf1aac4ae9863ef4be2fc50ab353a4fa87508df596109d6cc3892bd1600",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "05-status-idle.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/05-status-idle.json",
+    "bytes": 508,
+    "sha256": "bafe905a671f90b86d60872b32aa3b60fb0b24729859a9b35e08e4e5ea1a401e",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "05-status-idle.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/05-status-idle.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "05-status-idle.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/05-status-idle.stdout",
+    "bytes": 182,
+    "sha256": "d744ce4a80ea7a9e95a9c406e37846f6e670d1d2d022573b44dea72d954e05f6",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "06-final-audit-first-attempt.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/06-final-audit-first-attempt.json",
+    "bytes": 542,
+    "sha256": "e7c33246866351e0b57b8b97b89c121f8818ce29c85e60759bf9a1c9bb68e665",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "06-final-audit-first-attempt.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/06-final-audit-first-attempt.stderr",
+    "bytes": 89,
+    "sha256": "a29d5661403667d90963ba1bdcc2cc64ecf9ccd2ab1dee8b777327e37b98e14f",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "06-final-audit-first-attempt.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/06-final-audit-first-attempt.stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "07-final-audit.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/07-final-audit.json",
+    "bytes": 451,
+    "sha256": "b7966e51fe43863bb543cc4b9cd19b1c1808708672a28d857c7b4c115a2bcffa",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "07-final-audit.stderr",
+    "original_path": "/workspace/r3-formal-disposition-20261128/07-final-audit.stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "07-final-audit.stdout",
+    "original_path": "/workspace/r3-formal-disposition-20261128/07-final-audit.stdout",
+    "bytes": 337,
+    "sha256": "9be96b9fabbf273d452166863c6e72514d19b683699c45bf624d5e6d3d01e1b9",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "AUTHORIZATION_BINDING.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/AUTHORIZATION_BINDING.json",
+    "bytes": 642,
+    "sha256": "778e8f48efe094a2aa54da7a820ee712e8dddf2c27978c23cfcb844d93a838fe",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "COMMANDS.jsonl",
+    "original_path": "/workspace/r3-formal-disposition-20261128/COMMANDS.jsonl",
+    "bytes": 5599,
+    "sha256": "fd8b8dbccb35f7476a58e942c37823844587aab6dbe47d7ee64bab786f830e28",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "FINAL_GIT.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/FINAL_GIT.json",
+    "bytes": 3760,
+    "sha256": "b33ddbbe46e4bf00068309555004c592fa779c498cfd26d4a6ebb5bc75486cc0",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "FOUNDER_APPROVAL.md",
+    "original_path": "/workspace/r3-formal-disposition-20261128/FOUNDER_APPROVAL.md",
+    "bytes": 1200,
+    "sha256": "6c5bec1deed94743eb3d3d76eb1af3007165a34c8730f0e6c3c2a0660b6fb7e4",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "RESULT.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/RESULT.json",
+    "bytes": 9656,
+    "sha256": "9c4250a79d3ccaf7cda49e2bc11520e8cc0643fe0ff97ee34d242ee632a5ed31",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "REPORT.md",
+    "original_path": "/workspace/r3-formal-disposition-20261128/RESULT.md",
+    "bytes": 9912,
+    "sha256": "dd4beff2e966468b8d379f1c83ab41347201462109c62b417c4f1a801afcabb1",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "ORIGINAL_SHA256SUMS",
+    "original_path": "/workspace/r3-formal-disposition-20261128/SHA256SUMS",
+    "bytes": 9814,
+    "sha256": "c3a12d68a2ddece95ee0c76c2054725e7bea4e76e66735094fc28a9df5067327",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "founder-disposition.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/founder-disposition.json",
+    "bytes": 1804,
+    "sha256": "2a94f7f01dab950b88a6f535ba8bf7476ab10de27e043e3b687d27edc82ca7ed",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "immutable-after-hashes.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/immutable-after-hashes.json",
+    "bytes": 107047,
+    "sha256": "9aab9490fcf9850e2e52a1f68a1eafb051e6aac8ed3b6cea15f228ac90b1b7f7",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "before/coordinates.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/before/coordinates.json",
+    "bytes": 984,
+    "sha256": "4cb811a462ad091dcca29fa498be5ff770197110b86fe19856d0f72f09232b31",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "before/source-hashes.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/before/source-hashes.json",
+    "bytes": 620,
+    "sha256": "e6387c6324ecc2943f67a517f91a58cd9e5e3110edc2f820ae253ac5e513771b",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "before/protected-hashes.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/before/protected-hashes.json",
+    "bytes": 107998,
+    "sha256": "f6c6de86c8620644cea1321799a2e0c201bd133bfe3d39b9cfb17ed323851f35",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "cancellation/VERIFICATION.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/cancellation/VERIFICATION.json",
+    "bytes": 1788,
+    "sha256": "5042516356d8d7b7ba1aadcf6f509766fbd67607d347c2dcfaf3c5eecced055e",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "archive/VERIFICATION.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/archive/VERIFICATION.json",
+    "bytes": 1400,
+    "sha256": "54c9bc141fd4939727f4d98f92822ae64e418c91ca8665b998b18b46f99bd200",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "idle/VERIFICATION.json",
+    "original_path": "/workspace/r3-formal-disposition-20261128/idle/VERIFICATION.json",
+    "bytes": 2767,
+    "sha256": "1e09142dba85c336bf35d7d00a721dfa3416ebf80de158b190466cf7555818ab",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "raw-evidence/life-os-r3-formal-disposition-20261128.tar.gz",
+    "original_path": "/workspace/life-os-r3-formal-disposition-20261128.tar.gz",
+    "bytes": 359487,
+    "sha256": "b9bc4c871e4ac59dbb0ec42382ccd621680b1a5fcc08b20cec96c6b9c4a7bf99",
+    "byte_identical": true
+  },
+  {
+    "publication_path": "raw-evidence/life-os-r3-formal-disposition-20261128.tar.gz.sha256",
+    "original_path": "/workspace/life-os-r3-formal-disposition-20261128.tar.gz.sha256",
+    "bytes": 112,
+    "sha256": "a0b6e1ad9fd975a01b81b7fd2b33508e4123abc93316f5b16699a295276974ef",
+    "byte_identical": true
+  }
+]

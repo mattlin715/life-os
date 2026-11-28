@@ -1,0 +1,29 @@
+{
+  "result": "PASS",
+  "official_archive_exit_code": 0,
+  "sprint_id": "android-pilot-byo-gemini-r1",
+  "terminal_status": "cancelled",
+  "sequence": 57,
+  "archive_path": "/workspace/r3-governance-source/.ai/workflow/HISTORY/android-pilot-byo-gemini-r1",
+  "manifest_schema": "2.0",
+  "manifest_sha256": "55433e098b4aea04518eb48403a12919e8e8ba3fc5e5c32864e27c8d41cab34b",
+  "payload_files_hashed": 13,
+  "archive_files_including_manifest": 14,
+  "core_payload_bytes_equal_prearchive_control": true,
+  "checkpoint_equals_complete_precancellation_state": true,
+  "disposition_raw_evidence_preserved": true,
+  "original_decision_markdown_bytes_preserved": true,
+  "full_57_event_bytes_preserved": true,
+  "original_56_event_prefix_bytes_preserved": 51221,
+  "external_logs": {
+    "status": "not_acquired",
+    "detail": "Original external logs were not read or copied. Embedded historical verification records are retained; no raw external-log archival claim."
+  },
+  "original_history_files_unchanged": 639,
+  "original_protected_files_outside_authorized_reset_unchanged": 643,
+  "receipt_id": "85f42815-c703-4a00-af8a-5c00d0607945",
+  "operation_sha256": "e9993f21c28c8ddb748d710faa33a89523f18fd237d39d473be5d6628e109ab5",
+  "cancellation_receipt_preserved_sha256": "6519fd96fe9569f73806d14fab7c8cae7e6ac28fa684078999ed1a2b8b019cc7",
+  "pending_preparing": false,
+  "recovery_cli_invoked": false
+}

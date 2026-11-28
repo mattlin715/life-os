@@ -1,0 +1,40 @@
+{
+  "result": "PASS",
+  "official_command_exit_code": 0,
+  "sprint_id": "android-pilot-byo-gemini-r1",
+  "sequence_before": 56,
+  "sequence_after": 57,
+  "status": "cancelled",
+  "events_before": 56,
+  "events_after": 57,
+  "original_event_prefix_bytes_preserved": 51221,
+  "one_legal_cancellation_event_appended": true,
+  "checkpoint_equals_complete_before_state": true,
+  "original_decision_reports_artifacts_verification_preserved": true,
+  "unchanged_original_protected_files_except_authorized_event_state_pair": 650,
+  "decision_resolution": null,
+  "historical_repository_verify": {
+    "status": "failed",
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\verify.ps1",
+    "exit_code": 1,
+    "completed_at": "2026-11-17T17:01:26.738Z",
+    "repository_head": "26130b9106f9efe52496ca5de659879ddc85d3e8",
+    "working_tree_digest": "d22833455a4a88e9305100857a0754bec1534049465ab20cfbcb5658d2c1fac4"
+  },
+  "manual_ui": {
+    "status": "not_run",
+    "owner": "founder",
+    "completed_at": null,
+    "evidence_reference": null
+  },
+  "last_event_id": "android-pilot-byo-gemini-r1:0057",
+  "last_event_hash": "a2831bb260b31faf745ecd7470ca1f4bf676bdabd2f3c1252721bbbb35f1bb45",
+  "state_sha256": "f66eaca44d7273b2429fed5ef090f4187ca80c822edb068188a1f37b2abfc8b8",
+  "events_sha256": "7f361bb9d633f457214aa2405d2c6313639a62cd4b8fc882e3ec7024a97a6ff2",
+  "receipt_id": "760892ec-e514-4b95-8d33-8d66cbb19806",
+  "operation_sha256": "6519fd96fe9569f73806d14fab7c8cae7e6ac28fa684078999ed1a2b8b019cc7",
+  "pending_or_preparing": false,
+  "recovery_cli_invoked": false,
+  "index_sha256": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+  "next_authorized_step": "B archive/reset once only after rechecking this exact cancelled checkpoint"
+}

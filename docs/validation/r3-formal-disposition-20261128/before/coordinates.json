@@ -1,0 +1,17 @@
+{
+  "head": "0e8e464c2a6057ec557f315571f3e9e0c80f550f",
+  "branch": "codex/r3-gov-01-governance-candidate",
+  "index_sha256": "d2ceef7b81c0ba078a450407125cfd575afa01e71e73c4de2bf4bf9ae69e08c7",
+  "index_diff": "",
+  "worktree_status": "",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "node": "v24.22.3",
+  "git": "git version 2.56.1",
+  "sprint_id": "android-pilot-byo-gemini-r1",
+  "sequence": 56,
+  "last_event_hash": "0c61f25a776dffcaf14b590f60423c9a742552efe7d17edc52672fc77516e88f",
+  "scope": "Founder current explicit A/B/C authorization; no Git mutation or A-F1",
+  "review_reference": "154cd61ab04ca194b3bd8675dc7eef8e9bffadf4:docs/reviews/r3-gov-01-20261128.md",
+  "single_writer": "This assigned execution session; local preflight observed no other candidate cwd or writable file descriptors; no cross-machine lease claim",
+  "platform_limits": "Linux process interruption evidence only; Windows canonical and cross-platform power-loss durability not verified"
+}

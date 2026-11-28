@@ -1,0 +1,10 @@
+{
+  "status": "idle",
+  "sprint_id": null,
+  "phase": "intake",
+  "role": "orchestrator",
+  "revision": 0,
+  "review_cycle": 0,
+  "recovery_required": false,
+  "next_action": null
+}

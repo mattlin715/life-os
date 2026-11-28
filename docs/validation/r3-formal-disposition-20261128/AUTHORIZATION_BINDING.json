@@ -1,0 +1,11 @@
+{
+  "evidence_path": "docs/validation/r3-disposition-20261128/founder-disposition.json",
+  "evidence_sha256": "2a94f7f01dab950b88a6f535ba8bf7476ab10de27e043e3b687d27edc82ca7ed",
+  "format": "life-os/sprint-disposition-v1",
+  "scope": "cancel-current-sprint-only",
+  "sprint_id": "android-pilot-byo-gemini-r1",
+  "sequence": 56,
+  "founder_response_source": "Exact visible Founder approval block, including its Markdown quote markers; not a cryptographic identity signature",
+  "a_b_c_scope": "A cancel once; B archive/reset once only after A verified; C forward recovery only for these operations if interrupted",
+  "git_authority": "none"
+}
